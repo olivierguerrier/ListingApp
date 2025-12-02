@@ -143,15 +143,23 @@ class SyncScheduler {
             const itemName = row.item_name;
             const vcListed = (row.status === 'SUCCESS' || row.status === 'COMPLETE') ? 1 : 0;
 
-            this.findOrCreateProduct(asin, itemName, (err, product) => {
+            // Only update existing products, don't create new ones
+            this.db.get('SELECT * FROM products WHERE asin = ?', [asin], (err, product) => {
               if (err) {
-                console.error(`[SYNC] Error creating product ${asin}:`, err.message);
+                console.error(`[SYNC] Error checking product ${asin}:`, err.message);
                 processed++;
                 checkComplete();
                 return;
               }
 
-              // Update product with VC data
+              if (!product) {
+                // Product doesn't exist, skip it
+                processed++;
+                checkComplete();
+                return;
+              }
+
+              // Update existing product with VC data
               this.db.run(
                 `UPDATE products 
                  SET name = COALESCE(NULLIF(name, asin), ?),
