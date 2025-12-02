@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Amazon Vendor Central Tracker</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Amazon Vendor Central Item Tracker</h1>
+            <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+                <button id="exportBtn" class="btn btn-info">📥 Export List</button>
+                <button id="syncPimBtn" class="btn btn-secondary">Sync PIM Data</button>
+                <button id="syncVcBtn" class="btn btn-secondary">Sync VC Data</button>
+                <button id="syncQpiBtn" class="btn btn-secondary">Sync QPI Data</button>
+                <button id="importQpiBtn" class="btn btn-secondary">Import from QPI</button>
+                <button id="addItemBtn" class="btn btn-primary">+ Add New Item</button>
+            </div>
+        </header>
+
+        <div class="filters">
+            <input type="text" id="searchInput" placeholder="Search by SKU or name..." class="search-input">
+            <select id="statusFilter" class="filter-select">
+                <option value="all">All Stages</option>
+                <option value="stage_1">Stage 1: Ideation</option>
+                <option value="stage_2">Stage 2: PIM Finalized</option>
+                <option value="stage_3a">Stage 3a: Pricing Submitted</option>
+                <option value="stage_3b">Stage 3b: Pricing Approved</option>
+                <option value="stage_4">Stage 4: VC Listed</option>
+                <option value="stage_5">Stage 5: Ordered [In QPI]</option>
+                <option value="stage_6">Stage 6: Available Online</option>
+            </select>
+        </div>
+
+        <div id="itemsContainer" class="items-container">
+            <!-- Items will be dynamically loaded here -->
+        </div>
+    </div>
+
+    <!-- Add/Edit Item Modal -->
+    <div id="itemModal" class="modal">
+        <div class="modal-content">
+            <span class="close">&times;</span>
+            <h2 id="modalTitle">Add New Item</h2>
+            <form id="itemForm">
+                <input type="hidden" id="itemId">
+                
+                <div class="form-group">
+                    <label for="sku">Item Number / SKU *</label>
+                    <input type="text" id="sku" required>
+                </div>
+
+                <div class="form-group">
+                    <label for="brand">Brand</label>
+                    <input type="text" id="brand" placeholder="e.g., Battat">
+                </div>
+
+                <div class="form-group">
+                    <label for="description">Description</label>
+                    <textarea id="description" rows="3" placeholder="Product description or notes"></textarea>
+                </div>
+
+                <div class="form-group">
+                    <label for="seasonLaunch">Season / Launch Date</label>
+                    <input type="text" id="seasonLaunch" placeholder="e.g., Spring 2025, Q2 2025">
+                </div>
+
+                <!-- Advanced fields - hidden by default for new items -->
+                <div id="advancedFields" style="display: none;">
+                    <hr style="margin: 20px 0; border: none; border-top: 1px solid var(--border-color);">
+                    <h3 style="margin-bottom: 15px;">Additional Details</h3>
+                    
+                    <div class="form-group">
+                        <label for="asin">ASIN</label>
+                        <input type="text" id="asin" placeholder="e.g., B07SVVPV34">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="name">Product Name</label>
+                        <input type="text" id="name">
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="dimensions">Dimensions</label>
+                            <input type="text" id="dimensions" placeholder="L x W x H">
+                        </div>
+
+                        <div class="form-group">
+                            <label for="casePack">Case Pack</label>
+                            <input type="number" id="casePack" min="1">
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="siocStatus">SIOC Status</label>
+                        <select id="siocStatus">
+                            <option value="">Select Status</option>
+                            <option value="Required">Required</option>
+                            <option value="Not Required">Not Required</option>
+                            <option value="In Progress">In Progress</option>
+                            <option value="Completed">Completed</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="form-actions">
+                    <button type="button" class="btn btn-secondary" id="toggleAdvancedBtn" style="display: none;">Show Advanced Fields</button>
+                    <button type="button" class="btn btn-secondary" id="cancelBtn">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Save Item</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Pricing Modal -->
+    <div id="pricingModal" class="modal">
+        <div class="modal-content modal-large">
+            <span class="close">&times;</span>
+            <h2>Manage Pricing - <span id="pricingItemName"></span></h2>
+            <p class="sku-display">SKU: <span id="pricingSku"></span></p>
+
+            <div class="pricing-form">
+                <h3>Add Country Pricing</h3>
+                <form id="pricingForm">
+                    <input type="hidden" id="pricingItemId">
+                    
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="countryCode">Country *</label>
+                            <select id="countryCode" required>
+                                <option value="">Select Country</option>
+                                <option value="US">United States (US)</option>
+                                <option value="CA">Canada (CA)</option>
+                                <option value="MX">Mexico (MX)</option>
+                                <option value="UK">United Kingdom (UK)</option>
+                                <option value="DE">Germany (DE)</option>
+                                <option value="FR">France (FR)</option>
+                                <option value="IT">Italy (IT)</option>
+                                <option value="ES">Spain (ES)</option>
+                                <option value="JP">Japan (JP)</option>
+                                <option value="AU">Australia (AU)</option>
+                            </select>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="currency">Currency *</label>
+                            <select id="currency" required>
+                                <option value="">Select Currency</option>
+                                <option value="USD">USD</option>
+                                <option value="CAD">CAD</option>
+                                <option value="MXN">MXN</option>
+                                <option value="GBP">GBP</option>
+                                <option value="EUR">EUR</option>
+                                <option value="JPY">JPY</option>
+                                <option value="AUD">AUD</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="retailPrice">Retail Price *</label>
+                            <input type="number" id="retailPrice" step="0.01" min="0" required>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="sellPrice">Sell Price *</label>
+                            <input type="number" id="sellPrice" step="0.01" min="0" required>
+                        </div>
+                    </div>
+
+                    <button type="submit" class="btn btn-primary">Add Pricing</button>
+                </form>
+            </div>
+
+            <div class="pricing-table">
+                <h3>Current Pricing</h3>
+                <table id="pricingTable">
+                    <thead>
+                        <tr>
+                            <th>Country</th>
+                            <th>Retail Price</th>
+                            <th>Sell Price</th>
+                            <th>Status</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="pricingTableBody">
+                        <!-- Pricing rows will be added here -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Flow Stages Modal -->
+    <div id="flowModal" class="modal">
+        <div class="modal-content">
+            <span class="close">&times;</span>
+            <h2>Flow Progress - <span id="flowItemName"></span></h2>
+            <p class="sku-display">SKU: <span id="flowSku"></span></p>
+
+            <input type="hidden" id="flowItemId">
+
+            <div class="flow-stages">
+                <div class="stage-item">
+                    <label class="stage-checkbox">
+                        <input type="checkbox" class="stage-check" data-stage="stage_1_idea_considered">
+                        <span class="stage-number">1</span>
+                        <span class="stage-name">Ideation</span>
+                        <span class="optional-badge">Optional</span>
+                    </label>
+                </div>
+
+                <div class="stage-item">
+                    <label class="stage-checkbox">
+                        <input type="checkbox" class="stage-check" data-stage="stage_2_product_finalized">
+                        <span class="stage-number">2</span>
+                        <span class="stage-name">PIM Finalized</span>
+                    </label>
+                </div>
+
+                <div class="stage-item">
+                    <label class="stage-checkbox">
+                        <input type="checkbox" class="stage-check" data-stage="stage_3a_pricing_submitted">
+                        <span class="stage-number">3a</span>
+                        <span class="stage-name">Pricing Submitted</span>
+                    </label>
+                </div>
+
+                <div class="stage-item">
+                    <label class="stage-checkbox">
+                        <input type="checkbox" class="stage-check" data-stage="stage_3b_pricing_approved">
+                        <span class="stage-number">3b</span>
+                        <span class="stage-name">Pricing Approved</span>
+                    </label>
+                </div>
+
+                <div class="stage-item">
+                    <label class="stage-checkbox">
+                        <input type="checkbox" class="stage-check" data-stage="stage_4_product_listed">
+                        <span class="stage-number">4</span>
+                        <span class="stage-name">VC Listed</span>
+                    </label>
+                </div>
+
+                <div class="stage-item">
+                    <label class="stage-checkbox">
+                        <input type="checkbox" class="stage-check" data-stage="stage_5_product_ordered">
+                        <span class="stage-number">5</span>
+                        <span class="stage-name">Ordered [In QPI]</span>
+                    </label>
+                </div>
+
+                <div class="stage-item">
+                    <label class="stage-checkbox">
+                        <input type="checkbox" class="stage-check" data-stage="stage_6_product_online">
+                        <span class="stage-number">6</span>
+                        <span class="stage-name">Available Online</span>
+                    </label>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Export Modal -->
+    <div id="exportModal" class="modal">
+        <div class="modal-content" style="max-width: 500px;">
+            <span class="close" id="exportModalClose">&times;</span>
+            <h2>Export Items List</h2>
+            
+            <div class="form-group">
+                <label>Select Fields to Export:</label>
+                <div style="margin-top: 10px;">
+                    <label style="display: block; margin: 8px 0;">
+                        <input type="checkbox" id="exportSku" checked> SKU / Item Number
+                    </label>
+                    <label style="display: block; margin: 8px 0;">
+                        <input type="checkbox" id="exportAsin" checked> ASIN
+                    </label>
+                    <label style="display: block; margin: 8px 0;">
+                        <input type="checkbox" id="exportName"> Item Name
+                    </label>
+                    <label style="display: block; margin: 8px 0;">
+                        <input type="checkbox" id="exportVcStatus"> VC Setup Status
+                    </label>
+                    <label style="display: block; margin: 8px 0;">
+                        <input type="checkbox" id="exportOrderStatus"> Order Received Status
+                    </label>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label>Export Format:</label>
+                <select id="exportFormat" style="width: 100%; padding: 8px; margin-top: 5px;">
+                    <option value="csv">CSV (Excel compatible)</option>
+                    <option value="txt">Text (Tab separated)</option>
+                    <option value="json">JSON</option>
+                </select>
+            </div>
+
+            <div style="display: flex; gap: 10px; margin-top: 20px;">
+                <button type="button" class="btn btn-primary" id="downloadExportBtn">📥 Download</button>
+                <button type="button" class="btn btn-secondary" id="cancelExportBtn">Cancel</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>
+
