@@ -123,6 +123,44 @@ h3 {
     font-size: 13px;
 }
 
+/* View Tabs */
+.view-tabs {
+    display: flex;
+    gap: 0;
+    margin-bottom: 20px;
+    border-bottom: 2px solid var(--border-color);
+}
+
+.tab-btn {
+    padding: 12px 24px;
+    background: none;
+    border: none;
+    border-bottom: 3px solid transparent;
+    font-size: 15px;
+    font-weight: 500;
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.tab-btn:hover {
+    color: var(--text-primary);
+    background-color: rgba(0, 0, 0, 0.02);
+}
+
+.tab-btn.active {
+    color: var(--primary-color);
+    border-bottom-color: var(--primary-color);
+}
+
+.view-container {
+    display: none;
+}
+
+.view-container.active {
+    display: block;
+}
+
 .filters {
     display: flex;
     gap: 15px;
@@ -166,6 +204,177 @@ h3 {
 
 .item-card:hover {
     box-shadow: var(--shadow-hover);
+}
+
+.item-card.has-inconsistency {
+    border-left: 4px solid #ef4444;
+}
+
+/* SKUs Table */
+.skus-table-container {
+    margin-top: 20px;
+    overflow-x: auto;
+}
+
+.skus-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 14px;
+}
+
+.skus-table thead {
+    background-color: #f9fafb;
+}
+
+.skus-table th {
+    text-align: left;
+    padding: 12px;
+    font-weight: 600;
+    color: var(--text-secondary);
+    border-bottom: 2px solid var(--border-color);
+}
+
+.skus-table td {
+    padding: 12px;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.skus-table tbody tr:hover {
+    background-color: #f9fafb;
+}
+
+.source-badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 11px;
+    font-weight: 500;
+    background-color: #e5e7eb;
+    color: #374151;
+}
+
+/* Database Explorer */
+.database-container {
+    display: flex;
+    gap: 20px;
+    height: calc(100vh - 280px);
+}
+
+.db-sidebar {
+    width: 250px;
+    background-color: var(--card-background);
+    border-radius: 12px;
+    padding: 20px;
+    box-shadow: var(--shadow);
+}
+
+.db-sidebar h3 {
+    margin-top: 0;
+    margin-bottom: 15px;
+    font-size: 16px;
+}
+
+.table-list {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+}
+
+.table-btn {
+    background: none;
+    border: none;
+    padding: 10px 12px;
+    text-align: left;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 14px;
+    font-family: 'Courier New', monospace;
+    color: var(--text-secondary);
+    transition: all 0.2s ease;
+}
+
+.table-btn:hover {
+    background-color: #f3f4f6;
+    color: var(--text-primary);
+}
+
+.table-btn.active {
+    background-color: var(--primary-color);
+    color: white;
+}
+
+.db-content {
+    flex: 1;
+    background-color: var(--card-background);
+    border-radius: 12px;
+    padding: 20px;
+    box-shadow: var(--shadow);
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+}
+
+.db-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+    padding-bottom: 15px;
+    border-bottom: 2px solid var(--border-color);
+}
+
+.db-header h2 {
+    margin: 0;
+    font-family: 'Courier New', monospace;
+    font-size: 20px;
+}
+
+.db-stats {
+    color: var(--text-secondary);
+    font-size: 14px;
+}
+
+.db-table-wrapper {
+    flex: 1;
+    overflow: auto;
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+}
+
+.db-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+    font-family: 'Courier New', monospace;
+}
+
+.db-table thead {
+    position: sticky;
+    top: 0;
+    background-color: #f9fafb;
+    z-index: 1;
+}
+
+.db-table th {
+    text-align: left;
+    padding: 10px 12px;
+    font-weight: 600;
+    border-bottom: 2px solid var(--border-color);
+    white-space: nowrap;
+    background-color: #f9fafb;
+}
+
+.db-table td {
+    padding: 8px 12px;
+    border-bottom: 1px solid #f0f0f0;
+    max-width: 300px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.db-table tbody tr:hover {
+    background-color: #fafafa;
 }
 
 .item-header {
@@ -347,6 +556,18 @@ h3 {
 
 .stage-display.completed .stage-icon {
     background-color: var(--success-color);
+}
+
+.stage-display.pricing-stage {
+    transition: transform 0.2s ease;
+}
+
+.stage-display.pricing-stage:hover {
+    transform: translateY(-2px);
+}
+
+.stage-display.pricing-stage:hover .stage-icon {
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
 }
 
 .stage-label {

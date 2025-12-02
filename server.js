@@ -32,7 +32,59 @@ const db = new sqlite3.Database('./database.db', (err) => {
 // Initialize database tables
 function initializeDatabase() {
   db.serialize(() => {
-    // Items table
+    // Products table - ASIN is the master ID
+    db.run(`CREATE TABLE IF NOT EXISTS products (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      asin TEXT UNIQUE NOT NULL,
+      name TEXT,
+      is_temp_asin BOOLEAN DEFAULT 0,
+      brand TEXT,
+      age_grade TEXT,
+      product_description TEXT,
+      legal_name TEXT,
+      upc_number TEXT,
+      pim_spec_status TEXT,
+      product_dev_status TEXT,
+      package_length_cm REAL,
+      package_width_cm REAL,
+      package_height_cm REAL,
+      package_weight_kg REAL,
+      stage_1_idea_considered BOOLEAN DEFAULT 0,
+      stage_1_brand TEXT,
+      stage_1_description TEXT,
+      stage_1_season_launch TEXT,
+      stage_1_country TEXT,
+      stage_2_product_finalized BOOLEAN DEFAULT 0,
+      stage_2_newly_finalized BOOLEAN DEFAULT 0,
+      stage_3a_pricing_submitted BOOLEAN DEFAULT 0,
+      stage_3b_pricing_approved BOOLEAN DEFAULT 0,
+      stage_4_product_listed BOOLEAN DEFAULT 0,
+      stage_5_product_ordered BOOLEAN DEFAULT 0,
+      stage_6_product_online BOOLEAN DEFAULT 0,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )`);
+
+    // Product SKUs table - Links multiple SKUs to one ASIN
+    db.run(`CREATE TABLE IF NOT EXISTS product_skus (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      product_id INTEGER NOT NULL,
+      sku TEXT UNIQUE NOT NULL,
+      is_primary BOOLEAN DEFAULT 0,
+      source TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE
+    )`);
+
+    // Temp ASIN counter table
+    db.run(`CREATE TABLE IF NOT EXISTS temp_asin_counter (
+      id INTEGER PRIMARY KEY CHECK (id = 1),
+      counter INTEGER DEFAULT 1
+    )`);
+    
+    db.run(`INSERT OR IGNORE INTO temp_asin_counter (id, counter) VALUES (1, 1)`);
+
+    // Legacy items table - will migrate data from this
     db.run(`CREATE TABLE IF NOT EXISTS items (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       sku TEXT UNIQUE NOT NULL,
@@ -102,7 +154,10 @@ function initializeDatabase() {
                   { name: 'stage_1_brand', type: 'TEXT' },
                   { name: 'stage_1_description', type: 'TEXT' },
                   { name: 'stage_1_season_launch', type: 'TEXT' },
+                  { name: 'stage_1_country', type: 'TEXT' },
+                  { name: 'stage_1_item_number', type: 'TEXT' },
                   { name: 'stage_2_product_finalized', type: 'BOOLEAN DEFAULT 0' },
+                  { name: 'stage_2_newly_finalized', type: 'BOOLEAN DEFAULT 0' },
                   { name: 'stage_3a_pricing_submitted', type: 'BOOLEAN DEFAULT 0' },
                   { name: 'stage_3b_pricing_approved', type: 'BOOLEAN DEFAULT 0' },
                   { name: 'stage_4_product_listed', type: 'BOOLEAN DEFAULT 0' },
@@ -127,7 +182,23 @@ function initializeDatabase() {
       }
     });
 
-    // Country pricing table
+    // Country pricing table - references products (ASIN)
+    db.run(`CREATE TABLE IF NOT EXISTS product_country_pricing (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      product_id INTEGER NOT NULL,
+      country_code TEXT NOT NULL,
+      retail_price DECIMAL(10, 2),
+      sell_price DECIMAL(10, 2),
+      currency TEXT NOT NULL,
+      approval_status TEXT DEFAULT 'pending',
+      approved_at DATETIME,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE,
+      UNIQUE(product_id, country_code)
+    )`);
+    
+    // Legacy item_country_pricing for migration
     db.run(`CREATE TABLE IF NOT EXISTS item_country_pricing (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       item_id INTEGER NOT NULL,
@@ -143,16 +214,16 @@ function initializeDatabase() {
       UNIQUE(item_id, country_code)
     )`);
 
-    // Flow stage history table
+    // Flow stage history table - references products
     db.run(`CREATE TABLE IF NOT EXISTS flow_stage_history (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
-      item_id INTEGER NOT NULL,
+      product_id INTEGER NOT NULL,
       stage_name TEXT NOT NULL,
       completed BOOLEAN DEFAULT 0,
       completed_at DATETIME,
       notes TEXT,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      FOREIGN KEY (item_id) REFERENCES items(id) ON DELETE CASCADE
+      FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE
     )`);
 
     console.log('Database tables initialized');
@@ -160,6 +231,80 @@ function initializeDatabase() {
     // Initialize and start sync scheduler
     initializeSyncScheduler();
   });
+}
+
+// Helper function to generate temp ASIN
+function generateTempAsin(callback) {
+  db.get('SELECT counter FROM temp_asin_counter WHERE id = 1', (err, row) => {
+    if (err) {
+      callback(err, null);
+      return;
+    }
+    const counter = row ? row.counter : 1;
+    const tempAsin = `TEMP${String(counter).padStart(6, '0')}`;
+    
+    db.run('UPDATE temp_asin_counter SET counter = counter + 1 WHERE id = 1', (err) => {
+      callback(err, tempAsin);
+    });
+  });
+}
+
+// Helper function to find or create product by ASIN
+function findOrCreateProduct(asin, name, callback) {
+  if (!asin) {
+    // Generate temp ASIN
+    generateTempAsin((err, tempAsin) => {
+      if (err) {
+        callback(err, null);
+        return;
+      }
+      
+      db.run(
+        'INSERT INTO products (asin, name, is_temp_asin) VALUES (?, ?, 1)',
+        [tempAsin, name || tempAsin],
+        function(err) {
+          if (err) {
+            callback(err, null);
+          } else {
+            callback(null, { id: this.lastID, asin: tempAsin, is_temp_asin: true });
+          }
+        }
+      );
+    });
+  } else {
+    // Check if product exists with this ASIN
+    db.get('SELECT * FROM products WHERE asin = ?', [asin], (err, product) => {
+      if (err) {
+        callback(err, null);
+      } else if (product) {
+        callback(null, product);
+      } else {
+        // Create new product
+        db.run(
+          'INSERT INTO products (asin, name, is_temp_asin) VALUES (?, ?, 0)',
+          [asin, name || asin],
+          function(err) {
+            if (err) {
+              callback(err, null);
+            } else {
+              callback(null, { id: this.lastID, asin: asin, is_temp_asin: false });
+            }
+          }
+        );
+      }
+    });
+  }
+}
+
+// Helper function to add SKU to product
+function addSkuToProduct(productId, sku, isPrimary, source, callback) {
+  db.run(
+    'INSERT OR IGNORE INTO product_skus (product_id, sku, is_primary, source) VALUES (?, ?, ?, ?)',
+    [productId, sku, isPrimary ? 1 : 0, source],
+    function(err) {
+      callback(err, this.changes);
+    }
+  );
 }
 
 // Initialize sync scheduler
@@ -179,23 +324,25 @@ function initializeSyncScheduler() {
 // ============= API ENDPOINTS =============
 
 // Get all items with their pricing status
-app.get('/api/items', (req, res) => {
+// API Routes
+
+// Get all products (grouped by ASIN with their SKUs)
+app.get('/api/products', (req, res) => {
   const query = `
     SELECT 
-      i.*,
+      p.*,
+      GROUP_CONCAT(DISTINCT ps.sku) as skus,
       GROUP_CONCAT(
-        json_object(
-          'country', icp.country_code,
-          'retail_price', icp.retail_price,
-          'sell_price', icp.sell_price,
-          'currency', icp.currency,
-          'approval_status', icp.approval_status
+        DISTINCT json_object(
+          'sku', ps.sku,
+          'is_primary', ps.is_primary,
+          'source', ps.source
         )
-      ) as pricing_data
-    FROM items i
-    LEFT JOIN item_country_pricing icp ON i.id = icp.item_id
-    GROUP BY i.id
-    ORDER BY i.created_at DESC
+      ) as sku_details
+    FROM products p
+    LEFT JOIN product_skus ps ON p.id = ps.product_id
+    GROUP BY p.id
+    ORDER BY p.created_at DESC
   `;
 
   db.all(query, [], (err, rows) => {
@@ -204,10 +351,143 @@ app.get('/api/items', (req, res) => {
       return;
     }
     
-    // Parse pricing data JSON
-    const items = rows.map(row => ({
+    // Parse SKU details JSON
+    const products = rows.map(row => ({
       ...row,
-      pricing_data: row.pricing_data ? JSON.parse(`[${row.pricing_data}]`) : []
+      skus: row.skus ? row.skus.split(',') : [],
+      sku_details: row.sku_details ? JSON.parse(`[${row.sku_details}]`) : []
+    }));
+    
+    res.json(products);
+  });
+});
+
+// Get all SKUs with their ASIN relationships
+app.get('/api/skus', (req, res) => {
+  const query = `
+    SELECT 
+      ps.id,
+      ps.sku,
+      ps.is_primary,
+      ps.source,
+      ps.created_at,
+      p.asin,
+      p.name as product_name,
+      p.is_temp_asin,
+      p.stage_1_country,
+      p.stage_2_product_finalized,
+      p.stage_3a_pricing_submitted,
+      p.stage_3b_pricing_approved,
+      p.stage_4_product_listed,
+      p.stage_5_product_ordered,
+      p.stage_6_product_online
+    FROM product_skus ps
+    LEFT JOIN products p ON ps.product_id = p.id
+    ORDER BY ps.sku ASC
+  `;
+
+  db.all(query, [], (err, rows) => {
+    if (err) {
+      res.status(500).json({ error: err.message });
+      return;
+    }
+    
+    res.json(rows);
+  });
+});
+
+// Database explorer endpoint
+app.get('/api/database/:table', (req, res) => {
+  const tableName = req.params.table;
+  
+  // Whitelist allowed tables for security
+  const allowedTables = [
+    'products',
+    'product_skus',
+    'product_country_pricing',
+    'flow_stage_history',
+    'temp_asin_counter',
+    'items',
+    'item_country_pricing'
+  ];
+  
+  if (!allowedTables.includes(tableName)) {
+    res.status(400).json({ error: 'Invalid table name' });
+    return;
+  }
+  
+  const limit = parseInt(req.query.limit) || 100;
+  const offset = parseInt(req.query.offset) || 0;
+  
+  // Get table data
+  db.all(`SELECT * FROM ${tableName} LIMIT ? OFFSET ?`, [limit, offset], (err, rows) => {
+    if (err) {
+      res.status(500).json({ error: err.message });
+      return;
+    }
+    
+    // Get total count
+    db.get(`SELECT COUNT(*) as count FROM ${tableName}`, (countErr, countRow) => {
+      if (countErr) {
+        res.status(500).json({ error: countErr.message });
+        return;
+      }
+      
+      // Get column info
+      db.all(`PRAGMA table_info(${tableName})`, (schemaErr, columns) => {
+        if (schemaErr) {
+          res.status(500).json({ error: schemaErr.message });
+          return;
+        }
+        
+        res.json({
+          table: tableName,
+          columns: columns,
+          rows: rows,
+          total: countRow.count,
+          limit: limit,
+          offset: offset
+        });
+      });
+    });
+  });
+});
+
+// Legacy endpoint for backward compatibility
+app.get('/api/items', (req, res) => {
+  // Redirect to products endpoint
+  const query = `
+    SELECT 
+      p.*,
+      GROUP_CONCAT(DISTINCT ps.sku) as skus,
+      GROUP_CONCAT(
+        DISTINCT json_object(
+          'sku', ps.sku,
+          'is_primary', ps.is_primary,
+          'source', ps.source
+        )
+      ) as sku_details
+    FROM products p
+    LEFT JOIN product_skus ps ON p.id = ps.product_id
+    GROUP BY p.id
+    ORDER BY p.created_at DESC
+  `;
+
+  db.all(query, [], (err, rows) => {
+    if (err) {
+      res.status(500).json({ error: err.message });
+      return;
+    }
+    
+    // Parse SKU details and convert to old format
+    const items = rows.map(row => ({
+      id: row.id,
+      sku: row.skus ? row.skus.split(',')[0] : '',  // First SKU as primary
+      asin: row.asin,
+      name: row.name,
+      ...row,
+      skus: row.skus ? row.skus.split(',') : [],
+      sku_details: row.sku_details ? JSON.parse(`[${row.sku_details}]`) : []
     }));
     
     res.json(items);
@@ -216,22 +496,46 @@ app.get('/api/items', (req, res) => {
 
 // Get single item with full details
 app.get('/api/items/:id', (req, res) => {
-  const itemId = req.params.id;
+  const identifier = req.params.id;
+  
+  // Check if it's an ASIN or numeric ID
+  const isNumeric = /^\d+$/.test(identifier);
+  const whereClause = isNumeric ? 'p.id = ?' : 'p.asin = ?';
 
-  db.get('SELECT * FROM items WHERE id = ?', [itemId], (err, item) => {
+  const query = `
+    SELECT p.*, 
+           GROUP_CONCAT(DISTINCT ps.sku) as skus,
+           GROUP_CONCAT(
+             DISTINCT json_object(
+               'sku', ps.sku,
+               'is_primary', ps.is_primary,
+               'source', ps.source
+             )
+           ) as sku_details
+    FROM products p
+    LEFT JOIN product_skus ps ON p.id = ps.product_id
+    WHERE ${whereClause}
+    GROUP BY p.id
+  `;
+
+  db.get(query, [identifier], (err, product) => {
     if (err) {
       res.status(500).json({ error: err.message });
       return;
     }
-    if (!item) {
-      res.status(404).json({ error: 'Item not found' });
+    if (!product) {
+      res.status(404).json({ error: 'Product not found' });
       return;
     }
 
+    // Parse SKU details
+    product.skus = product.skus ? product.skus.split(',') : [];
+    product.sku_details = product.sku_details ? JSON.parse(`[${product.sku_details}]`) : [];
+
     // Get pricing data
     db.all(
-      'SELECT * FROM item_country_pricing WHERE item_id = ?',
-      [itemId],
+      'SELECT * FROM product_country_pricing WHERE product_id = ?',
+      [product.id],
       (err, pricing) => {
         if (err) {
           res.status(500).json({ error: err.message });
@@ -239,7 +543,7 @@ app.get('/api/items/:id', (req, res) => {
         }
 
         res.json({
-          ...item,
+          ...product,
           pricing: pricing
         });
       }
@@ -248,65 +552,84 @@ app.get('/api/items/:id', (req, res) => {
 });
 
 // Create new item
+// Create new product
 app.post('/api/items', (req, res) => {
-  const { sku, asin, name, dimensions, case_pack, sioc_status, btr_optional } = req.body;
+  const { sku, asin, name } = req.body;
 
-  if (!sku || !name) {
-    res.status(400).json({ error: 'SKU and name are required' });
+  if (!sku) {
+    res.status(400).json({ error: 'SKU is required' });
     return;
   }
 
-  const query = `
-    INSERT INTO items (sku, asin, name, dimensions, case_pack, sioc_status, btr_optional)
-    VALUES (?, ?, ?, ?, ?, ?, ?)
-  `;
-
-  db.run(query, [sku, asin, name, dimensions, case_pack, sioc_status, btr_optional || 0], function(err) {
+  // Use findOrCreateProduct helper
+  findOrCreateProduct(asin, name, (err, product) => {
     if (err) {
       res.status(500).json({ error: err.message });
       return;
     }
-    res.json({ id: this.lastID, message: 'Item created successfully' });
+
+    // Add SKU to product
+    addSkuToProduct(product.id, sku, true, 'manual', (err, changes) => {
+      if (err) {
+        res.status(500).json({ error: err.message });
+        return;
+      }
+      
+      res.json({ 
+        id: product.id, 
+        asin: product.asin,
+        message: 'Product created successfully',
+        is_temp_asin: product.is_temp_asin
+      });
+    });
   });
 });
 
-// Update item
+// Update product
 app.put('/api/items/:id', (req, res) => {
-  const itemId = req.params.id;
-  const { asin, name, dimensions, case_pack, sioc_status, btr_optional } = req.body;
+  const identifier = req.params.id;
+  const { asin, name } = req.body;
+
+  // Check if it's an ASIN or numeric ID
+  const isNumeric = /^\d+$/.test(identifier);
+  const whereClause = isNumeric ? 'id = ?' : 'asin = ?';
 
   const query = `
-    UPDATE items 
-    SET asin = ?, name = ?, dimensions = ?, case_pack = ?, sioc_status = ?, 
-        btr_optional = ?, updated_at = CURRENT_TIMESTAMP
-    WHERE id = ?
+    UPDATE products 
+    SET asin = COALESCE(?, asin),
+        name = COALESCE(?, name),
+        updated_at = CURRENT_TIMESTAMP
+    WHERE ${whereClause}
   `;
 
-  db.run(query, [asin, name, dimensions, case_pack, sioc_status, btr_optional, itemId], function(err) {
+  db.run(query, [asin, name, identifier], function(err) {
     if (err) {
       res.status(500).json({ error: err.message });
       return;
     }
-    res.json({ message: 'Item updated successfully' });
+    res.json({ message: 'Product updated successfully' });
   });
 });
 
 // Delete item
+// Delete product
 app.delete('/api/items/:id', (req, res) => {
-  const itemId = req.params.id;
+  const identifier = req.params.id;
+  const isNumeric = /^\d+$/.test(identifier);
+  const whereClause = isNumeric ? 'id = ?' : 'asin = ?';
 
-  db.run('DELETE FROM items WHERE id = ?', [itemId], function(err) {
+  db.run(`DELETE FROM products WHERE ${whereClause}`, [identifier], function(err) {
     if (err) {
       res.status(500).json({ error: err.message });
       return;
     }
-    res.json({ message: 'Item deleted successfully' });
+    res.json({ message: 'Product deleted successfully' });
   });
 });
 
 // Add or update country pricing
 app.post('/api/items/:id/pricing', (req, res) => {
-  const itemId = req.params.id;
+  const identifier = req.params.id;
   const { country_code, retail_price, sell_price, currency } = req.body;
 
   if (!country_code || !currency) {
@@ -314,35 +637,48 @@ app.post('/api/items/:id/pricing', (req, res) => {
     return;
   }
 
-  const query = `
-    INSERT INTO item_country_pricing (item_id, country_code, retail_price, sell_price, currency)
-    VALUES (?, ?, ?, ?, ?)
-    ON CONFLICT(item_id, country_code) 
-    DO UPDATE SET 
-      retail_price = excluded.retail_price,
-      sell_price = excluded.sell_price,
-      currency = excluded.currency,
-      updated_at = CURRENT_TIMESTAMP
-  `;
-
-  db.run(query, [itemId, country_code, retail_price, sell_price, currency], function(err) {
-    if (err) {
-      res.status(500).json({ error: err.message });
+  // Get product ID
+  const isNumeric = /^\d+$/.test(identifier);
+  const selectQuery = isNumeric ? 'SELECT id FROM products WHERE id = ?' : 'SELECT id FROM products WHERE asin = ?';
+  
+  db.get(selectQuery, [identifier], (err, product) => {
+    if (err || !product) {
+      res.status(404).json({ error: 'Product not found' });
       return;
     }
-    
-    // Mark Stage 3a (Pricing Submitted) for this item
-    db.run(
-      'UPDATE items SET stage_3a_pricing_submitted = 1 WHERE id = ?',
-      [itemId],
-      (err) => {
-        if (err) {
-          console.error('Error updating stage 3a:', err.message);
-        }
+
+    const productId = product.id;
+
+    const query = `
+      INSERT INTO product_country_pricing (product_id, country_code, retail_price, sell_price, currency)
+      VALUES (?, ?, ?, ?, ?)
+      ON CONFLICT(product_id, country_code) 
+      DO UPDATE SET 
+        retail_price = excluded.retail_price,
+        sell_price = excluded.sell_price,
+        currency = excluded.currency,
+        updated_at = CURRENT_TIMESTAMP
+    `;
+
+    db.run(query, [productId, country_code, retail_price, sell_price, currency], function(err) {
+      if (err) {
+        res.status(500).json({ error: err.message });
+        return;
       }
-    );
-    
-    res.json({ message: 'Pricing updated successfully' });
+      
+      // Mark Stage 3a (Pricing Submitted) for this product
+      db.run(
+        'UPDATE products SET stage_3a_pricing_submitted = 1 WHERE id = ?',
+        [productId],
+        (err) => {
+          if (err) {
+            console.error('Error updating stage 3a:', err.message);
+          }
+        }
+      );
+      
+      res.json({ message: 'Pricing updated successfully' });
+    });
   });
 });
 
@@ -350,33 +686,46 @@ app.post('/api/items/:id/pricing', (req, res) => {
 app.put('/api/items/:id/pricing/:country/approve', (req, res) => {
   const { id, country } = req.params;
 
-  const query = `
-    UPDATE item_country_pricing 
-    SET approval_status = 'approved', 
-        approved_at = CURRENT_TIMESTAMP,
-        updated_at = CURRENT_TIMESTAMP
-    WHERE item_id = ? AND country_code = ?
-  `;
-
-  db.run(query, [id, country], function(err) {
-    if (err) {
-      res.status(500).json({ error: err.message });
+  // Get product ID
+  const isNumeric = /^\d+$/.test(id);
+  const selectQuery = isNumeric ? 'SELECT id FROM products WHERE id = ?' : 'SELECT id FROM products WHERE asin = ?';
+  
+  db.get(selectQuery, [id], (err, product) => {
+    if (err || !product) {
+      res.status(404).json({ error: 'Product not found' });
       return;
     }
-    
-    // Check if all pricings for this item are approved
-    db.get(
-      'SELECT COUNT(*) as total, SUM(CASE WHEN approval_status = "approved" THEN 1 ELSE 0 END) as approved FROM item_country_pricing WHERE item_id = ?',
-      [id],
-      (err, row) => {
-        if (!err && row.total > 0 && row.total === row.approved) {
-          // All pricings approved, mark Stage 3b
-          db.run('UPDATE items SET stage_3b_pricing_approved = 1 WHERE id = ?', [id]);
-        }
+
+    const productId = product.id;
+
+    const query = `
+      UPDATE product_country_pricing 
+      SET approval_status = 'approved', 
+          approved_at = CURRENT_TIMESTAMP,
+          updated_at = CURRENT_TIMESTAMP
+      WHERE product_id = ? AND country_code = ?
+    `;
+
+    db.run(query, [productId, country], function(err) {
+      if (err) {
+        res.status(500).json({ error: err.message });
+        return;
       }
-    );
-    
-    res.json({ message: 'Pricing approved successfully' });
+      
+      // Check if all pricings for this product are approved
+      db.get(
+        'SELECT COUNT(*) as total, SUM(CASE WHEN approval_status = "approved" THEN 1 ELSE 0 END) as approved FROM product_country_pricing WHERE product_id = ?',
+        [productId],
+        (err, row) => {
+          if (!err && row.total > 0 && row.total === row.approved) {
+            // All pricings approved, mark Stage 3b
+            db.run('UPDATE products SET stage_3b_pricing_approved = 1 WHERE id = ?', [productId]);
+          }
+        }
+      );
+      
+      res.json({ message: 'Pricing approved successfully' });
+    });
   });
 });
 
@@ -384,49 +733,139 @@ app.put('/api/items/:id/pricing/:country/approve', (req, res) => {
 app.put('/api/items/:id/pricing/:country/reject', (req, res) => {
   const { id, country } = req.params;
 
-  const query = `
-    UPDATE item_country_pricing 
-    SET approval_status = 'rejected',
-        updated_at = CURRENT_TIMESTAMP
-    WHERE item_id = ? AND country_code = ?
-  `;
-
-  db.run(query, [id, country], function(err) {
-    if (err) {
-      res.status(500).json({ error: err.message });
+  // Get product ID
+  const isNumeric = /^\d+$/.test(id);
+  const selectQuery = isNumeric ? 'SELECT id FROM products WHERE id = ?' : 'SELECT id FROM products WHERE asin = ?';
+  
+  db.get(selectQuery, [id], (err, product) => {
+    if (err || !product) {
+      res.status(404).json({ error: 'Product not found' });
       return;
     }
-    res.json({ message: 'Pricing rejected' });
+
+    const productId = product.id;
+
+    const query = `
+      UPDATE product_country_pricing 
+      SET approval_status = 'rejected',
+          updated_at = CURRENT_TIMESTAMP
+      WHERE product_id = ? AND country_code = ?
+    `;
+
+    db.run(query, [productId, country], function(err) {
+      if (err) {
+        res.status(500).json({ error: err.message });
+        return;
+      }
+      res.json({ message: 'Pricing rejected' });
+    });
+  });
+});
+
+// Get VC listing status by country for a product
+app.get('/api/items/:id/vc-status', (req, res) => {
+  const identifier = req.params.id;
+  
+  // Get all SKUs for this product
+  const isNumeric = /^\d+$/.test(identifier);
+  const query = isNumeric 
+    ? 'SELECT ps.sku FROM product_skus ps WHERE ps.product_id = ?'
+    : 'SELECT ps.sku FROM product_skus ps JOIN products p ON ps.product_id = p.id WHERE p.asin = ?';
+  
+  db.all(query, [identifier], (err, skus) => {
+    if (err || !skus || skus.length === 0) {
+      res.json({ vc_status: [] });
+      return;
+    }
+    
+    const vcDir = 'A:\\ProcessOutput\\VC_Extracts\\Comparison_Extracts';
+    
+    try {
+      const files = fs.readdirSync(vcDir)
+        .filter(f => f.startsWith('vc_extracts_') && f.endsWith('.parquet'))
+        .sort()
+        .reverse();
+      
+      if (files.length === 0) {
+        res.json({ vc_status: [] });
+        return;
+      }
+      
+      const latestFile = path.join(vcDir, files[0]).replace(/\\/g, '/');
+      const duckDb = new duckdb.Database(':memory:');
+      
+      // Query for all SKUs
+      const skuList = skus.map(s => `'${s.sku}'`).join(',');
+      
+      duckDb.all(`
+        SELECT 
+          sku,
+          country,
+          summaries_0_asin as asin,
+          summaries_0_status_0 as status
+        FROM '${latestFile}'
+        WHERE sku IN (${skuList})
+      `, [], (err, rows) => {
+        duckDb.close();
+        
+        if (err) {
+          console.error('Error querying VC status:', err.message);
+          res.status(500).json({ error: 'Error querying VC status' });
+          return;
+        }
+        
+        res.json({ vc_status: rows || [] });
+      });
+      
+    } catch (error) {
+      console.error('Error accessing VC extract:', error.message);
+      res.status(500).json({ error: 'Error accessing VC data' });
+    }
   });
 });
 
 // Update Stage 1 (Idea Considered)
 app.put('/api/items/:id/stage1', (req, res) => {
-  const itemId = req.params.id;
-  const { brand, description, season_launch } = req.body;
+  const identifier = req.params.id;
+  const { brand, description, season_launch, country, item_number } = req.body;
+
+  // Get product ID
+  const isNumeric = /^\d+$/.test(identifier);
+  const whereClause = isNumeric ? 'id = ?' : 'asin = ?';
 
   const query = `
-    UPDATE items 
+    UPDATE products 
     SET stage_1_idea_considered = 1,
         stage_1_brand = ?,
         stage_1_description = ?,
         stage_1_season_launch = ?,
+        stage_1_country = ?,
         updated_at = CURRENT_TIMESTAMP
-    WHERE id = ?
+    WHERE ${whereClause}
   `;
 
-  db.run(query, [brand, description, season_launch, itemId], function(err) {
+  db.run(query, [brand, description, season_launch, country, identifier], function(err) {
     if (err) {
       res.status(500).json({ error: err.message });
       return;
     }
+    
+    // If item_number provided, add it as a SKU
+    if (item_number) {
+      db.get(`SELECT id FROM products WHERE ${whereClause}`, [identifier], (err, product) => {
+        if (product) {
+          addSkuToProduct(product.id, item_number, false, 'manual', () => {});
+        }
+      });
+    }
+    
     res.json({ message: 'Stage 1 updated successfully' });
   });
 });
 
 // Update flow stage
 app.put('/api/items/:id/stage', (req, res) => {
-  const itemId = req.params.id;
+  const identifier = req.params.id;
   const { stage, completed } = req.body;
 
   if (!stage) {
@@ -434,10 +873,14 @@ app.put('/api/items/:id/stage', (req, res) => {
     return;
   }
 
-  const stageColumn = stage.toLowerCase().replace(/ /g, '_');
-  const query = `UPDATE items SET ${stageColumn} = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`;
+  // Get product ID
+  const isNumeric = /^\d+$/.test(identifier);
+  const whereClause = isNumeric ? 'id = ?' : 'asin = ?';
 
-  db.run(query, [completed ? 1 : 0, itemId], function(err) {
+  const stageColumn = stage.toLowerCase().replace(/ /g, '_');
+  const query = `UPDATE products SET ${stageColumn} = ?, updated_at = CURRENT_TIMESTAMP WHERE ${whereClause}`;
+
+  db.run(query, [completed ? 1 : 0, identifier], function(err) {
     if (err) {
       res.status(500).json({ error: err.message });
       return;
@@ -445,31 +888,37 @@ app.put('/api/items/:id/stage', (req, res) => {
 
     // Log in history
     if (completed) {
-      db.run(
-        'INSERT INTO flow_stage_history (item_id, stage_name, completed, completed_at) VALUES (?, ?, 1, CURRENT_TIMESTAMP)',
-        [itemId, stage]
-      );
+      db.get(`SELECT id FROM products WHERE ${whereClause}`, [identifier], (err, product) => {
+        if (product) {
+          db.run(
+            'INSERT INTO flow_stage_history (product_id, stage_name, completed, completed_at) VALUES (?, ?, 1, CURRENT_TIMESTAMP)',
+            [product.id, stage]
+          );
+        }
+      });
     }
 
     res.json({ message: 'Stage updated successfully' });
   });
 });
 
-// Get flow stage history for an item
+// Get flow stage history for a product
 app.get('/api/items/:id/history', (req, res) => {
-  const itemId = req.params.id;
+  const identifier = req.params.id;
 
-  db.all(
-    'SELECT * FROM flow_stage_history WHERE item_id = ? ORDER BY completed_at DESC',
-    [itemId],
-    (err, rows) => {
-      if (err) {
-        res.status(500).json({ error: err.message });
-        return;
-      }
-      res.json(rows);
+  // Get product ID
+  const isNumeric = /^\d+$/.test(identifier);
+  const query = isNumeric 
+    ? 'SELECT * FROM flow_stage_history WHERE product_id = ? ORDER BY completed_at DESC'
+    : 'SELECT fsh.* FROM flow_stage_history fsh JOIN products p ON fsh.product_id = p.id WHERE p.asin = ? ORDER BY fsh.completed_at DESC';
+
+  db.all(query, [identifier], (err, rows) => {
+    if (err) {
+      res.status(500).json({ error: err.message });
+      return;
     }
-  );
+    res.json(rows);
+  });
 });
 
 // Import items from QPI CSV

@@ -20,8 +20,15 @@
             </div>
         </header>
 
+        <!-- View Tabs -->
+        <div class="view-tabs">
+            <button class="tab-btn active" data-view="products">Products (by ASIN)</button>
+            <button class="tab-btn" data-view="skus">SKUs (by Item Number)</button>
+            <button class="tab-btn" data-view="database">Database Explorer</button>
+        </div>
+
         <div class="filters">
-            <input type="text" id="searchInput" placeholder="Search by SKU or name..." class="search-input">
+            <input type="text" id="searchInput" placeholder="Search by ASIN, SKU or name..." class="search-input">
             <select id="statusFilter" class="filter-select">
                 <option value="all">All Stages</option>
                 <option value="stage_1">Stage 1: Ideation</option>
@@ -34,8 +41,48 @@
             </select>
         </div>
 
-        <div id="itemsContainer" class="items-container">
-            <!-- Items will be dynamically loaded here -->
+        <!-- Products View -->
+        <div id="productsView" class="view-container active">
+            <div id="itemsContainer" class="items-container">
+                <!-- Products will be dynamically loaded here -->
+            </div>
+        </div>
+
+        <!-- SKUs View -->
+        <div id="skusView" class="view-container" style="display: none;">
+            <div id="skusContainer" class="items-container">
+                <!-- SKUs will be dynamically loaded here -->
+            </div>
+        </div>
+
+        <!-- Database View -->
+        <div id="databaseView" class="view-container" style="display: none;">
+            <div class="database-container">
+                <div class="db-sidebar">
+                    <h3>Tables</h3>
+                    <div class="table-list">
+                        <button class="table-btn active" data-table="products">products</button>
+                        <button class="table-btn" data-table="product_skus">product_skus</button>
+                        <button class="table-btn" data-table="product_country_pricing">product_country_pricing</button>
+                        <button class="table-btn" data-table="flow_stage_history">flow_stage_history</button>
+                        <button class="table-btn" data-table="temp_asin_counter">temp_asin_counter</button>
+                    </div>
+                </div>
+                <div class="db-content">
+                    <div class="db-header">
+                        <h2 id="dbTableName">products</h2>
+                        <div class="db-stats">
+                            <span id="dbRowCount">Loading...</span>
+                        </div>
+                    </div>
+                    <div class="db-table-wrapper">
+                        <table id="dbTable" class="db-table">
+                            <thead id="dbTableHead"></thead>
+                            <tbody id="dbTableBody"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
 
@@ -48,8 +95,30 @@
                 <input type="hidden" id="itemId">
                 
                 <div class="form-group">
-                    <label for="sku">Item Number / SKU *</label>
-                    <input type="text" id="sku" required>
+                    <label for="sku">Ideation ID / SKU *</label>
+                    <input type="text" id="sku" required placeholder="e.g., IDEA-2025-001">
+                </div>
+
+                <div class="form-group">
+                    <label for="country">Country *</label>
+                    <select id="country" required>
+                        <option value="">Select Country</option>
+                        <option value="US">United States</option>
+                        <option value="CA">Canada</option>
+                        <option value="UK">United Kingdom</option>
+                        <option value="DE">Germany</option>
+                        <option value="FR">France</option>
+                        <option value="IT">Italy</option>
+                        <option value="ES">Spain</option>
+                        <option value="JP">Japan</option>
+                        <option value="AU">Australia</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="itemNumber">Item Number (if known)</label>
+                    <input type="text" id="itemNumber" placeholder="e.g., BX2445Z">
+                    <small style="color: var(--text-secondary); font-size: 12px;">Link to existing SKU when available</small>
                 </div>
 
                 <div class="form-group">
@@ -81,29 +150,6 @@
                         <label for="name">Product Name</label>
                         <input type="text" id="name">
                     </div>
-
-                    <div class="form-row">
-                        <div class="form-group">
-                            <label for="dimensions">Dimensions</label>
-                            <input type="text" id="dimensions" placeholder="L x W x H">
-                        </div>
-
-                        <div class="form-group">
-                            <label for="casePack">Case Pack</label>
-                            <input type="number" id="casePack" min="1">
-                        </div>
-                    </div>
-
-                    <div class="form-group">
-                        <label for="siocStatus">SIOC Status</label>
-                        <select id="siocStatus">
-                            <option value="">Select Status</option>
-                            <option value="Required">Required</option>
-                            <option value="Not Required">Not Required</option>
-                            <option value="In Progress">In Progress</option>
-                            <option value="Completed">Completed</option>
-                        </select>
-                    </div>
                 </div>
 
                 <div class="form-actions">
@@ -132,23 +178,23 @@
                             <label for="countryCode">Country *</label>
                             <select id="countryCode" required>
                                 <option value="">Select Country</option>
-                                <option value="US">United States (US)</option>
-                                <option value="CA">Canada (CA)</option>
-                                <option value="MX">Mexico (MX)</option>
-                                <option value="UK">United Kingdom (UK)</option>
-                                <option value="DE">Germany (DE)</option>
-                                <option value="FR">France (FR)</option>
-                                <option value="IT">Italy (IT)</option>
-                                <option value="ES">Spain (ES)</option>
-                                <option value="JP">Japan (JP)</option>
-                                <option value="AU">Australia (AU)</option>
+                                <option value="US" data-currency="USD">United States</option>
+                                <option value="CA" data-currency="CAD">Canada</option>
+                                <option value="MX" data-currency="MXN">Mexico</option>
+                                <option value="UK" data-currency="GBP">United Kingdom</option>
+                                <option value="DE" data-currency="EUR">Germany</option>
+                                <option value="FR" data-currency="EUR">France</option>
+                                <option value="IT" data-currency="EUR">Italy</option>
+                                <option value="ES" data-currency="EUR">Spain</option>
+                                <option value="JP" data-currency="JPY">Japan</option>
+                                <option value="AU" data-currency="AUD">Australia</option>
                             </select>
                         </div>
 
                         <div class="form-group">
-                            <label for="currency">Currency *</label>
+                            <label for="currency">Local Currency *</label>
                             <select id="currency" required>
-                                <option value="">Select Currency</option>
+                                <option value="">Auto-filled from country</option>
                                 <option value="USD">USD</option>
                                 <option value="CAD">CAD</option>
                                 <option value="MXN">MXN</option>
@@ -162,29 +208,32 @@
 
                     <div class="form-row">
                         <div class="form-group">
-                            <label for="retailPrice">Retail Price *</label>
-                            <input type="number" id="retailPrice" step="0.01" min="0" required>
-                        </div>
-
-                        <div class="form-group">
-                            <label for="sellPrice">Sell Price *</label>
+                            <label for="sellPrice">Sell Price (USD) *</label>
                             <input type="number" id="sellPrice" step="0.01" min="0" required>
+                            <small style="color: var(--text-secondary); font-size: 12px;">Always in USD</small>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="retailPrice">Retail Price (Local Currency) *</label>
+                            <input type="number" id="retailPrice" step="0.01" min="0" required>
+                            <small style="color: var(--text-secondary); font-size: 12px;" id="retailCurrencyHint">In local currency</small>
                         </div>
                     </div>
 
-                    <button type="submit" class="btn btn-primary">Add Pricing</button>
+                    <button type="submit" class="btn btn-primary">Submit for Approval</button>
                 </form>
             </div>
 
             <div class="pricing-table">
-                <h3>Current Pricing</h3>
+                <h3>Current Pricing & VC Listing Status</h3>
                 <table id="pricingTable">
                     <thead>
                         <tr>
                             <th>Country</th>
+                            <th>Sell Price (USD)</th>
                             <th>Retail Price</th>
-                            <th>Sell Price</th>
-                            <th>Status</th>
+                            <th>Approval Status</th>
+                            <th>VC Listed</th>
                             <th>Actions</th>
                         </tr>
                     </thead>

@@ -2,16 +2,40 @@ const API_BASE = '/api';
 
 // State management
 let items = [];
+let skus = [];
 let currentItem = null;
+let currentView = 'products'; // 'products', 'skus', or 'database'
+let currentTable = 'products';
 
 // Initialize app
 document.addEventListener('DOMContentLoaded', () => {
     loadItems();
+    loadSkus();
     setupEventListeners();
 });
 
 // Event Listeners
 function setupEventListeners() {
+    // View Tab Switching
+    document.querySelectorAll('.tab-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const view = btn.dataset.view;
+            switchView(view);
+        });
+    });
+
+    // Database Table Switching
+    document.querySelectorAll('.table-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const table = btn.dataset.table;
+            loadDatabaseTable(table);
+            
+            // Update active state
+            document.querySelectorAll('.table-btn').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+        });
+    });
+
     // Add Item Button
     document.getElementById('addItemBtn').addEventListener('click', () => {
         openItemModal();
@@ -37,6 +61,16 @@ function setupEventListeners() {
 
     // Pricing Form Submit
     document.getElementById('pricingForm').addEventListener('submit', handlePricingSubmit);
+
+    // Auto-fill currency based on country selection
+    document.getElementById('countryCode').addEventListener('change', function() {
+        const selectedOption = this.options[this.selectedIndex];
+        const currency = selectedOption.getAttribute('data-currency');
+        if (currency) {
+            document.getElementById('currency').value = currency;
+            document.getElementById('retailCurrencyHint').textContent = `In ${currency}`;
+        }
+    });
 
     // Search and Filter
     document.getElementById('searchInput').addEventListener('input', filterItems);
@@ -72,11 +106,120 @@ async function loadItems() {
     try {
         const response = await fetch(`${API_BASE}/items`);
         items = await response.json();
-        renderItems(items);
+        if (currentView === 'products') {
+            renderItems(items);
+        }
     } catch (error) {
         console.error('Error loading items:', error);
         showError('Failed to load items');
     }
+}
+
+// Load SKUs
+async function loadSkus() {
+    try {
+        const response = await fetch(`${API_BASE}/skus`);
+        skus = await response.json();
+        if (currentView === 'skus') {
+            renderSkus(skus);
+        }
+    } catch (error) {
+        console.error('Error loading SKUs:', error);
+        showError('Failed to load SKUs');
+    }
+}
+
+// Switch between views
+function switchView(view) {
+    currentView = view;
+    
+    // Update tab buttons
+    document.querySelectorAll('.tab-btn').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.view === view);
+    });
+    
+    // Update view containers
+    document.getElementById('productsView').classList.toggle('active', view === 'products');
+    document.getElementById('skusView').classList.toggle('active', view === 'skus');
+    document.getElementById('databaseView').classList.toggle('active', view === 'database');
+    document.getElementById('productsView').style.display = view === 'products' ? 'block' : 'none';
+    document.getElementById('skusView').style.display = view === 'skus' ? 'block' : 'none';
+    document.getElementById('databaseView').style.display = view === 'database' ? 'block' : 'none';
+    
+    // Hide filters for database view
+    document.querySelector('.filters').style.display = view === 'database' ? 'none' : 'flex';
+    
+    // Render appropriate view
+    if (view === 'products') {
+        renderItems(items);
+    } else if (view === 'skus') {
+        renderSkus(skus);
+    } else if (view === 'database') {
+        loadDatabaseTable(currentTable);
+    }
+}
+
+// Load database table
+async function loadDatabaseTable(tableName) {
+    currentTable = tableName;
+    
+    try {
+        const response = await fetch(`${API_BASE}/database/${tableName}?limit=100`);
+        const data = await response.json();
+        
+        renderDatabaseTable(data);
+    } catch (error) {
+        console.error('Error loading database table:', error);
+        showError('Failed to load table data');
+    }
+}
+
+// Render database table
+function renderDatabaseTable(data) {
+    document.getElementById('dbTableName').textContent = data.table;
+    document.getElementById('dbRowCount').textContent = `${data.rows.length} of ${data.total} rows`;
+    
+    const thead = document.getElementById('dbTableHead');
+    const tbody = document.getElementById('dbTableBody');
+    
+    if (data.rows.length === 0) {
+        thead.innerHTML = '';
+        tbody.innerHTML = '<tr><td colspan="100" style="text-align: center; padding: 40px; color: var(--text-secondary);">No data in this table</td></tr>';
+        return;
+    }
+    
+    // Render table headers
+    const columns = data.columns.map(col => col.name);
+    thead.innerHTML = `
+        <tr>
+            ${columns.map(col => `<th>${escapeHtml(col)}</th>`).join('')}
+        </tr>
+    `;
+    
+    // Render table rows
+    tbody.innerHTML = data.rows.map(row => `
+        <tr>
+            ${columns.map(col => {
+                let value = row[col];
+                if (value === null) {
+                    return '<td style="color: #999; font-style: italic;">null</td>';
+                }
+                if (typeof value === 'boolean') {
+                    return `<td>${value ? '✓' : ''}</td>`;
+                }
+                if (col.includes('_at') && value) {
+                    // Format timestamps
+                    try {
+                        const date = new Date(value);
+                        return `<td><small>${date.toLocaleString()}</small></td>`;
+                    } catch (e) {
+                        return `<td>${escapeHtml(String(value))}</td>`;
+                    }
+                }
+                return `<td>${escapeHtml(String(value))}</td>`;
+            }).join('')}
+        </tr>
+    `).join('');
 }
 
 // Render items
@@ -86,7 +229,7 @@ function renderItems(itemsToRender) {
     if (itemsToRender.length === 0) {
         container.innerHTML = `
             <div class="empty-state">
-                <h3>No items found</h3>
+                <h3>No products found</h3>
                 <p>Click "Add New Item" to get started</p>
             </div>
         `;
@@ -101,34 +244,43 @@ function renderItems(itemsToRender) {
         // Determine current stage
         const currentStage = getCurrentStage(item);
         
+        // Handle SKUs
+        const skus = item.skus || [];
+        const displaySku = skus.length > 0 ? skus.join(', ') : 'No SKUs';
+        const isTempAsin = item.is_temp_asin === 1;
+        
         return `
             <div class="item-card" data-item-id="${item.id}">
                 <div class="item-header">
                     <div class="item-info">
-                        <h3>${escapeHtml(item.name)}</h3>
+                        <h3>
+                            ${escapeHtml(item.name || item.asin)}
+                            ${isTempAsin ? '<span style="background-color: #f59e0b; color: white; padding: 2px 6px; border-radius: 4px; font-size: 11px; margin-left: 8px;">TEMP</span>' : ''}
+                        </h3>
                         <div class="item-sku">
-                            SKU: ${escapeHtml(item.sku)}
-                            ${item.asin ? ` | ASIN: ${escapeHtml(item.asin)}` : ''}
+                            <strong>ASIN: ${escapeHtml(item.asin)}</strong>
+                            ${isTempAsin ? ' <button class="btn btn-link" onclick="editProductName(\'${item.asin}\', \'${escapeHtml(item.name || \'\')}\')">Edit Name</button>' : ''}
                         </div>
+                        ${skus.length > 0 ? `
+                            <div class="item-sku-list">
+                                <small style="color: var(--text-secondary);">SKUs: ${escapeHtml(displaySku)}</small>
+                            </div>
+                        ` : ''}
                     </div>
                     <div class="item-actions">
-                        <button class="btn btn-secondary btn-small" onclick="editItem(${item.id})">Edit</button>
-                        <button class="btn btn-danger btn-small" onclick="deleteItem(${item.id})">Delete</button>
+                        <button class="btn btn-secondary btn-small" onclick="editItem('${item.asin}')">Edit</button>
+                        <button class="btn btn-danger btn-small" onclick="deleteItem('${item.asin}')">Delete</button>
                     </div>
                 </div>
 
                 <div class="item-details">
                     <div class="detail-item">
-                        <div class="detail-label">Dimensions</div>
-                        <div class="detail-value">${item.dimensions || 'N/A'}</div>
+                        <div class="detail-label">Country</div>
+                        <div class="detail-value">${item.stage_1_country || 'N/A'}</div>
                     </div>
                     <div class="detail-item">
-                        <div class="detail-label">Case Pack</div>
-                        <div class="detail-value">${item.case_pack || 'N/A'}</div>
-                    </div>
-                    <div class="detail-item">
-                        <div class="detail-label">SIOC Status</div>
-                        <div class="detail-value">${item.sioc_status || 'N/A'}</div>
+                        <div class="detail-label"># of SKUs</div>
+                        <div class="detail-value">${skus.length}</div>
                     </div>
                     <div class="detail-item">
                         <div class="detail-label">Current Stage</div>
@@ -141,7 +293,7 @@ function renderItems(itemsToRender) {
                 <div class="pricing-section">
                     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
                         <h3>Country Pricing</h3>
-                        <button class="btn btn-primary btn-small" onclick="openPricingModal(${item.id})">
+                        <button class="btn btn-primary btn-small" onclick="openPricingModal('${item.asin}')">
                             Manage Pricing
                         </button>
                     </div>
@@ -169,19 +321,19 @@ function renderItems(itemsToRender) {
                 <div class="flow-progress">
                     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
                         <h3>Flow Progress</h3>
-                        <button class="btn btn-secondary btn-small" onclick="openFlowModal(${item.id})">
+                        <button class="btn btn-secondary btn-small" onclick="openFlowModal('${item.asin}')">
                             Update Progress
                         </button>
                     </div>
                     
                     <div class="flow-stages-display">
-                        ${renderStageDisplay('1', 'Ideation', item.stage_1_idea_considered, true)}
-                        ${renderStageDisplay('2', 'PIM Finalized', item.stage_2_product_finalized)}
-                        ${renderStageDisplay('3a', 'Price Submit', item.stage_3a_pricing_submitted)}
-                        ${renderStageDisplay('3b', 'Price Approved', item.stage_3b_pricing_approved)}
-                        ${renderStageDisplay('4', 'VC Listed', item.stage_4_product_listed)}
-                        ${renderStageDisplay('5', 'Ordered [In QPI]', item.stage_5_product_ordered)}
-                        ${renderStageDisplay('6', 'Online', item.stage_6_product_online)}
+                        ${renderStageDisplay('1', 'Ideation', item.stage_1_idea_considered, true, item.asin)}
+                        ${renderStageDisplay('2', 'PIM Finalized', item.stage_2_product_finalized, false, item.asin, item.stage_2_newly_finalized)}
+                        ${renderStageDisplay('3a', 'Price Submit', item.stage_3a_pricing_submitted, false, item.asin, false, true)}
+                        ${renderStageDisplay('3b', 'Price Approved', item.stage_3b_pricing_approved, false, item.asin, false, true)}
+                        ${renderStageDisplay('4', 'VC Listed', item.stage_4_product_listed, false, item.asin)}
+                        ${renderStageDisplay('5', 'Ordered [In QPI]', item.stage_5_product_ordered, false, item.asin)}
+                        ${renderStageDisplay('6', 'Online', item.stage_6_product_online, false, item.asin)}
                     </div>
                 </div>
             </div>
@@ -202,7 +354,8 @@ function getCurrentStage(item) {
     } else if (item.stage_3a_pricing_submitted) {
         return { stage: 3, name: 'Pricing Submitted', badge: '<span class="status-badge pending">Stage 3a: Submitted</span>' };
     } else if (item.stage_2_product_finalized) {
-        return { stage: 2, name: 'PIM Finalized', badge: '<span class="status-badge" style="background-color: #f59e0b;">Stage 2: Finalized</span>' };
+        const newBadge = item.stage_2_newly_finalized ? ' <span style="background-color: #ef4444; color: white; padding: 2px 6px; border-radius: 4px; font-size: 10px; margin-left: 4px;">NEW</span>' : '';
+        return { stage: 2, name: 'PIM Finalized', badge: '<span class="status-badge" style="background-color: #f59e0b;">Stage 2: Finalized' + newBadge + '</span>' };
     } else if (item.stage_1_idea_considered) {
         return { stage: 1, name: 'Ideation', badge: '<span class="status-badge" style="background-color: #6b7280;">Stage 1: Ideation</span>' };
     } else {
@@ -210,16 +363,135 @@ function getCurrentStage(item) {
     }
 }
 
-function renderStageDisplay(number, label, completed, isOptional = false) {
+function renderStageDisplay(number, label, completed, isOptional = false, itemId = null, isNewlyFinalized = false, isPricingStage = false) {
+    const clickHandler = isPricingStage && itemId ? `onclick="openPricingModal(${itemId})" style="cursor: pointer;"` : '';
+    const newBadge = isNewlyFinalized ? '<span style="background-color: #ef4444; color: white; padding: 2px 4px; border-radius: 3px; font-size: 9px; margin-left: 3px;">NEW</span>' : '';
+    
     return `
-        <div class="stage-display ${completed ? 'completed' : ''}">
+        <div class="stage-display ${completed ? 'completed' : ''} ${isPricingStage ? 'pricing-stage' : ''}" ${clickHandler}>
             <div class="stage-icon">${completed ? '✓' : number}</div>
             <div class="stage-label">
-                ${label}
+                ${label}${newBadge}
                 ${isOptional ? '<br><span style="font-size: 10px;">(Optional)</span>' : ''}
             </div>
         </div>
     `;
+}
+
+// Render SKUs view
+function renderSkus(skusToRender) {
+    const container = document.getElementById('skusContainer');
+    
+    if (skusToRender.length === 0) {
+        container.innerHTML = `
+            <div class="empty-state">
+                <h3>No SKUs found</h3>
+                <p>SKUs will appear here once data is synced</p>
+            </div>
+        `;
+        return;
+    }
+
+    // Group SKUs by ASIN
+    const skusByAsin = {};
+    skusToRender.forEach(sku => {
+        if (!skusByAsin[sku.asin]) {
+            skusByAsin[sku.asin] = {
+                asin: sku.asin,
+                product_name: sku.product_name,
+                is_temp_asin: sku.is_temp_asin,
+                skus: []
+            };
+        }
+        skusByAsin[sku.asin].skus.push(sku);
+    });
+
+    // Render grouped by ASIN
+    container.innerHTML = Object.values(skusByAsin).map(group => {
+        const isTempAsin = group.is_temp_asin === 1;
+        const hasMultipleSkus = group.skus.length > 1;
+        const hasInconsistencies = hasMultipleSkus && checkForInconsistencies(group.skus);
+        
+        return `
+            <div class="item-card ${hasInconsistencies ? 'has-inconsistency' : ''}">
+                <div class="item-header">
+                    <div class="item-info">
+                        <h3>
+                            ASIN: ${escapeHtml(group.asin)}
+                            ${isTempAsin ? '<span style="background-color: #f59e0b; color: white; padding: 2px 6px; border-radius: 4px; font-size: 11px; margin-left: 8px;">TEMP</span>' : ''}
+                            ${hasInconsistencies ? '<span style="background-color: #ef4444; color: white; padding: 2px 6px; border-radius: 4px; font-size: 11px; margin-left: 8px;">⚠ INCONSISTENT</span>' : ''}
+                        </h3>
+                        <div class="item-sku">
+                            Product: ${escapeHtml(group.product_name || 'N/A')}
+                        </div>
+                        <div class="item-sku-list">
+                            <small style="color: var(--text-secondary);">${group.skus.length} SKU${group.skus.length > 1 ? 's' : ''}</small>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="skus-table-container">
+                    <table class="skus-table">
+                        <thead>
+                            <tr>
+                                <th>SKU / Item Number</th>
+                                <th>Source</th>
+                                <th>Primary</th>
+                                <th>Country</th>
+                                <th>Status</th>
+                                <th>Added</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${group.skus.map(sku => {
+                                const currentStage = getCurrentStageForSku(sku);
+                                return `
+                                    <tr>
+                                        <td><strong>${escapeHtml(sku.sku)}</strong></td>
+                                        <td><span class="source-badge">${sku.source || 'Unknown'}</span></td>
+                                        <td>${sku.is_primary ? '✓' : ''}</td>
+                                        <td>${sku.stage_1_country || '-'}</td>
+                                        <td>${currentStage.badge}</td>
+                                        <td><small>${new Date(sku.created_at).toLocaleDateString()}</small></td>
+                                    </tr>
+                                `;
+                            }).join('')}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        `;
+    }).join('');
+}
+
+// Check for inconsistencies in SKUs under same ASIN
+function checkForInconsistencies(skus) {
+    if (skus.length <= 1) return false;
+    
+    // Check if different SKUs have different countries or sources
+    const countries = new Set(skus.map(s => s.stage_1_country).filter(c => c));
+    const sources = new Set(skus.map(s => s.source).filter(s => s));
+    
+    return countries.size > 1 || sources.size > 1;
+}
+
+// Get current stage for a SKU
+function getCurrentStageForSku(sku) {
+    if (sku.stage_6_product_online) {
+        return { stage: 6, badge: '<span class="status-badge" style="background-color: #10b981; font-size: 11px;">Stage 6</span>' };
+    } else if (sku.stage_5_product_ordered) {
+        return { stage: 5, badge: '<span class="status-badge" style="background-color: #3b82f6; font-size: 11px;">Stage 5</span>' };
+    } else if (sku.stage_4_product_listed) {
+        return { stage: 4, badge: '<span class="status-badge" style="background-color: #8b5cf6; font-size: 11px;">Stage 4</span>' };
+    } else if (sku.stage_3b_pricing_approved) {
+        return { stage: 3, badge: '<span class="status-badge approved" style="font-size: 11px;">Stage 3b</span>' };
+    } else if (sku.stage_3a_pricing_submitted) {
+        return { stage: 3, badge: '<span class="status-badge pending" style="font-size: 11px;">Stage 3a</span>' };
+    } else if (sku.stage_2_product_finalized) {
+        return { stage: 2, badge: '<span class="status-badge" style="background-color: #f59e0b; font-size: 11px;">Stage 2</span>' };
+    } else {
+        return { stage: 0, badge: '<span class="status-badge" style="background-color: #999; font-size: 11px;">-</span>' };
+    }
 }
 
 // Filter items
@@ -270,27 +542,26 @@ function openItemModal(itemId = null) {
 
     if (itemId) {
         // Edit mode - show all fields
-        title.textContent = 'Edit Item';
+        title.textContent = 'Edit Product';
         advancedFields.style.display = 'block';
         toggleBtn.style.display = 'none';
         
-        const item = items.find(i => i.id === itemId);
+        const item = items.find(i => i.asin === itemId || i.id === itemId);
         if (item) {
-            document.getElementById('itemId').value = item.id;
-            document.getElementById('sku').value = item.sku;
+            document.getElementById('itemId').value = item.asin; // Use ASIN as identifier
+            document.getElementById('sku').value = item.skus && item.skus.length > 0 ? item.skus[0] : '';
             document.getElementById('sku').disabled = true; // Don't allow SKU changes
+            document.getElementById('country').value = item.stage_1_country || '';
+            document.getElementById('itemNumber').value = '';
             document.getElementById('brand').value = item.stage_1_brand || item.brand || '';
             document.getElementById('description').value = item.stage_1_description || item.product_description || '';
             document.getElementById('seasonLaunch').value = item.stage_1_season_launch || '';
             document.getElementById('asin').value = item.asin || '';
             document.getElementById('name').value = item.name;
-            document.getElementById('dimensions').value = item.dimensions || '';
-            document.getElementById('casePack').value = item.case_pack || '';
-            document.getElementById('siocStatus').value = item.sioc_status || '';
         }
     } else {
         // Add mode - simple fields only
-        title.textContent = 'Add New Item - Ideation Stage';
+        title.textContent = 'Add New Product - Ideation Stage';
         advancedFields.style.display = 'none';
         toggleBtn.style.display = 'inline-block';
         toggleBtn.textContent = 'Show Advanced Fields';
@@ -315,19 +586,24 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 async function openPricingModal(itemId) {
-    const item = items.find(i => i.id === itemId);
+    const item = items.find(i => i.asin === itemId || i.id === itemId);
     if (!item) return;
 
-    document.getElementById('pricingItemId').value = itemId;
+    document.getElementById('pricingItemId').value = item.asin; // Use ASIN
     document.getElementById('pricingItemName').textContent = item.name;
-    document.getElementById('pricingSku').textContent = item.sku;
+    document.getElementById('pricingSku').textContent = `ASIN: ${item.asin} | SKUs: ${item.skus ? item.skus.join(', ') : 'None'}`;
 
-    // Load detailed pricing
+    // Load detailed pricing and VC status
     try {
-        const response = await fetch(`${API_BASE}/items/${itemId}`);
-        const itemData = await response.json();
+        const [pricingResponse, vcStatusResponse] = await Promise.all([
+            fetch(`${API_BASE}/items/${item.asin}`),
+            fetch(`${API_BASE}/items/${item.asin}/vc-status`)
+        ]);
         
-        renderPricingTable(itemData.pricing || []);
+        const itemData = await pricingResponse.json();
+        const vcData = await vcStatusResponse.json();
+        
+        renderPricingTable(itemData.pricing || [], vcData.vc_status || []);
         document.getElementById('pricingModal').style.display = 'block';
     } catch (error) {
         console.error('Error loading pricing:', error);
@@ -335,40 +611,64 @@ async function openPricingModal(itemId) {
     }
 }
 
-function renderPricingTable(pricingData) {
+function renderPricingTable(pricingData, vcStatusData) {
     const tbody = document.getElementById('pricingTableBody');
+    const asin = document.getElementById('pricingItemId').value; // Get ASIN from modal
     
     if (pricingData.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="5" style="text-align: center; color: var(--text-secondary);">No pricing data yet</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; color: var(--text-secondary);">No pricing data yet</td></tr>';
         return;
     }
 
-    tbody.innerHTML = pricingData.map(pricing => `
+    // Create a map of country to VC status for quick lookup
+    const vcStatusMap = {};
+    vcStatusData.forEach(vc => {
+        const countryCode = vc.country ? vc.country.toUpperCase() : null;
+        if (countryCode) {
+            vcStatusMap[countryCode] = {
+                status: vc.status,
+                asin: vc.asin
+            };
+        }
+    });
+
+    tbody.innerHTML = pricingData.map(pricing => {
+        const countryCode = pricing.country_code.toUpperCase();
+        const vcInfo = vcStatusMap[countryCode] || null;
+        const vcStatusBadge = vcInfo 
+            ? (vcInfo.status === 'SUCCESS' || vcInfo.status === 'COMPLETE') 
+                ? '<span class="status-badge approved">✓ Listed</span>' 
+                : `<span class="status-badge pending">${vcInfo.status || 'Unknown'}</span>`
+            : '<span class="status-badge" style="background-color: #999;">Not Listed</span>';
+        
+        return `
         <tr>
             <td>${escapeHtml(pricing.country_code)}</td>
+            <td>USD ${parseFloat(pricing.sell_price).toFixed(2)}</td>
             <td>${pricing.currency} ${parseFloat(pricing.retail_price).toFixed(2)}</td>
-            <td>${pricing.currency} ${parseFloat(pricing.sell_price).toFixed(2)}</td>
             <td><span class="status-badge ${pricing.approval_status}">${pricing.approval_status}</span></td>
+            <td>${vcStatusBadge}</td>
             <td>
                 <div class="action-buttons">
                     ${pricing.approval_status !== 'approved' ? 
-                        `<button class="btn btn-success" onclick="approvePricing(${pricing.item_id}, '${pricing.country_code}')">Approve</button>` : 
+                        `<button class="btn btn-success" onclick="approvePricing('${asin}', '${pricing.country_code}')">Approve</button>` : 
                         '<span style="color: var(--success-color); font-weight: 600;">✓ Approved</span>'}
                     ${pricing.approval_status !== 'rejected' ? 
-                        `<button class="btn btn-danger" onclick="rejectPricing(${pricing.item_id}, '${pricing.country_code}')">Reject</button>` : ''}
+                        `<button class="btn btn-danger" onclick="rejectPricing('${asin}', '${pricing.country_code}')">Reject</button>` : ''}
                 </div>
             </td>
         </tr>
-    `).join('');
+    `;
+    }).join('');
 }
 
 async function openFlowModal(itemId) {
-    const item = items.find(i => i.id === itemId);
+    const item = items.find(i => i.asin === itemId || i.id === itemId);
     if (!item) return;
 
-    document.getElementById('flowItemId').value = itemId;
+    document.getElementById('flowItemId').value = item.asin; // Use ASIN
     document.getElementById('flowItemName').textContent = item.name;
-    document.getElementById('flowSku').textContent = item.sku;
+    document.getElementById('flowSku').textContent = `ASIN: ${item.asin} | SKUs: ${item.skus ? item.skus.join(', ') : 'None'}`;
 
     // Set checkbox states for new 6-stage flow
     document.querySelector('[data-stage="stage_1_idea_considered"]').checked = item.stage_1_idea_considered || false;
@@ -386,18 +686,17 @@ async function openFlowModal(itemId) {
 async function handleItemSubmit(e) {
     e.preventDefault();
 
-    const itemId = document.getElementById('itemId').value;
+    const itemId = document.getElementById('itemId').value; // This is ASIN for existing items
     const brand = document.getElementById('brand').value;
     const description = document.getElementById('description').value;
     const seasonLaunch = document.getElementById('seasonLaunch').value;
+    const country = document.getElementById('country').value;
+    const itemNumber = document.getElementById('itemNumber').value;
     
     const itemData = {
         sku: document.getElementById('sku').value,
         name: document.getElementById('name').value || document.getElementById('sku').value, // Use SKU as name if not provided
-        asin: document.getElementById('asin').value || null,
-        dimensions: document.getElementById('dimensions').value || null,
-        case_pack: document.getElementById('casePack').value || null,
-        sioc_status: document.getElementById('siocStatus').value || null
+        asin: document.getElementById('asin').value || null
     };
 
     try {
@@ -412,30 +711,32 @@ async function handleItemSubmit(e) {
 
         if (response.ok) {
             const result = await response.json();
-            const savedItemId = itemId || result.id;
+            const savedAsin = itemId || result.asin;
             
-            // If new item, mark as Stage 1 (Ideation) with brand/description/season
-            if (!itemId && (brand || description || seasonLaunch)) {
-                await fetch(`${API_BASE}/items/${savedItemId}/stage1`, {
+            // Mark as Stage 1 (Ideation) with brand/description/season/country/item_number
+            if (brand || description || seasonLaunch || country || itemNumber) {
+                await fetch(`${API_BASE}/items/${savedAsin}/stage1`, {
                     method: 'PUT',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                         brand: brand,
                         description: description,
-                        season_launch: seasonLaunch
+                        season_launch: seasonLaunch,
+                        country: country,
+                        item_number: itemNumber
                     })
                 });
             }
             
             document.getElementById('itemModal').style.display = 'none';
             loadItems();
-            showSuccess(itemId ? 'Item updated successfully' : 'Item created at Ideation stage');
+            showSuccess(itemId ? 'Product updated successfully' : 'Product created at Ideation stage');
         } else {
-            throw new Error('Failed to save item');
+            throw new Error('Failed to save product');
         }
     } catch (error) {
-        console.error('Error saving item:', error);
-        showError('Failed to save item');
+        console.error('Error saving product:', error);
+        showError('Failed to save product');
     }
 }
 
@@ -500,6 +801,32 @@ async function handleStageChange(e) {
 // Action functions
 function editItem(itemId) {
     openItemModal(itemId);
+}
+
+// Edit product name (for temp ASINs)
+async function editProductName(asin, currentName) {
+    const newName = prompt('Enter new product name:', currentName);
+    if (!newName || newName === currentName) {
+        return;
+    }
+
+    try {
+        const response = await fetch(`${API_BASE}/items/${asin}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name: newName })
+        });
+
+        if (response.ok) {
+            loadItems();
+            showSuccess('Product name updated');
+        } else {
+            throw new Error('Failed to update name');
+        }
+    } catch (error) {
+        console.error('Error updating name:', error);
+        showError('Failed to update product name');
+    }
 }
 
 async function deleteItem(itemId) {
