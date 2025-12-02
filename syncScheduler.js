@@ -143,7 +143,7 @@ class SyncScheduler {
             const itemName = row.item_name;
             const vcListed = (row.status === 'SUCCESS' || row.status === 'COMPLETE') ? 1 : 0;
 
-            // Only update existing products, don't create new ones
+            // Try to find product by ASIN first, then by SKU
             this.db.get('SELECT * FROM products WHERE asin = ?', [asin], (err, product) => {
               if (err) {
                 console.error(`[SYNC] Error checking product ${asin}:`, err.message);
@@ -153,13 +153,44 @@ class SyncScheduler {
               }
 
               if (!product) {
-                // Product doesn't exist, skip it
-                processed++;
-                checkComplete();
+                // Try to find by SKU instead
+                this.db.get(
+                  'SELECT p.* FROM products p JOIN product_skus ps ON p.id = ps.product_id WHERE ps.sku = ?',
+                  [sku],
+                  (err, productBySku) => {
+                    if (err || !productBySku) {
+                      // Product doesn't exist, skip it
+                      processed++;
+                      checkComplete();
+                      return;
+                    }
+
+                    // Update product with real ASIN and VC data
+                    this.db.run(
+                      `UPDATE products 
+                       SET asin = ?,
+                           name = COALESCE(NULLIF(name, asin), ?),
+                           stage_4_product_listed = ?,
+                           is_temp_asin = 0,
+                           updated_at = CURRENT_TIMESTAMP
+                       WHERE id = ?`,
+                      [asin, itemName || productBySku.name, vcListed, productBySku.id],
+                      (err) => {
+                        if (err) {
+                          console.error(`[SYNC] Error updating product ${asin}:`, err.message);
+                        } else {
+                          updated++;
+                        }
+                        processed++;
+                        checkComplete();
+                      }
+                    );
+                  }
+                );
                 return;
               }
 
-              // Update existing product with VC data
+              // Product found by ASIN - update existing product with VC data
               this.db.run(
                 `UPDATE products 
                  SET name = COALESCE(NULLIF(name, asin), ?),
