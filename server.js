@@ -239,6 +239,19 @@ function initializeDatabase() {
       UNIQUE(asin, country_code)
     )`);
 
+    // QPI Country Status table - tracks which SKUs/ASINs are in QPI per country
+    db.run(`CREATE TABLE IF NOT EXISTS qpi_country_status (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      asin TEXT NOT NULL,
+      sku TEXT,
+      country_code TEXT NOT NULL,
+      in_qpi BOOLEAN DEFAULT 1,
+      last_synced DATETIME DEFAULT CURRENT_TIMESTAMP,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE(asin, country_code)
+    )`);
+
     console.log('Database tables initialized');
     
     // Initialize and start sync scheduler
