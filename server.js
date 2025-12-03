@@ -722,12 +722,66 @@ app.get('/api/database/:table', (req, res) => {
   });
 });
 
-// Legacy endpoint for backward compatibility - with pagination
+// Legacy endpoint for backward compatibility - with pagination and filters
 app.get('/api/items', (req, res) => {
   const limit = parseInt(req.query.limit) || 50;
   const offset = parseInt(req.query.offset) || 0;
   
-  const countQuery = `SELECT COUNT(*) as count FROM products`;
+  // Get filter parameters
+  const search = req.query.search || '';
+  const stage = req.query.stage || '';
+  const country = req.query.country || '';
+  
+  // Build WHERE clauses
+  let whereConditions = [];
+  let queryParams = [];
+  let countParams = [];
+  
+  // Search filter
+  if (search) {
+    whereConditions.push('(p.name LIKE ? OR p.asin LIKE ? OR ps.sku LIKE ?)');
+    const searchPattern = `%${search}%`;
+    queryParams.push(searchPattern, searchPattern, searchPattern);
+    countParams.push(searchPattern, searchPattern, searchPattern);
+  }
+  
+  // Stage filter
+  if (stage && stage !== 'all') {
+    // Map stage_5 to stage_5_product_ordered column name
+    const stageMap = {
+      'stage_1': 'stage_1_idea_considered',
+      'stage_2': 'stage_2_product_finalized',
+      'stage_3a': 'stage_3a_pricing_submitted',
+      'stage_3b': 'stage_3b_pricing_approved',
+      'stage_4': 'stage_4_product_listed',
+      'stage_5': 'stage_5_product_ordered',
+      'stage_6': 'stage_6_product_online'
+    };
+    
+    const stageColumn = stageMap[stage];
+    if (stageColumn) {
+      whereConditions.push(`p.${stageColumn} = 1`);
+    }
+  }
+  
+  // Country filter - need to join with asin_country_status
+  let joinClause = '';
+  if (country && country !== 'all') {
+    joinClause = 'INNER JOIN asin_country_status acs ON p.asin = acs.asin';
+    whereConditions.push('acs.country_code = ?');
+    queryParams.push(country);
+    countParams.push(country);
+  }
+  
+  const whereClause = whereConditions.length > 0 ? 'WHERE ' + whereConditions.join(' AND ') : '';
+  
+  const countQuery = `
+    SELECT COUNT(DISTINCT p.id) as count 
+    FROM products p
+    LEFT JOIN product_skus ps ON p.id = ps.product_id
+    ${joinClause}
+    ${whereClause}
+  `;
   
   const query = `
     SELECT 
@@ -742,18 +796,22 @@ app.get('/api/items', (req, res) => {
       ) as sku_details
     FROM products p
     LEFT JOIN product_skus ps ON p.id = ps.product_id
+    ${joinClause}
+    ${whereClause}
     GROUP BY p.id
     ORDER BY p.created_at DESC
     LIMIT ? OFFSET ?
   `;
+  
+  queryParams.push(limit, offset);
 
-  db.get(countQuery, [], (countErr, countRow) => {
+  db.get(countQuery, countParams, (countErr, countRow) => {
     if (countErr) {
       res.status(500).json({ error: countErr.message });
       return;
     }
     
-    db.all(query, [limit, offset], (err, rows) => {
+    db.all(query, queryParams, (err, rows) => {
       if (err) {
         res.status(500).json({ error: err.message });
         return;

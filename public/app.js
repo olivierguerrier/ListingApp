@@ -113,11 +113,32 @@ function setupEventListeners() {
 }
 
 // Load all items
-async function loadItems(page = 1) {
+async function loadItems(page = 1, applyFilters = false) {
     try {
         productsPage = page;
         const offset = (page - 1) * productsLimit;
-        const response = await fetch(`${API_BASE}/items?limit=${productsLimit}&offset=${offset}`);
+        
+        // Build query parameters
+        let queryParams = `limit=${productsLimit}&offset=${offset}`;
+        
+        // Add filters if requested
+        if (applyFilters) {
+            const searchTerm = document.getElementById('searchInput').value;
+            const statusFilter = document.getElementById('statusFilter').value;
+            const countryFilter = document.getElementById('countryFilter').value;
+            
+            if (searchTerm) {
+                queryParams += `&search=${encodeURIComponent(searchTerm)}`;
+            }
+            if (statusFilter !== 'all') {
+                queryParams += `&stage=${statusFilter}`;
+            }
+            if (countryFilter !== 'all') {
+                queryParams += `&country=${encodeURIComponent(countryFilter)}`;
+            }
+        }
+        
+        const response = await fetch(`${API_BASE}/items?${queryParams}`);
         const result = await response.json();
         // Handle both paginated and non-paginated responses
         items = result.data || result;
@@ -501,64 +522,8 @@ function getCurrentStageForSku(sku) {
 
 // Filter items
 async function filterItems() {
-    const searchTerm = document.getElementById('searchInput').value.toLowerCase();
-    const statusFilter = document.getElementById('statusFilter').value;
-    const countryFilter = document.getElementById('countryFilter').value;
-
-    // If filtering by country, we need to fetch ASIN status data
-    let asinsByCountry = new Set();
-    if (countryFilter !== 'all') {
-        try {
-            const response = await fetch(`${API_BASE}/asin-status?country=${encodeURIComponent(countryFilter)}&limit=10000`);
-            const result = await response.json();
-            const data = result.data || result;
-            data.forEach(item => {
-                if (item.asin) {
-                    asinsByCountry.add(item.asin);
-                }
-            });
-        } catch (error) {
-            console.error('Error fetching country filter data:', error);
-        }
-    }
-
-    const filtered = items.filter(item => {
-        const matchesSearch = item.name.toLowerCase().includes(searchTerm) || 
-                            item.sku.toLowerCase().includes(searchTerm) ||
-                            item.asin.toLowerCase().includes(searchTerm);
-        
-        if (!matchesSearch) return false;
-
-        // Filter by country
-        if (countryFilter !== 'all') {
-            if (!asinsByCountry.has(item.asin)) {
-                return false;
-            }
-        }
-
-        // Filter by stage
-        if (statusFilter === 'all') return true;
-
-        if (statusFilter === 'stage_1') {
-            return item.stage_1_idea_considered === 1;
-        } else if (statusFilter === 'stage_2') {
-            return item.stage_2_product_finalized === 1;
-        } else if (statusFilter === 'stage_3a') {
-            return item.stage_3a_pricing_submitted === 1;
-        } else if (statusFilter === 'stage_3b') {
-            return item.stage_3b_pricing_approved === 1;
-        } else if (statusFilter === 'stage_4') {
-            return item.stage_4_product_listed === 1;
-        } else if (statusFilter === 'stage_5') {
-            return item.stage_5_product_ordered === 1;
-        } else if (statusFilter === 'stage_6') {
-            return item.stage_6_product_online === 1;
-        }
-
-        return true;
-    });
-
-    renderItems(filtered);
+    // Reload items from server with filters applied
+    await loadItems(1, true);
 }
 
 // Modal functions
