@@ -20,6 +20,7 @@ let skusTotalPages = 1;
 document.addEventListener('DOMContentLoaded', () => {
     loadItems();
     loadSkus();
+    loadCountries();
     setupEventListeners();
 });
 
@@ -84,6 +85,7 @@ function setupEventListeners() {
     // Search and Filter
     document.getElementById('searchInput').addEventListener('input', filterItems);
     document.getElementById('statusFilter').addEventListener('change', filterItems);
+    document.getElementById('countryFilter').addEventListener('change', filterItems);
 
     // Modal close buttons
     document.querySelectorAll('.close').forEach(closeBtn => {
@@ -157,6 +159,49 @@ async function loadSkus(page = 1) {
     } catch (error) {
         console.error('Error loading SKUs:', error);
         showError('Failed to load SKUs');
+    }
+}
+
+// Load available countries from ASIN status
+async function loadCountries() {
+    try {
+        const response = await fetch(`${API_BASE}/asin-status/summary/all?limit=10000`);
+        const result = await response.json();
+        const data = result.data || result;
+        
+        // Extract unique countries from country_status field
+        const countriesSet = new Set();
+        data.forEach(item => {
+            if (item.country_status) {
+                // Parse country_status like "Canada:DISCOVERABLE,United States:DISCOVERABLE"
+                const countries = item.country_status.split(',');
+                countries.forEach(countryStatus => {
+                    const country = countryStatus.split(':')[0];
+                    if (country) {
+                        countriesSet.add(country.trim());
+                    }
+                });
+            }
+        });
+        
+        // Sort countries alphabetically
+        const countries = Array.from(countriesSet).sort();
+        
+        // Populate the country filter dropdown
+        const countryFilter = document.getElementById('countryFilter');
+        countryFilter.innerHTML = '<option value="all">All Countries</option>';
+        
+        countries.forEach(country => {
+            const option = document.createElement('option');
+            option.value = country;
+            option.textContent = country;
+            countryFilter.appendChild(option);
+        });
+        
+    } catch (error) {
+        console.error('Error loading countries:', error);
+        const countryFilter = document.getElementById('countryFilter');
+        countryFilter.innerHTML = '<option value="all">All Countries (Error loading)</option>';
     }
 }
 
@@ -455,19 +500,45 @@ function getCurrentStageForSku(sku) {
 }
 
 // Filter items
-function filterItems() {
+async function filterItems() {
     const searchTerm = document.getElementById('searchInput').value.toLowerCase();
     const statusFilter = document.getElementById('statusFilter').value;
+    const countryFilter = document.getElementById('countryFilter').value;
+
+    // If filtering by country, we need to fetch ASIN status data
+    let asinsByCountry = new Set();
+    if (countryFilter !== 'all') {
+        try {
+            const response = await fetch(`${API_BASE}/asin-status?country=${encodeURIComponent(countryFilter)}&limit=10000`);
+            const result = await response.json();
+            const data = result.data || result;
+            data.forEach(item => {
+                if (item.asin) {
+                    asinsByCountry.add(item.asin);
+                }
+            });
+        } catch (error) {
+            console.error('Error fetching country filter data:', error);
+        }
+    }
 
     const filtered = items.filter(item => {
         const matchesSearch = item.name.toLowerCase().includes(searchTerm) || 
-                            item.sku.toLowerCase().includes(searchTerm);
+                            item.sku.toLowerCase().includes(searchTerm) ||
+                            item.asin.toLowerCase().includes(searchTerm);
         
         if (!matchesSearch) return false;
 
-        if (statusFilter === 'all') return true;
+        // Filter by country
+        if (countryFilter !== 'all') {
+            if (!asinsByCountry.has(item.asin)) {
+                return false;
+            }
+        }
 
         // Filter by stage
+        if (statusFilter === 'all') return true;
+
         if (statusFilter === 'stage_1') {
             return item.stage_1_idea_considered === 1;
         } else if (statusFilter === 'stage_2') {
