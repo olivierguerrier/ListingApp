@@ -1280,46 +1280,105 @@ app.post('/api/sync/qpi', (req, res) => {
     return;
   }
 
-  const qpiSkus = new Set();
+  const qpiData = [];
 
   fs.createReadStream(qpiPath)
     .pipe(csv())
     .on('data', (data) => {
       const sku = data['Item no'];
       const asin = data['ASIN'];
-      if (sku) {
-        qpiSkus.add(sku);
-        
-        // Update ASIN if available and item exists
-        if (asin) {
-          db.run('UPDATE items SET asin = ? WHERE sku = ? AND (asin IS NULL OR asin = "")', [asin, sku]);
-        }
+      if (sku && asin) {
+        qpiData.push({ sku, asin });
       }
     })
     .on('end', () => {
-      // Mark all items in QPI as order_received = 1 and stage_5_product_ordered = 1
-      const skuList = Array.from(qpiSkus);
-      const placeholders = skuList.map(() => '?').join(',');
+      console.log(`Found ${qpiData.length} items in QPI`);
       
-      db.run(
-        `UPDATE items 
-         SET order_received = 1, 
-             stage_5_product_ordered = 1, 
-             updated_at = CURRENT_TIMESTAMP 
-         WHERE sku IN (${placeholders})`,
-        skuList,
-        function(err) {
-          if (err) {
-            res.status(500).json({ error: err.message });
-            return;
-          }
-          res.json({
-            message: 'QPI sync completed',
-            updated: this.changes,
-            total_in_qpi: qpiSkus.size
-          });
+      // Collect unique SKUs and ASINs
+      const qpiSkus = new Set();
+      const qpiAsins = new Set();
+      const skuAsinMap = new Map();
+      
+      qpiData.forEach(item => {
+        qpiSkus.add(item.sku);
+        if (item.asin) {
+          qpiAsins.add(item.asin);
+          skuAsinMap.set(item.sku, item.asin);
         }
-      );
+      });
+      
+      let itemsUpdated = 0;
+      let productsUpdated = 0;
+      let errors = 0;
+      
+      // Batch update items table
+      if (qpiSkus.size > 0) {
+        const skuList = Array.from(qpiSkus);
+        const placeholders = skuList.map(() => '?').join(',');
+        
+        db.run(
+          `UPDATE items 
+           SET order_received = 1, 
+               stage_5_product_ordered = 1, 
+               updated_at = CURRENT_TIMESTAMP 
+           WHERE sku IN (${placeholders})`,
+          skuList,
+          function(err) {
+            if (err) {
+              console.error('Error updating items:', err.message);
+              errors++;
+            } else {
+              itemsUpdated = this.changes;
+              console.log(`Updated ${itemsUpdated} items in legacy table`);
+            }
+          }
+        );
+      }
+      
+      // Batch update ASINs in items table if they're missing
+      const stmt = db.prepare(`UPDATE items SET asin = ? WHERE sku = ? AND (asin IS NULL OR asin = "")`);
+      skuAsinMap.forEach((asin, sku) => {
+        stmt.run([asin, sku], function(err) {
+          if (err) errors++;
+        });
+      });
+      stmt.finalize();
+      
+      // Batch update products table - mark stage_5_product_ordered for all ASINs in QPI
+      if (qpiAsins.size > 0) {
+        const asinList = Array.from(qpiAsins);
+        const placeholders = asinList.map(() => '?').join(',');
+        
+        db.run(
+          `UPDATE products 
+           SET stage_5_product_ordered = 1,
+               updated_at = CURRENT_TIMESTAMP
+           WHERE asin IN (${placeholders})`,
+          asinList,
+          function(err) {
+            if (err) {
+              console.error('Error updating products stage_5:', err.message);
+              errors++;
+            } else {
+              productsUpdated = this.changes;
+              console.log(`Updated stage_5_product_ordered for ${productsUpdated} products`);
+            }
+          }
+        );
+      }
+      
+      // Give it a moment to finish all updates
+      setTimeout(() => {
+        res.json({
+          message: 'QPI sync completed',
+          total_in_qpi: qpiData.length,
+          unique_skus: qpiSkus.size,
+          unique_asins: qpiAsins.size,
+          items_updated: itemsUpdated,
+          products_updated: productsUpdated,
+          errors: errors
+        });
+      }, 1000);
     })
     .on('error', (err) => {
       res.status(500).json({ error: 'Error reading CSV file: ' + err.message });
