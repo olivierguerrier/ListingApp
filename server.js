@@ -226,6 +226,19 @@ function initializeDatabase() {
       FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE
     )`);
 
+    // ASIN Country Status table - tracks VC listing status per country
+    db.run(`CREATE TABLE IF NOT EXISTS asin_country_status (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      asin TEXT NOT NULL,
+      sku TEXT,
+      country_code TEXT NOT NULL,
+      vc_status TEXT,
+      last_synced DATETIME DEFAULT CURRENT_TIMESTAMP,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE(asin, country_code)
+    )`);
+
     console.log('Database tables initialized');
     
     // Initialize and start sync scheduler
@@ -394,6 +407,206 @@ app.get('/api/skus', (req, res) => {
   });
 });
 
+// Get ASIN country status - all ASINs across all countries (with pagination)
+app.get('/api/asin-status', (req, res) => {
+  const limit = parseInt(req.query.limit) || 50;
+  const offset = parseInt(req.query.offset) || 0;
+  const country = req.query.country; // Optional filter by country
+  
+  let query = `
+    SELECT 
+      asin,
+      sku,
+      country_code,
+      vc_status,
+      last_synced,
+      created_at,
+      updated_at
+    FROM asin_country_status
+  `;
+  
+  let countQuery = `SELECT COUNT(*) as count FROM asin_country_status`;
+  let params = [];
+  let countParams = [];
+  
+  if (country) {
+    query += ` WHERE country_code = ?`;
+    countQuery += ` WHERE country_code = ?`;
+    params.push(country);
+    countParams.push(country);
+  }
+  
+  query += ` ORDER BY asin, country_code LIMIT ? OFFSET ?`;
+  params.push(limit, offset);
+
+  db.get(countQuery, countParams, (countErr, countRow) => {
+    if (countErr) {
+      res.status(500).json({ error: countErr.message });
+      return;
+    }
+    
+    db.all(query, params, (err, rows) => {
+      if (err) {
+        res.status(500).json({ error: err.message });
+        return;
+      }
+      
+      res.json({
+        data: rows,
+        pagination: {
+          total: countRow.count,
+          limit: limit,
+          offset: offset,
+          page: Math.floor(offset / limit) + 1,
+          total_pages: Math.ceil(countRow.count / limit)
+        }
+      });
+    });
+  });
+});
+
+// Get ASIN country status by specific ASIN
+app.get('/api/asin-status/:asin', (req, res) => {
+  const asin = req.params.asin;
+  
+  const query = `
+    SELECT 
+      asin,
+      sku,
+      country_code,
+      vc_status,
+      last_synced,
+      created_at,
+      updated_at
+    FROM asin_country_status
+    WHERE asin = ?
+    ORDER BY country_code
+  `;
+
+  db.all(query, [asin], (err, rows) => {
+    if (err) {
+      res.status(500).json({ error: err.message });
+      return;
+    }
+    
+    if (rows.length === 0) {
+      res.status(404).json({ error: 'ASIN not found' });
+      return;
+    }
+    
+    res.json({
+      asin: asin,
+      countries: rows
+    });
+  });
+});
+
+// Get ASIN status summary - shows which ASINs are in which countries (with pagination)
+app.get('/api/asin-status/summary/all', (req, res) => {
+  const limit = parseInt(req.query.limit) || 50;
+  const offset = parseInt(req.query.offset) || 0;
+  
+  const countQuery = `
+    SELECT COUNT(DISTINCT asin) as count
+    FROM asin_country_status
+  `;
+  
+  const query = `
+    SELECT 
+      asin,
+      GROUP_CONCAT(country_code || ':' || COALESCE(vc_status, 'unknown')) as country_status,
+      COUNT(DISTINCT country_code) as total_countries,
+      SUM(CASE WHEN vc_status IS NOT NULL AND vc_status != '' THEN 1 ELSE 0 END) as countries_with_status,
+      MAX(last_synced) as last_synced
+    FROM asin_country_status
+    GROUP BY asin
+    ORDER BY asin
+    LIMIT ? OFFSET ?
+  `;
+
+  db.get(countQuery, [], (countErr, countRow) => {
+    if (countErr) {
+      res.status(500).json({ error: countErr.message });
+      return;
+    }
+    
+    db.all(query, [limit, offset], (err, rows) => {
+      if (err) {
+        res.status(500).json({ error: err.message });
+        return;
+      }
+      
+      res.json({
+        data: rows,
+        pagination: {
+          total: countRow.count,
+          limit: limit,
+          offset: offset,
+          page: Math.floor(offset / limit) + 1,
+          total_pages: Math.ceil(countRow.count / limit)
+        }
+      });
+    });
+  });
+});
+
+// Get ASINs missing in specific country (with pagination)
+app.get('/api/asin-status/missing/:country', (req, res) => {
+  const country = req.params.country;
+  const limit = parseInt(req.query.limit) || 50;
+  const offset = parseInt(req.query.offset) || 0;
+  
+  const countQuery = `
+    SELECT COUNT(DISTINCT p.asin) as count
+    FROM products p
+    WHERE p.asin NOT IN (
+      SELECT asin 
+      FROM asin_country_status 
+      WHERE country_code = ?
+    )
+    AND p.is_temp_asin = 0
+  `;
+  
+  const query = `
+    SELECT DISTINCT p.asin, p.name
+    FROM products p
+    WHERE p.asin NOT IN (
+      SELECT asin 
+      FROM asin_country_status 
+      WHERE country_code = ?
+    )
+    AND p.is_temp_asin = 0
+    ORDER BY p.asin
+    LIMIT ? OFFSET ?
+  `;
+
+  db.get(countQuery, [country], (countErr, countRow) => {
+    if (countErr) {
+      res.status(500).json({ error: countErr.message });
+      return;
+    }
+    
+    db.all(query, [country, limit, offset], (err, rows) => {
+      if (err) {
+        res.status(500).json({ error: err.message });
+        return;
+      }
+      
+      res.json({
+        country: country,
+        missing_asins: rows,
+        pagination: {
+          total: countRow.count,
+          limit: limit,
+          offset: offset,
+          page: Math.floor(offset / limit) + 1,
+          total_pages: Math.ceil(countRow.count / limit)
+        }
+      });
+    });
+  });
+});
+
 // Database explorer endpoint
 app.get('/api/database/:table', (req, res) => {
   const tableName = req.params.table;
@@ -406,7 +619,8 @@ app.get('/api/database/:table', (req, res) => {
     'flow_stage_history',
     'temp_asin_counter',
     'items',
-    'item_country_pricing'
+    'item_country_pricing',
+    'asin_country_status'
   ];
   
   if (!allowedTables.includes(tableName)) {
@@ -1072,9 +1286,10 @@ app.post('/api/sync/vc', (req, res) => {
         return;
       }
 
-      console.log(`Found ${rows.length} SKUs in VC extract`);
+      console.log(`Found ${rows.length} SKU-Country combinations in VC extract`);
 
       let updated = 0;
+      let asinStatusUpdated = 0;
       let errors = 0;
 
       // Process each row
@@ -1082,6 +1297,7 @@ app.post('/api/sync/vc', (req, res) => {
         const sku = row.sku;
         const asin = row.asin;
         const status = row.status;
+        const country = row.country;
 
         // Update item - mark as vendor_central_setup if it has a status
         const vcSetup = status ? 1 : 0;
@@ -1103,6 +1319,29 @@ app.post('/api/sync/vc', (req, res) => {
             }
           }
         );
+
+        // Update or insert ASIN country status
+        if (asin && country) {
+          db.run(
+            `INSERT INTO asin_country_status (asin, sku, country_code, vc_status, last_synced, updated_at)
+             VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+             ON CONFLICT(asin, country_code) 
+             DO UPDATE SET 
+               sku = excluded.sku,
+               vc_status = excluded.vc_status,
+               last_synced = CURRENT_TIMESTAMP,
+               updated_at = CURRENT_TIMESTAMP`,
+            [asin, sku, country, status],
+            function(err) {
+              if (err) {
+                errors++;
+                console.error(`Error updating ASIN status for ${asin} in ${country}:`, err.message);
+              } else {
+                asinStatusUpdated++;
+              }
+            }
+          );
+        }
       });
 
       // Give it a moment to finish all updates
@@ -1112,7 +1351,8 @@ app.post('/api/sync/vc', (req, res) => {
           message: 'VC sync completed',
           file: files[0],
           total_in_vc: rows.length,
-          updated: updated,
+          items_updated: updated,
+          asin_status_updated: asinStatusUpdated,
           errors: errors
         });
       }, 1000);
