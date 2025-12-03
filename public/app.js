@@ -1142,7 +1142,7 @@ document.getElementById('skusNextBtn').addEventListener('click', () => {
 });
 
 // Workflow Modal
-function openWorkflowModal(asin, stageNumber) {
+async function openWorkflowModal(asin, stageNumber) {
     const modal = document.getElementById('workflowModal');
     const title = document.getElementById('workflowModalTitle');
     const content = document.getElementById('workflowModalContent');
@@ -1158,15 +1158,98 @@ function openWorkflowModal(asin, stageNumber) {
     };
     
     title.textContent = `${stageNames[stageNumber]} - ${asin}`;
-    content.innerHTML = `
-        <p>Workflow details for ASIN: <strong>${asin}</strong></p>
-        <p>Stage: <strong>${stageNames[stageNumber]}</strong></p>
-        <div style="margin-top: 20px;">
-            <button class="btn btn-primary" onclick="document.getElementById('workflowModal').style.display='none'">Close</button>
-        </div>
-    `;
     
-    modal.style.display = 'block';
+    // If it's Stage 5 (VC Listed), show country status
+    if (stageNumber === 5) {
+        content.innerHTML = '<p style="text-align: center; color: var(--text-secondary);">Loading country status...</p>';
+        modal.style.display = 'block';
+        
+        try {
+            // Fetch ASIN status by country
+            const response = await fetch(`${API_BASE}/asin-status/${asin}`);
+            const data = await response.json();
+            
+            if (data.countries && data.countries.length > 0) {
+                const countriesWithStatus = data.countries;
+                
+                // Get all unique countries from the filter dropdown
+                const countryFilter = document.getElementById('countryFilter');
+                const allCountries = Array.from(countryFilter.options)
+                    .map(opt => opt.value)
+                    .filter(val => val !== 'all' && val !== 'loading');
+                
+                content.innerHTML = `
+                    <div style="margin-bottom: 20px;">
+                        <h3>VC Listing Status by Country</h3>
+                        <p>ASIN: <strong>${asin}</strong></p>
+                    </div>
+                    
+                    <div class="country-status-table-wrapper">
+                        <table class="country-status-table">
+                            <thead>
+                                <tr>
+                                    <th>Country</th>
+                                    <th>Status</th>
+                                    <th>VC Status</th>
+                                    <th>Last Synced</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${allCountries.map(country => {
+                                    const countryData = countriesWithStatus.find(c => c.country_code === country);
+                                    const isListed = !!countryData;
+                                    const vcStatus = countryData ? countryData.vc_status : '-';
+                                    const lastSynced = countryData ? new Date(countryData.last_synced).toLocaleString() : '-';
+                                    
+                                    return `
+                                        <tr class="${isListed ? 'listed' : 'not-listed'}">
+                                            <td><strong>${escapeHtml(country)}</strong></td>
+                                            <td>
+                                                ${isListed 
+                                                    ? '<span class="status-badge listed">✓ Listed</span>' 
+                                                    : '<span class="status-badge not-listed">✗ Not Listed</span>'}
+                                            </td>
+                                            <td>${escapeHtml(vcStatus)}</td>
+                                            <td><small>${escapeHtml(lastSynced)}</small></td>
+                                        </tr>
+                                    `;
+                                }).join('')}
+                            </tbody>
+                        </table>
+                    </div>
+                    
+                    <div style="margin-top: 20px; text-align: right;">
+                        <button class="btn btn-primary" onclick="document.getElementById('workflowModal').style.display='none'">Close</button>
+                    </div>
+                `;
+            } else {
+                content.innerHTML = `
+                    <p>No VC listing data found for ASIN: <strong>${asin}</strong></p>
+                    <div style="margin-top: 20px;">
+                        <button class="btn btn-primary" onclick="document.getElementById('workflowModal').style.display='none'">Close</button>
+                    </div>
+                `;
+            }
+        } catch (error) {
+            console.error('Error loading country status:', error);
+            content.innerHTML = `
+                <p style="color: var(--danger-color);">Error loading country status</p>
+                <div style="margin-top: 20px;">
+                    <button class="btn btn-primary" onclick="document.getElementById('workflowModal').style.display='none'">Close</button>
+                </div>
+            `;
+        }
+    } else {
+        // For other stages, show basic info
+        content.innerHTML = `
+            <p>Workflow details for ASIN: <strong>${asin}</strong></p>
+            <p>Stage: <strong>${stageNames[stageNumber]}</strong></p>
+            <div style="margin-top: 20px;">
+                <button class="btn btn-primary" onclick="document.getElementById('workflowModal').style.display='none'">Close</button>
+            </div>
+        `;
+        modal.style.display = 'block';
+    }
 }
 
 document.getElementById('workflowModalClose').addEventListener('click', () => {

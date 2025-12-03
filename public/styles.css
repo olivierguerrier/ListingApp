@@ -979,3 +979,67 @@ table tbody tr:hover {
     }
 }
 
+/* Country Status Table */
+.country-status-table-wrapper {
+    max-height: 500px;
+    overflow-y: auto;
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    margin: 20px 0;
+}
+
+.country-status-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 14px;
+}
+
+.country-status-table thead {
+    background: var(--background);
+    position: sticky;
+    top: 0;
+    z-index: 10;
+}
+
+.country-status-table th {
+    padding: 12px;
+    text-align: left;
+    font-weight: 600;
+    border-bottom: 2px solid var(--border-color);
+}
+
+.country-status-table td {
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.country-status-table tr.listed {
+    background: #f0fdf4;
+}
+
+.country-status-table tr.not-listed {
+    background: #fef2f2;
+}
+
+.country-status-table tr:hover {
+    background: #e5e7eb;
+}
+
+.country-status-table .status-badge {
+    display: inline-block;
+    padding: 4px 10px;
+    border-radius: 12px;
+    font-size: 12px;
+    font-weight: 600;
+}
+
+.country-status-table .status-badge.listed {
+    background: var(--success-color);
+    color: white;
+}
+
+.country-status-table .status-badge.not-listed {
+    background: #9ca3af;
+    color: white;
+}
+
