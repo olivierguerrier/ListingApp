@@ -238,13 +238,15 @@ function switchView(view) {
     // Update view containers
     document.getElementById('productsView').classList.toggle('active', view === 'products');
     document.getElementById('skusView').classList.toggle('active', view === 'skus');
+    document.getElementById('reportsView').classList.toggle('active', view === 'reports');
     document.getElementById('databaseView').classList.toggle('active', view === 'database');
     document.getElementById('productsView').style.display = view === 'products' ? 'block' : 'none';
     document.getElementById('skusView').style.display = view === 'skus' ? 'block' : 'none';
+    document.getElementById('reportsView').style.display = view === 'reports' ? 'block' : 'none';
     document.getElementById('databaseView').style.display = view === 'database' ? 'block' : 'none';
     
-    // Hide filters for database view
-    document.querySelector('.filters').style.display = view === 'database' ? 'none' : 'flex';
+    // Hide filters for database and reports view
+    document.querySelector('.filters').style.display = (view === 'database' || view === 'reports') ? 'none' : 'flex';
     
     // Render appropriate view
     if (view === 'products') {
@@ -1494,8 +1496,8 @@ async function generateReport(reportType) {
                     </tbody>
                 </table>
                 <div style="margin-top: 15px; text-align: center;">
-                    <button class="btn btn-secondary" onclick="exportReportCSV('${reportType}', '${reportTitle}')">
-                        📥 Export to CSV
+                    <button class="btn btn-secondary" onclick="exportReportExcel('${reportType}', '${reportTitle}')">
+                        📥 Export to Excel
                     </button>
                 </div>
             `;
@@ -1523,74 +1525,21 @@ async function generateReport(reportType) {
     }
 }
 
-async function exportReportCSV(reportType, reportTitle) {
-    let endpoint = '';
-    
-    switch(reportType) {
-        case 'temp-asins':
-            endpoint = `${API_BASE}/reports/temp-asins`;
-            break;
-        case 'pim-not-vc':
-            endpoint = `${API_BASE}/reports/pim-not-vc`;
-            break;
-        case 'vc-not-qpi':
-            endpoint = `${API_BASE}/reports/vc-not-qpi`;
-            break;
-        default:
-            showError('Unknown report type');
-            return;
-    }
-    
+async function exportReportExcel(reportType, reportTitle) {
     try {
-        const response = await fetch(endpoint);
-        const result = await response.json();
+        const url = `${API_BASE}/reports/${reportType}/export`;
         
-        if (!result.data || result.data.length === 0) {
-            showError('No data to export');
-            return;
-        }
-        
-        // Create CSV content
-        const headers = ['ASIN', 'Name', 'SKUs', 'Item Number', 'Brand', 'Countries', 'Created'];
-        const csvRows = [headers.join(',')];
-        
-        result.data.forEach(row => {
-            const skus = Array.isArray(row.skus) ? row.skus.join(';') : (row.skus || '');
-            const itemNumber = row.stage_1_item_number || '';
-            const brand = row.stage_1_brand || '';
-            const countries = row.stage_1_country || '';
-            const name = row.name || row.asin;
-            const createdDate = new Date(row.created_at).toLocaleDateString();
-            
-            const csvRow = [
-                `"${row.asin}"`,
-                `"${name.replace(/"/g, '""')}"`,
-                `"${skus}"`,
-                `"${itemNumber}"`,
-                `"${brand}"`,
-                `"${countries}"`,
-                `"${createdDate}"`
-            ].join(',');
-            
-            csvRows.push(csvRow);
-        });
-        
-        const csvContent = csvRows.join('\n');
-        
-        // Create download link
-        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        // Create a temporary link to download the file
         const link = document.createElement('a');
-        const url = URL.createObjectURL(blob);
+        link.href = url;
+        link.download = `${reportTitle.replace(/\s+/g, '_')}_${new Date().toISOString().split('T')[0]}.xlsx`;
         
-        link.setAttribute('href', url);
-        link.setAttribute('download', `${reportTitle.replace(/\s+/g, '_')}_${new Date().toISOString().split('T')[0]}.csv`);
-        link.style.visibility = 'hidden';
-        
+        // Trigger download
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
         
-        showSuccess('Report exported successfully');
+        showSuccess('Report exported to Excel successfully');
     } catch (error) {
         console.error('Error exporting report:', error);
         showError('Failed to export report');

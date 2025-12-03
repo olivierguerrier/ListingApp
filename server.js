@@ -1916,6 +1916,112 @@ app.get('/api/reports/vc-not-qpi', (req, res) => {
   });
 });
 
+// Export Reports to Excel
+app.get('/api/reports/:reportType/export', (req, res) => {
+  const reportType = req.params.reportType;
+  let query = '';
+  let filename = '';
+  
+  if (reportType === 'temp-asins') {
+    filename = 'Temporary_ASINs_Not_in_PIM.xlsx';
+    query = `
+      SELECT 
+        p.asin AS ASIN,
+        p.name AS Name,
+        GROUP_CONCAT(DISTINCT ps.sku) as SKUs,
+        p.stage_1_item_number AS 'Item Number',
+        p.stage_1_brand AS Brand,
+        p.stage_1_country AS Countries,
+        datetime(p.created_at) AS Created
+      FROM products p
+      LEFT JOIN product_skus ps ON p.id = ps.product_id
+      WHERE p.is_temp_asin = 1 
+        AND (p.stage_1_item_number IS NULL OR p.stage_1_item_number = '')
+      GROUP BY p.id
+      ORDER BY p.created_at DESC
+    `;
+  } else if (reportType === 'pim-not-vc') {
+    filename = 'PIM_SKUs_Not_in_VC.xlsx';
+    query = `
+      SELECT 
+        p.asin AS ASIN,
+        p.name AS Name,
+        GROUP_CONCAT(DISTINCT ps.sku) as SKUs,
+        p.stage_1_item_number AS 'Item Number',
+        p.stage_1_brand AS Brand,
+        p.stage_1_country AS Countries,
+        CASE WHEN p.stage_2_product_finalized = 1 THEN 'Yes' ELSE 'No' END AS 'PIM Finalized',
+        datetime(p.created_at) AS Created
+      FROM products p
+      LEFT JOIN product_skus ps ON p.id = ps.product_id
+      WHERE p.stage_1_item_number IS NOT NULL 
+        AND p.stage_1_item_number != ''
+        AND (p.stage_4_product_listed = 0 OR p.stage_4_product_listed IS NULL)
+      GROUP BY p.id
+      ORDER BY p.created_at DESC
+    `;
+  } else if (reportType === 'vc-not-qpi') {
+    filename = 'VC_Listed_Not_in_QPI.xlsx';
+    query = `
+      SELECT 
+        p.asin AS ASIN,
+        p.name AS Name,
+        GROUP_CONCAT(DISTINCT ps.sku) as SKUs,
+        p.stage_1_item_number AS 'Item Number',
+        p.stage_1_brand AS Brand,
+        p.stage_1_country AS Countries,
+        datetime(p.created_at) AS Created
+      FROM products p
+      LEFT JOIN product_skus ps ON p.id = ps.product_id
+      WHERE p.stage_4_product_listed = 1
+        AND (p.stage_5_product_ordered = 0 OR p.stage_5_product_ordered IS NULL)
+      GROUP BY p.id
+      ORDER BY p.created_at DESC
+    `;
+  } else {
+    res.status(400).json({ error: 'Invalid report type' });
+    return;
+  }
+  
+  db.all(query, [], (err, rows) => {
+    if (err) {
+      res.status(500).json({ error: err.message });
+      return;
+    }
+    
+    if (rows.length === 0) {
+      res.status(404).json({ error: 'No data found for this report' });
+      return;
+    }
+    
+    // Create Excel workbook
+    const XLSX = require('xlsx');
+    const worksheet = XLSX.utils.json_to_sheet(rows);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Report');
+    
+    // Auto-size columns
+    const colWidths = [];
+    const headers = Object.keys(rows[0]);
+    headers.forEach((header, idx) => {
+      const maxLength = Math.max(
+        header.length,
+        ...rows.map(row => String(row[header] || '').length)
+      );
+      colWidths.push({ wch: Math.min(maxLength + 2, 50) });
+    });
+    worksheet['!cols'] = colWidths;
+    
+    // Generate Excel file buffer
+    const buffer = XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' });
+    
+    // Send file
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.send(buffer);
+  });
+});
+
 // Serve frontend
 app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
