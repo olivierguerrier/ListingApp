@@ -1355,59 +1355,107 @@ app.post('/api/sync/vc', (req, res) => {
 
       let updated = 0;
       let asinStatusUpdated = 0;
+      let productsUpdated = 0;
       let errors = 0;
 
-      // Process each row
+      // Collect unique ASINs for products table update
+      const asinsInVC = new Set();
+      const asinCountryData = [];
+      
       rows.forEach(row => {
-        const sku = row.sku;
-        const asin = row.asin;
-        const status = row.status;
-        const country = row.country;
+        if (row.asin) {
+          asinsInVC.add(row.asin);
+          if (row.country) {
+            asinCountryData.push({
+              asin: row.asin,
+              sku: row.sku,
+              country: row.country,
+              status: row.status
+            });
+          }
+        }
+      });
 
-        // Update item - mark as vendor_central_setup if it has a status
-        const vcSetup = status ? 1 : 0;
+      // Batch update products table - mark stage_4_product_listed for all ASINs in VC
+      if (asinsInVC.size > 0) {
+        const asinList = Array.from(asinsInVC);
+        const placeholders = asinList.map(() => '?').join(',');
         
         db.run(
-          `UPDATE items 
-           SET vendor_central_setup = ?, 
-               asin = COALESCE(NULLIF(asin, ''), ?),
-               stage_4_product_listed = 1,
+          `UPDATE products 
+           SET stage_4_product_listed = 1,
                updated_at = CURRENT_TIMESTAMP
-           WHERE sku = ?`,
-          [vcSetup, asin, sku],
+           WHERE asin IN (${placeholders})`,
+          asinList,
           function(err) {
             if (err) {
+              console.error('Error updating products stage_4:', err.message);
               errors++;
-              console.error(`Error updating ${sku}:`, err.message);
-            } else if (this.changes > 0) {
-              updated++;
+            } else {
+              productsUpdated = this.changes;
+              console.log(`Updated stage_4_product_listed for ${productsUpdated} products`);
             }
           }
         );
+      }
 
-        // Update or insert ASIN country status
-        if (asin && country) {
-          db.run(
-            `INSERT INTO asin_country_status (asin, sku, country_code, vc_status, last_synced, updated_at)
-             VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-             ON CONFLICT(asin, country_code) 
-             DO UPDATE SET 
-               sku = excluded.sku,
-               vc_status = excluded.vc_status,
-               last_synced = CURRENT_TIMESTAMP,
-               updated_at = CURRENT_TIMESTAMP`,
-            [asin, sku, country, status],
-            function(err) {
-              if (err) {
-                errors++;
-                console.error(`Error updating ASIN status for ${asin} in ${country}:`, err.message);
-              } else {
-                asinStatusUpdated++;
-              }
+      // Batch insert/update ASIN country status
+      if (asinCountryData.length > 0) {
+        const stmt = db.prepare(`
+          INSERT INTO asin_country_status (asin, sku, country_code, vc_status, last_synced, updated_at)
+          VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+          ON CONFLICT(asin, country_code) 
+          DO UPDATE SET 
+            sku = excluded.sku,
+            vc_status = excluded.vc_status,
+            last_synced = CURRENT_TIMESTAMP,
+            updated_at = CURRENT_TIMESTAMP
+        `);
+
+        asinCountryData.forEach(data => {
+          stmt.run([data.asin, data.sku, data.country, data.status], function(err) {
+            if (err) {
+              errors++;
+            } else {
+              asinStatusUpdated++;
             }
-          );
+          });
+        });
+
+        stmt.finalize();
+      }
+
+      // Update legacy items table in batch
+      const skuUpdates = new Map();
+      rows.forEach(row => {
+        if (row.sku && row.asin) {
+          skuUpdates.set(row.sku, { asin: row.asin, status: row.status });
         }
       });
+
+      if (skuUpdates.size > 0) {
+        const stmt = db.prepare(`
+          UPDATE items 
+          SET vendor_central_setup = ?, 
+              asin = COALESCE(NULLIF(asin, ''), ?),
+              stage_4_product_listed = 1,
+              updated_at = CURRENT_TIMESTAMP
+          WHERE sku = ?
+        `);
+
+        skuUpdates.forEach((data, sku) => {
+          const vcSetup = data.status ? 1 : 0;
+          stmt.run([vcSetup, data.asin, sku], function(err) {
+            if (err) {
+              errors++;
+            } else if (this.changes > 0) {
+              updated++;
+            }
+          });
+        });
+
+        stmt.finalize();
+      }
 
       // Give it a moment to finish all updates
       setTimeout(() => {
@@ -1416,11 +1464,13 @@ app.post('/api/sync/vc', (req, res) => {
           message: 'VC sync completed',
           file: files[0],
           total_in_vc: rows.length,
+          unique_asins: asinsInVC.size,
+          products_updated: productsUpdated,
           items_updated: updated,
           asin_status_updated: asinStatusUpdated,
           errors: errors
         });
-      }, 1000);
+      }, 2000);
     });
 
   } catch (error) {
