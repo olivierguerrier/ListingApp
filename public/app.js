@@ -104,8 +104,10 @@ function setupEventListeners() {
 // Load all items
 async function loadItems() {
     try {
-        const response = await fetch(`${API_BASE}/items`);
-        items = await response.json();
+        const response = await fetch(`${API_BASE}/items?limit=1000`);
+        const result = await response.json();
+        // Handle both paginated and non-paginated responses
+        items = result.data || result;
         if (currentView === 'products') {
             renderItems(items);
         }
@@ -118,8 +120,10 @@ async function loadItems() {
 // Load SKUs
 async function loadSkus() {
     try {
-        const response = await fetch(`${API_BASE}/skus`);
-        skus = await response.json();
+        const response = await fetch(`${API_BASE}/skus?limit=1000`);
+        const result = await response.json();
+        // Handle both paginated and non-paginated responses
+        skus = result.data || result;
         if (currentView === 'skus') {
             renderSkus(skus);
         }
