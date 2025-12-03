@@ -1312,14 +1312,98 @@ async function openWorkflowModal(asin, stageNumber) {
         }
     } else {
         // For other stages, show basic info
-        content.innerHTML = `
-            <p>Workflow details for ASIN: <strong>${asin}</strong></p>
-            <p>Stage: <strong>${stageNames[stageNumber]}</strong></p>
-            <div style="margin-top: 20px;">
-                <button class="btn btn-primary" onclick="document.getElementById('workflowModal').style.display='none'">Close</button>
-            </div>
-        `;
+        content.innerHTML = '<p style="text-align: center; color: var(--text-secondary);">Loading details...</p>';
         modal.style.display = 'block';
+        
+        try {
+            // Fetch product details
+            const response = await fetch(`${API_BASE}/items/${asin}`);
+            const product = await response.json();
+            
+            if (stageNumber === 1) {
+                // Stage 1: Ideation - show planned countries and other details
+                const countries = product.stage_1_country ? product.stage_1_country.split(',') : [];
+                const brand = product.stage_1_brand || '-';
+                const description = product.stage_1_description || '-';
+                const firstOrderDate = product.stage_1_season_launch || '-';
+                const itemNumber = product.stage_1_item_number || '-';
+                
+                const countryNames = {
+                    'US': 'United States',
+                    'CA': 'Canada',
+                    'MX': 'Mexico',
+                    'UK': 'United Kingdom',
+                    'DE': 'Germany',
+                    'FR': 'France',
+                    'IT': 'Italy',
+                    'ES': 'Spain',
+                    'JP': 'Japan',
+                    'AU': 'Australia'
+                };
+                
+                content.innerHTML = `
+                    <div style="margin-bottom: 20px;">
+                        <h3>Ideation Details</h3>
+                        <p>ASIN: <strong>${escapeHtml(asin)}</strong></p>
+                    </div>
+                    
+                    <div style="background: var(--background); padding: 15px; border-radius: 8px; margin-bottom: 15px;">
+                        <h4 style="margin-top: 0; color: var(--primary-color);">📍 Planned Launch Countries</h4>
+                        ${countries.length > 0 ? `
+                            <div style="display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px;">
+                                ${countries.map(code => `
+                                    <span style="background: var(--primary-color); color: white; padding: 6px 12px; border-radius: 20px; font-size: 13px; font-weight: 500;">
+                                        ${escapeHtml(countryNames[code] || code)}
+                                    </span>
+                                `).join('')}
+                            </div>
+                        ` : '<p style="color: var(--text-secondary);">No countries specified</p>'}
+                    </div>
+                    
+                    <div style="background: var(--background); padding: 15px; border-radius: 8px; margin-bottom: 15px;">
+                        <table style="width: 100%; border-collapse: collapse;">
+                            <tr>
+                                <td style="padding: 8px 0; font-weight: 600; color: var(--text-secondary); width: 150px;">Brand:</td>
+                                <td style="padding: 8px 0;">${escapeHtml(brand)}</td>
+                            </tr>
+                            <tr>
+                                <td style="padding: 8px 0; font-weight: 600; color: var(--text-secondary);">Item Number:</td>
+                                <td style="padding: 8px 0;">${escapeHtml(itemNumber)}</td>
+                            </tr>
+                            <tr>
+                                <td style="padding: 8px 0; font-weight: 600; color: var(--text-secondary);">First Order Date:</td>
+                                <td style="padding: 8px 0;">${escapeHtml(firstOrderDate)}</td>
+                            </tr>
+                            <tr>
+                                <td style="padding: 8px 0; font-weight: 600; color: var(--text-secondary); vertical-align: top;">Description:</td>
+                                <td style="padding: 8px 0;">${escapeHtml(description)}</td>
+                            </tr>
+                        </table>
+                    </div>
+                    
+                    <div style="margin-top: 20px; text-align: right;">
+                        <button class="btn btn-primary" onclick="document.getElementById('workflowModal').style.display='none'">Close</button>
+                    </div>
+                `;
+            } else {
+                // Other stages - show basic info
+                content.innerHTML = `
+                    <p>Workflow details for ASIN: <strong>${asin}</strong></p>
+                    <p>Stage: <strong>${stageNames[stageNumber]}</strong></p>
+                    <div style="margin-top: 20px; text-align: right;">
+                        <button class="btn btn-primary" onclick="document.getElementById('workflowModal').style.display='none'">Close</button>
+                    </div>
+                `;
+            }
+        } catch (error) {
+            console.error('Error loading stage details:', error);
+            content.innerHTML = `
+                <p style="color: var(--danger-color);">Error loading details</p>
+                <div style="margin-top: 20px; text-align: right;">
+                    <button class="btn btn-primary" onclick="document.getElementById('workflowModal').style.display='none'">Close</button>
+                </div>
+            `;
+        }
     }
 }
 
