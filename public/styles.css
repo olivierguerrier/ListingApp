@@ -194,6 +194,22 @@ h3 {
     gap: 20px;
 }
 
+.pagination-controls {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 20px;
+    margin-top: 30px;
+    padding: 20px;
+}
+
+.pagination-controls span {
+    font-size: 14px;
+    color: var(--text-secondary);
+    min-width: 120px;
+    text-align: center;
+}
+
 .item-card {
     background-color: var(--card-background);
     border-radius: 12px;

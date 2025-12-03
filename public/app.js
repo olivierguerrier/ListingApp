@@ -7,6 +7,15 @@ let currentItem = null;
 let currentView = 'products'; // 'products', 'skus', or 'database'
 let currentTable = 'products';
 
+// Pagination state
+let productsPage = 1;
+let productsLimit = 50;
+let productsTotalPages = 1;
+
+let skusPage = 1;
+let skusLimit = 50;
+let skusTotalPages = 1;
+
 // Initialize app
 document.addEventListener('DOMContentLoaded', () => {
     loadItems();
@@ -102,12 +111,21 @@ function setupEventListeners() {
 }
 
 // Load all items
-async function loadItems() {
+async function loadItems(page = 1) {
     try {
-        const response = await fetch(`${API_BASE}/items?limit=1000`);
+        productsPage = page;
+        const offset = (page - 1) * productsLimit;
+        const response = await fetch(`${API_BASE}/items?limit=${productsLimit}&offset=${offset}`);
         const result = await response.json();
         // Handle both paginated and non-paginated responses
         items = result.data || result;
+        
+        // Update pagination info
+        if (result.pagination) {
+            productsTotalPages = result.pagination.total_pages;
+            updatePaginationControls('products', page, productsTotalPages);
+        }
+        
         if (currentView === 'products') {
             renderItems(items);
         }
@@ -118,12 +136,21 @@ async function loadItems() {
 }
 
 // Load SKUs
-async function loadSkus() {
+async function loadSkus(page = 1) {
     try {
-        const response = await fetch(`${API_BASE}/skus?limit=1000`);
+        skusPage = page;
+        const offset = (page - 1) * skusLimit;
+        const response = await fetch(`${API_BASE}/skus?limit=${skusLimit}&offset=${offset}`);
         const result = await response.json();
         // Handle both paginated and non-paginated responses
         skus = result.data || result;
+        
+        // Update pagination info
+        if (result.pagination) {
+            skusTotalPages = result.pagination.total_pages;
+            updatePaginationControls('skus', page, skusTotalPages);
+        }
+        
         if (currentView === 'skus') {
             renderSkus(skus);
         }
@@ -1074,6 +1101,43 @@ document.getElementById('downloadExportBtn').addEventListener('click', async () 
     } catch (error) {
         console.error('Error exporting data:', error);
         showError('Failed to export data: ' + error.message);
+    }
+});
+
+// Pagination Controls
+function updatePaginationControls(view, currentPage, totalPages) {
+    const pageInfo = document.getElementById(`${view}PageInfo`);
+    const prevBtn = document.getElementById(`${view}PrevBtn`);
+    const nextBtn = document.getElementById(`${view}NextBtn`);
+    
+    pageInfo.textContent = `Page ${currentPage} of ${totalPages}`;
+    prevBtn.disabled = currentPage <= 1;
+    nextBtn.disabled = currentPage >= totalPages;
+}
+
+// Products pagination
+document.getElementById('productsPrevBtn').addEventListener('click', () => {
+    if (productsPage > 1) {
+        loadItems(productsPage - 1);
+    }
+});
+
+document.getElementById('productsNextBtn').addEventListener('click', () => {
+    if (productsPage < productsTotalPages) {
+        loadItems(productsPage + 1);
+    }
+});
+
+// SKUs pagination
+document.getElementById('skusPrevBtn').addEventListener('click', () => {
+    if (skusPage > 1) {
+        loadSkus(skusPage - 1);
+    }
+});
+
+document.getElementById('skusNextBtn').addEventListener('click', () => {
+    if (skusPage < skusTotalPages) {
+        loadSkus(skusPage + 1);
     }
 });
 
