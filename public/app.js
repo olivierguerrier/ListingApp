@@ -277,11 +277,6 @@ function renderItems(itemsToRender) {
         
         return `
             <tr data-item-id="${item.id}">
-                <div class="item-header">
-                    <div class="item-info">
-                        <h3>
-                            ${escapeHtml(item.name || item.asin)}
-                            ${isTempAsin ? '<span style="background-color: #f59e0b; color: white; padding: 2px 6px; border-radius: 4px; font-size: 11px; margin-left: 8px;">TEMP</span>' : ''}
                 <td class="item-name" title="${escapeHtml(item.name || item.asin)}">
                     ${escapeHtml(item.name || item.asin)}
                     ${isTempAsin ? '<span class="temp-badge">TEMP</span>' : ''}
