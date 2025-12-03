@@ -1218,7 +1218,7 @@ async function openWorkflowModal(asin, stageNumber) {
             `;
         }
     } else if (stageNumber === 6) {
-        // Stage 6: QPI Status - show which QPI files contain this ASIN
+        // Stage 6: QPI Status - show which QPI source files contain this ASIN
         content.innerHTML = '<p style="text-align: center; color: var(--text-secondary);">Loading QPI status...</p>';
         modal.style.display = 'block';
         
@@ -1234,6 +1234,15 @@ async function openWorkflowModal(asin, stageNumber) {
             const inQPI = productData.stage_5_product_ordered === 1;
             const skus = productData.skus || [];
             const filesFound = qpiData.files.filter(f => f.found).length;
+            const totalFiles = qpiData.total_source_files;
+            
+            // Map source file names to regions
+            const regionMap = {
+                'S26 QPI CA.xlsx': 'Canada',
+                'S26 QPI EMG.xlsx': 'Emerging Markets',
+                'S26 QPI EU.xlsx': 'Europe',
+                'S26 QPI JP003.xlsx': 'Japan'
+            };
             
             content.innerHTML = `
                 <div style="margin-bottom: 20px;">
@@ -1241,7 +1250,7 @@ async function openWorkflowModal(asin, stageNumber) {
                     <p>ASIN: <strong>${asin}</strong></p>
                     <p>SKUs: <strong>${skus.join(', ')}</strong></p>
                     <p>In QPI: <strong style="color: ${inQPI ? 'var(--success-color)' : 'var(--danger-color)'}">
-                        ${inQPI ? `✓ YES - Found in ${filesFound} file(s)` : '✗ NO - Not in any QPI files'}
+                        ${inQPI ? `✓ YES - Found in ${filesFound}/${totalFiles} source files` : '✗ NO - Not in any QPI source files'}
                     </strong></p>
                 </div>
                 
@@ -1249,7 +1258,7 @@ async function openWorkflowModal(asin, stageNumber) {
                     <table class="country-status-table">
                         <thead>
                             <tr>
-                                <th>QPI File</th>
+                                <th>Source File (Region)</th>
                                 <th>Status</th>
                                 <th>SKU</th>
                                 <th>Last Seen</th>
@@ -1257,9 +1266,13 @@ async function openWorkflowModal(asin, stageNumber) {
                         </thead>
                         <tbody>
                             ${qpiData.files.map(file => {
+                                const region = regionMap[file.source_file] || file.source_file;
                                 return `
                                     <tr class="${file.found ? 'listed' : 'not-listed'}">
-                                        <td><strong>${escapeHtml(file.file_name)}</strong></td>
+                                        <td>
+                                            <strong>${escapeHtml(file.source_file)}</strong>
+                                            <br><small style="color: var(--text-secondary);">${region}</small>
+                                        </td>
                                         <td>
                                             ${file.found 
                                                 ? '<span class="status-badge listed">✓ Found</span>' 
@@ -1276,8 +1289,9 @@ async function openWorkflowModal(asin, stageNumber) {
                 
                 <div style="margin-top: 20px;">
                     <p style="font-size: 14px; color: var(--text-secondary);">
-                        <strong>Note:</strong> Showing the last ${qpiData.total_files_checked} QPI files. 
-                        This ASIN appears in <strong>${filesFound}</strong> of these files.
+                        <strong>Note:</strong> Shows all QPI source files. 
+                        This ASIN appears in <strong>${filesFound} out of ${totalFiles}</strong> source files.
+                        ${filesFound < totalFiles ? ' Missing from some regions - may need to be added to additional QPIs.' : ' Present in all source files!'}
                     </p>
                 </div>
                 

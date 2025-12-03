@@ -274,11 +274,11 @@ function initializeDatabase() {
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       asin TEXT NOT NULL,
       sku TEXT,
-      qpi_file_name TEXT NOT NULL,
-      qpi_file_date DATE,
+      source_file TEXT NOT NULL,
+      qpi_sync_date DATE,
       last_seen DATETIME DEFAULT CURRENT_TIMESTAMP,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      UNIQUE(asin, qpi_file_name)
+      UNIQUE(asin, source_file)
     )`);
 
     console.log('Database tables initialized');
@@ -1374,23 +1374,28 @@ app.post('/api/sync/qpi', (req, res) => {
     .on('data', (data) => {
       const sku = data['Item no'];
       const asin = data['ASIN'];
-      if (sku && asin) {
-        qpiData.push({ sku, asin });
+      const sourceFile = data['Source File'];
+      if (sku && asin && sourceFile) {
+        qpiData.push({ sku, asin, sourceFile });
       }
     })
     .on('end', () => {
       console.log(`Found ${qpiData.length} items in QPI`);
       
-      // Collect unique SKUs and ASINs
+      // Collect unique SKUs, ASINs, and source files
       const qpiSkus = new Set();
       const qpiAsins = new Set();
       const skuAsinMap = new Map();
+      const sourceFiles = new Set();
       
       qpiData.forEach(item => {
         qpiSkus.add(item.sku);
         if (item.asin) {
           qpiAsins.add(item.asin);
           skuAsinMap.set(item.sku, item.asin);
+        }
+        if (item.sourceFile) {
+          sourceFiles.add(item.sourceFile);
         }
       });
       
@@ -1453,29 +1458,34 @@ app.post('/api/sync/qpi', (req, res) => {
           }
         );
         
-        // Track which file this QPI came from
-        const fileName = path.basename(qpiPath);
-        const fileDate = fs.statSync(qpiPath).mtime.toISOString().split('T')[0];
+        // Track which source files contain each ASIN
+        const syncDate = new Date().toISOString().split('T')[0];
         
-        // Insert/update file tracking for each ASIN
+        // First, clear old tracking data for this sync
+        db.run(`DELETE FROM qpi_file_tracking WHERE qpi_sync_date < date('now', '-30 days')`, (err) => {
+          if (err) console.error('Error clearing old QPI tracking:', err.message);
+        });
+        
+        // Insert/update file tracking for each ASIN-source file combination
         const trackStmt = db.prepare(`
-          INSERT INTO qpi_file_tracking (asin, sku, qpi_file_name, qpi_file_date, last_seen, created_at)
+          INSERT INTO qpi_file_tracking (asin, sku, source_file, qpi_sync_date, last_seen, created_at)
           VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-          ON CONFLICT(asin, qpi_file_name) 
+          ON CONFLICT(asin, source_file) 
           DO UPDATE SET 
             sku = excluded.sku,
+            qpi_sync_date = excluded.qpi_sync_date,
             last_seen = CURRENT_TIMESTAMP
         `);
         
         qpiData.forEach(item => {
-          if (item.asin) {
-            trackStmt.run([item.asin, item.sku, fileName, fileDate], (err) => {
-              if (err) console.error('Error tracking QPI file:', err.message);
+          if (item.asin && item.sourceFile) {
+            trackStmt.run([item.asin, item.sku, item.sourceFile, syncDate], (err) => {
+              if (err) console.error('Error tracking QPI source file:', err.message);
             });
           }
         });
         trackStmt.finalize(() => {
-          console.log(`Tracked ${qpiData.length} ASIN entries in ${fileName}`);
+          console.log(`Tracked ASINs across ${sourceFiles.size} source files: ${Array.from(sourceFiles).join(', ')}`);
         });
       }
       
@@ -1974,54 +1984,60 @@ app.get('/api/reports/vc-not-qpi', (req, res) => {
 app.get('/api/qpi-files/:asin', (req, res) => {
   const asin = req.params.asin;
   
-  // Get all QPI files and check if ASIN exists in each
-  const qpiPath = 'A:\\ProcessOutput\\QPI_Validation';
-  
-  if (!fs.existsSync(qpiPath)) {
-    res.status(404).json({ error: 'QPI directory not found' });
-    return;
-  }
-  
-  const qpiFiles = fs.readdirSync(qpiPath)
-    .filter(file => file.endsWith('.csv') && file.startsWith('QPI_Validation'))
-    .sort()
-    .reverse() // Most recent first
-    .slice(0, 10); // Last 10 files
-  
-  const query = `
-    SELECT 
-      qpi_file_name,
-      sku,
-      qpi_file_date,
-      last_seen
-    FROM qpi_file_tracking
-    WHERE asin = ?
-    ORDER BY qpi_file_date DESC
+  // Get all unique source files from qpi_file_tracking
+  const allSourceFilesQuery = `
+    SELECT DISTINCT source_file 
+    FROM qpi_file_tracking 
+    ORDER BY source_file
   `;
   
-  db.all(query, [asin], (err, rows) => {
+  db.all(allSourceFilesQuery, [], (err, allFiles) => {
     if (err) {
       res.status(500).json({ error: err.message });
       return;
     }
     
-    // Create a map of files where ASIN was found
-    const foundInFiles = new Map(rows.map(r => [r.qpi_file_name, r]));
+    // Get files where this ASIN appears
+    const asinFilesQuery = `
+      SELECT 
+        source_file,
+        sku,
+        qpi_sync_date,
+        last_seen
+      FROM qpi_file_tracking
+      WHERE asin = ?
+      ORDER BY source_file
+    `;
     
-    // Build response showing all recent files
-    const fileStatus = qpiFiles.map(fileName => ({
-      file_name: fileName,
-      found: foundInFiles.has(fileName),
-      sku: foundInFiles.get(fileName)?.sku || null,
-      last_seen: foundInFiles.get(fileName)?.last_seen || null,
-      file_date: foundInFiles.get(fileName)?.qpi_file_date || null
-    }));
-    
-    res.json({
-      asin: asin,
-      files: fileStatus,
-      total_files_checked: qpiFiles.length,
-      files_found_in: rows.length
+    db.all(asinFilesQuery, [asin], (err, asinFiles) => {
+      if (err) {
+        res.status(500).json({ error: err.message });
+        return;
+      }
+      
+      // Create a map of files where ASIN was found
+      const foundInFiles = new Map(asinFiles.map(r => [r.source_file, r]));
+      
+      // Get all unique source files (in case table is empty, use defaults)
+      const knownSourceFiles = allFiles.length > 0 
+        ? allFiles.map(f => f.source_file)
+        : ['S26 QPI CA.xlsx', 'S26 QPI EMG.xlsx', 'S26 QPI EU.xlsx', 'S26 QPI JP003.xlsx'];
+      
+      // Build response showing all source files
+      const fileStatus = knownSourceFiles.map(fileName => ({
+        source_file: fileName,
+        found: foundInFiles.has(fileName),
+        sku: foundInFiles.get(fileName)?.sku || null,
+        last_seen: foundInFiles.get(fileName)?.last_seen || null,
+        sync_date: foundInFiles.get(fileName)?.qpi_sync_date || null
+      }));
+      
+      res.json({
+        asin: asin,
+        files: fileStatus,
+        total_source_files: knownSourceFiles.length,
+        files_found_in: asinFiles.length
+      });
     });
   });
 });
