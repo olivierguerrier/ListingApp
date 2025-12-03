@@ -311,14 +311,12 @@ function addSkuToProduct(productId, sku, isPrimary, source, callback) {
 function initializeSyncScheduler() {
   syncScheduler = new SyncScheduler(db);
   
-  // Run initial sync on startup
-  console.log('\n[STARTUP] Running initial data sync...');
-  syncScheduler.syncAll().then(() => {
-    console.log('[STARTUP] Initial sync complete\n');
-    
-    // Start daily sync schedule
-    syncScheduler.startDailySync();
-  });
+  // Skip initial sync on startup - user can manually trigger syncs via UI
+  // This prevents startup delays when processing large data files
+  console.log('\n[STARTUP] Sync scheduler initialized. Use UI buttons to sync data.\n');
+  
+  // Start daily sync schedule (runs at 2 AM)
+  syncScheduler.startDailySync();
 }
 
 // ============= API ENDPOINTS =============

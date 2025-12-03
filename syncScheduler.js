@@ -155,36 +155,69 @@ class SyncScheduler {
               if (!product) {
                 // Try to find by SKU instead
                 this.db.get(
-                  'SELECT p.* FROM products p JOIN product_skus ps ON p.id = ps.product_id WHERE ps.sku = ?',
+                  'SELECT p.* FROM products p JOIN product_skus ps ON p.asin = ps.product_id WHERE ps.sku = ?',
                   [sku],
                   (err, productBySku) => {
-                    if (err || !productBySku) {
-                      // Product doesn't exist, skip it
+                    if (err) {
+                      console.error(`[SYNC] Error checking SKU ${sku}:`, err.message);
                       processed++;
                       checkComplete();
                       return;
                     }
 
-                    // Update product with real ASIN and VC data
-                    this.db.run(
-                      `UPDATE products 
-                       SET asin = ?,
-                           name = COALESCE(NULLIF(name, asin), ?),
-                           stage_4_product_listed = ?,
-                           is_temp_asin = 0,
-                           updated_at = CURRENT_TIMESTAMP
-                       WHERE id = ?`,
-                      [asin, itemName || productBySku.name, vcListed, productBySku.id],
-                      (err) => {
-                        if (err) {
-                          console.error(`[SYNC] Error updating product ${asin}:`, err.message);
-                        } else {
-                          updated++;
+                    if (productBySku) {
+                      // Update product with real ASIN and VC data
+                      this.db.run(
+                        `UPDATE products 
+                         SET asin = ?,
+                             name = COALESCE(NULLIF(name, asin), ?),
+                             stage_4_product_listed = ?,
+                             is_temp_asin = 0,
+                             updated_at = CURRENT_TIMESTAMP
+                         WHERE asin = ?`,
+                        [asin, itemName || productBySku.name, vcListed, productBySku.asin],
+                        (err) => {
+                          if (err) {
+                            console.error(`[SYNC] Error updating product ${asin}:`, err.message);
+                          } else {
+                            updated++;
+                          }
+                          processed++;
+                          checkComplete();
                         }
-                        processed++;
-                        checkComplete();
-                      }
-                    );
+                      );
+                    } else {
+                      // Product doesn't exist - create it (use INSERT OR IGNORE for duplicates)
+                      this.db.run(
+                        'INSERT OR IGNORE INTO products (asin, name, stage_4_product_listed, is_temp_asin) VALUES (?, ?, ?, 0)',
+                        [asin, itemName || asin, vcListed],
+                        function(err) {
+                          if (err) {
+                            console.error(`[SYNC] Error creating product ${asin}:`, err.message);
+                            processed++;
+                            checkComplete();
+                            return;
+                          }
+
+                          if (this.changes > 0) {
+                            created++;
+                          }
+                          
+                          // Add SKU to the new product
+                          this.db.run(
+                            'INSERT OR IGNORE INTO product_skus (product_id, sku, is_primary, source) VALUES (?, ?, 1, ?)',
+                            [asin, sku, 'VC'],
+                            (err) => {
+                              if (err && !err.message.includes('UNIQUE constraint')) {
+                                console.error(`[SYNC] Error adding SKU ${sku}:`, err.message);
+                              }
+                              processed++;
+                              checkComplete();
+                            }
+                          );
+                        }.bind(this)
+                      );
+                    }
                   }
                 );
                 return;
@@ -197,8 +230,8 @@ class SyncScheduler {
                      stage_4_product_listed = ?,
                      is_temp_asin = 0,
                      updated_at = CURRENT_TIMESTAMP
-                 WHERE id = ?`,
-                [itemName || asin, vcListed, product.id],
+                 WHERE asin = ?`,
+                [itemName || asin, vcListed, product.asin],
                 (err) => {
                   if (err) {
                     console.error(`[SYNC] Error updating product ${asin}:`, err.message);
@@ -207,7 +240,7 @@ class SyncScheduler {
                   }
 
                   // Add SKU to product
-                  this.addSkuToProduct(product.id, sku, true, 'VC', (err) => {
+                  this.addSkuToProduct(product.asin, sku, true, 'VC', (err) => {
                     if (err && !err.message.includes('UNIQUE constraint')) {
                       console.error(`[SYNC] Error adding SKU ${sku}:`, err.message);
                     }
@@ -222,7 +255,7 @@ class SyncScheduler {
           const checkComplete = () => {
             if (processed === rows.length) {
               duckDb.close();
-              console.log(`[SYNC] VC Complete: ${updated} products updated`);
+              console.log(`[SYNC] VC Complete: ${created} products created, ${updated} products updated`);
               resolve({ success: true, created, updated });
             }
           };
@@ -305,7 +338,7 @@ class SyncScheduler {
                     `UPDATE products 
                      SET stage_5_product_ordered = 1,
                          updated_at = CURRENT_TIMESTAMP
-                     WHERE id = ?`,
+                     WHERE asin = ?`,
                     [row.product_id],
                     function(err) {
                       if (err) {
@@ -393,7 +426,7 @@ class SyncScheduler {
 
           // Find product by SKU
           this.db.get(
-            'SELECT ps.product_id, p.stage_2_product_finalized FROM product_skus ps JOIN products p ON ps.product_id = p.id WHERE ps.sku = ?',
+            'SELECT ps.product_id, p.stage_2_product_finalized FROM product_skus ps JOIN products p ON ps.product_id = p.asin WHERE ps.sku = ?',
             [itemNumber],
             (err, row) => {
               if (err || !row) {
@@ -422,7 +455,7 @@ class SyncScheduler {
                      stage_2_product_finalized = ?,
                      stage_2_newly_finalized = ?,
                      updated_at = CURRENT_TIMESTAMP
-                 WHERE id = ?`,
+                 WHERE asin = ?`,
                 [
                   nameToUse,
                   updateData.legal_name,
