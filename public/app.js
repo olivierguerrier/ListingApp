@@ -1218,7 +1218,7 @@ async function openWorkflowModal(asin, stageNumber) {
             `;
         }
     } else if (stageNumber === 6) {
-        // Stage 6: QPI Status - show which countries have this ASIN
+        // Stage 6: QPI Status - show which QPI files contain this ASIN
         content.innerHTML = '<p style="text-align: center; color: var(--text-secondary);">Loading QPI status...</p>';
         modal.style.display = 'block';
         
@@ -1227,82 +1227,64 @@ async function openWorkflowModal(asin, stageNumber) {
             const productResponse = await fetch(`${API_BASE}/items/${asin}`);
             const productData = await productResponse.json();
             
-            // Fetch ASIN status to see which countries it's in VC
-            const statusResponse = await fetch(`${API_BASE}/asin-status/${asin}`);
-            const statusData = await statusResponse.json();
+            // Fetch QPI file status
+            const qpiResponse = await fetch(`${API_BASE}/qpi-files/${asin}`);
+            const qpiData = await qpiResponse.json();
             
             const inQPI = productData.stage_5_product_ordered === 1;
             const skus = productData.skus || [];
+            const filesFound = qpiData.files.filter(f => f.found).length;
             
-            if (statusData.countries && statusData.countries.length > 0) {
-                const countriesWithStatus = statusData.countries;
+            content.innerHTML = `
+                <div style="margin-bottom: 20px;">
+                    <h3>QPI Status by Source File</h3>
+                    <p>ASIN: <strong>${asin}</strong></p>
+                    <p>SKUs: <strong>${skus.join(', ')}</strong></p>
+                    <p>In QPI: <strong style="color: ${inQPI ? 'var(--success-color)' : 'var(--danger-color)'}">
+                        ${inQPI ? `✓ YES - Found in ${filesFound} file(s)` : '✗ NO - Not in any QPI files'}
+                    </strong></p>
+                </div>
                 
-                content.innerHTML = `
-                    <div style="margin-bottom: 20px;">
-                        <h3>QPI Status by Country</h3>
-                        <p>ASIN: <strong>${asin}</strong></p>
-                        <p>SKUs: <strong>${skus.join(', ')}</strong></p>
-                        <p>In QPI: <strong style="color: ${inQPI ? 'var(--success-color)' : 'var(--danger-color)'}">
-                            ${inQPI ? '✓ YES - Product has been ordered' : '✗ NO - Not in QPI yet'}
-                        </strong></p>
-                    </div>
-                    
-                    <div class="country-status-table-wrapper">
-                        <table class="country-status-table">
-                            <thead>
-                                <tr>
-                                    <th>Country</th>
-                                    <th>VC Status</th>
-                                    <th>QPI Status</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                ${countriesWithStatus.map(countryInfo => {
-                                    const country = countryInfo.country_code;
-                                    const vcStatus = countryInfo.vc_status || '-';
-                                    
-                                    return `
-                                        <tr class="${inQPI ? 'listed' : 'not-listed'}">
-                                            <td><strong>${escapeHtml(country)}</strong></td>
-                                            <td>${escapeHtml(vcStatus)}</td>
-                                            <td>
-                                                ${inQPI 
-                                                    ? '<span class="status-badge listed">✓ In QPI</span>' 
-                                                    : '<span class="status-badge not-listed">Not Ordered</span>'}
-                                            </td>
-                                        </tr>
-                                    `;
-                                }).join('')}
-                            </tbody>
-                        </table>
-                    </div>
-                    
-                    <div style="margin-top: 20px;">
-                        <p style="font-size: 14px; color: var(--text-secondary);">
-                            <strong>Note:</strong> QPI tracks orders at the SKU level, not by country. 
-                            If this product is in QPI, it means it has been ordered and will be available in all VC-listed countries shown above.
-                        </p>
-                    </div>
-                    
-                    <div style="margin-top: 20px; text-align: right;">
-                        <button class="btn btn-primary" onclick="document.getElementById('workflowModal').style.display='none'">Close</button>
-                    </div>
-                `;
-            } else {
-                content.innerHTML = `
-                    <div style="margin-bottom: 20px;">
-                        <h3>QPI Status</h3>
-                        <p>ASIN: <strong>${asin}</strong></p>
-                        <p>In QPI: <strong style="color: ${inQPI ? 'var(--success-color)' : 'var(--danger-color)'}">
-                            ${inQPI ? '✓ YES - Product has been ordered' : '✗ NO - Not in QPI yet'}
-                        </strong></p>
-                        ${inQPI ? '<p style="color: var(--text-secondary);">This product is in QPI but not yet in VC. It will appear in countries once VC listing is complete.</p>' : ''}
-                    </div>
-                    <div style="margin-top: 20px;">
-                        <button class="btn btn-primary" onclick="document.getElementById('workflowModal').style.display='none'">Close</button>
-                    </div>
-                `;
-            }
+                <div class="country-status-table-wrapper">
+                    <table class="country-status-table">
+                        <thead>
+                            <tr>
+                                <th>QPI File</th>
+                                <th>Status</th>
+                                <th>SKU</th>
+                                <th>Last Seen</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${qpiData.files.map(file => {
+                                return `
+                                    <tr class="${file.found ? 'listed' : 'not-listed'}">
+                                        <td><strong>${escapeHtml(file.file_name)}</strong></td>
+                                        <td>
+                                            ${file.found 
+                                                ? '<span class="status-badge listed">✓ Found</span>' 
+                                                : '<span class="status-badge not-listed">✗ Missing</span>'}
+                                        </td>
+                                        <td>${escapeHtml(file.sku || '-')}</td>
+                                        <td><small>${file.last_seen ? new Date(file.last_seen).toLocaleString() : '-'}</small></td>
+                                    </tr>
+                                `;
+                            }).join('')}
+                        </tbody>
+                    </table>
+                </div>
+                
+                <div style="margin-top: 20px;">
+                    <p style="font-size: 14px; color: var(--text-secondary);">
+                        <strong>Note:</strong> Showing the last ${qpiData.total_files_checked} QPI files. 
+                        This ASIN appears in <strong>${filesFound}</strong> of these files.
+                    </p>
+                </div>
+                
+                <div style="margin-top: 20px; text-align: right;">
+                    <button class="btn btn-primary" onclick="document.getElementById('workflowModal').style.display='none'">Close</button>
+                </div>
+            `;
         } catch (error) {
             console.error('Error loading QPI status:', error);
             content.innerHTML = `

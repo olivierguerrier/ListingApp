@@ -268,6 +268,18 @@ function initializeDatabase() {
       updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       UNIQUE(asin, country_code)
     )`);
+    
+    // QPI file tracking table - tracks which QPIs contain each ASIN
+    db.run(`CREATE TABLE IF NOT EXISTS qpi_file_tracking (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      asin TEXT NOT NULL,
+      sku TEXT,
+      qpi_file_name TEXT NOT NULL,
+      qpi_file_date DATE,
+      last_seen DATETIME DEFAULT CURRENT_TIMESTAMP,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE(asin, qpi_file_name)
+    )`);
 
     console.log('Database tables initialized');
     
@@ -1440,6 +1452,31 @@ app.post('/api/sync/qpi', (req, res) => {
             }
           }
         );
+        
+        // Track which file this QPI came from
+        const fileName = path.basename(qpiPath);
+        const fileDate = fs.statSync(qpiPath).mtime.toISOString().split('T')[0];
+        
+        // Insert/update file tracking for each ASIN
+        const trackStmt = db.prepare(`
+          INSERT INTO qpi_file_tracking (asin, sku, qpi_file_name, qpi_file_date, last_seen, created_at)
+          VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+          ON CONFLICT(asin, qpi_file_name) 
+          DO UPDATE SET 
+            sku = excluded.sku,
+            last_seen = CURRENT_TIMESTAMP
+        `);
+        
+        qpiData.forEach(item => {
+          if (item.asin) {
+            trackStmt.run([item.asin, item.sku, fileName, fileDate], (err) => {
+              if (err) console.error('Error tracking QPI file:', err.message);
+            });
+          }
+        });
+        trackStmt.finalize(() => {
+          console.log(`Tracked ${qpiData.length} ASIN entries in ${fileName}`);
+        });
       }
       
       // Give it a moment to finish all updates
@@ -1929,6 +1966,62 @@ app.get('/api/reports/vc-not-qpi', (req, res) => {
     res.json({
       total: results.length,
       data: results
+    });
+  });
+});
+
+// Get QPI file status for a specific ASIN
+app.get('/api/qpi-files/:asin', (req, res) => {
+  const asin = req.params.asin;
+  
+  // Get all QPI files and check if ASIN exists in each
+  const qpiPath = 'A:\\ProcessOutput\\QPI_Validation';
+  
+  if (!fs.existsSync(qpiPath)) {
+    res.status(404).json({ error: 'QPI directory not found' });
+    return;
+  }
+  
+  const qpiFiles = fs.readdirSync(qpiPath)
+    .filter(file => file.endsWith('.csv') && file.startsWith('QPI_Validation'))
+    .sort()
+    .reverse() // Most recent first
+    .slice(0, 10); // Last 10 files
+  
+  const query = `
+    SELECT 
+      qpi_file_name,
+      sku,
+      qpi_file_date,
+      last_seen
+    FROM qpi_file_tracking
+    WHERE asin = ?
+    ORDER BY qpi_file_date DESC
+  `;
+  
+  db.all(query, [asin], (err, rows) => {
+    if (err) {
+      res.status(500).json({ error: err.message });
+      return;
+    }
+    
+    // Create a map of files where ASIN was found
+    const foundInFiles = new Map(rows.map(r => [r.qpi_file_name, r]));
+    
+    // Build response showing all recent files
+    const fileStatus = qpiFiles.map(fileName => ({
+      file_name: fileName,
+      found: foundInFiles.has(fileName),
+      sku: foundInFiles.get(fileName)?.sku || null,
+      last_seen: foundInFiles.get(fileName)?.last_seen || null,
+      file_date: foundInFiles.get(fileName)?.qpi_file_date || null
+    }));
+    
+    res.json({
+      asin: asin,
+      files: fileStatus,
+      total_files_checked: qpiFiles.length,
+      files_found_in: rows.length
     });
   });
 });
