@@ -1411,4 +1411,190 @@ document.getElementById('workflowModalClose').addEventListener('click', () => {
     document.getElementById('workflowModal').style.display = 'none';
 });
 
+// ============================================
+// REPORTS FUNCTIONS
+// ============================================
+
+async function generateReport(reportType) {
+    let endpoint = '';
+    let containerId = '';
+    let reportTitle = '';
+    
+    switch(reportType) {
+        case 'temp-asins':
+            endpoint = `${API_BASE}/reports/temp-asins`;
+            containerId = 'tempAsinsReport';
+            reportTitle = 'Temporary ASINs Not in PIM';
+            break;
+        case 'pim-not-vc':
+            endpoint = `${API_BASE}/reports/pim-not-vc`;
+            containerId = 'pimNotVcReport';
+            reportTitle = 'PIM SKUs Not in VC';
+            break;
+        case 'vc-not-qpi':
+            endpoint = `${API_BASE}/reports/vc-not-qpi`;
+            containerId = 'vcNotQpiReport';
+            reportTitle = 'VC Listed Products Not in QPI';
+            break;
+        default:
+            showError('Unknown report type');
+            return;
+    }
+    
+    const container = document.getElementById(containerId);
+    container.style.display = 'block';
+    container.innerHTML = '<p style="text-align: center; padding: 20px; color: var(--text-secondary);">Loading report...</p>';
+    
+    try {
+        const response = await fetch(endpoint);
+        const result = await response.json();
+        
+        if (result.data && result.data.length > 0) {
+            let tableHTML = `
+                <div class="report-summary">
+                    📊 Found ${result.total} ${result.total === 1 ? 'record' : 'records'}
+                </div>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>ASIN</th>
+                            <th>Name</th>
+                            <th>SKUs</th>
+                            <th>Item Number</th>
+                            <th>Brand</th>
+                            <th>Countries</th>
+                            <th>Created</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+            `;
+            
+            result.data.forEach(row => {
+                const skus = Array.isArray(row.skus) ? row.skus.join(', ') : (row.skus || '-');
+                const itemNumber = row.stage_1_item_number || '-';
+                const brand = row.stage_1_brand || '-';
+                const countries = row.stage_1_country || '-';
+                const name = row.name || row.asin;
+                const createdDate = new Date(row.created_at).toLocaleDateString();
+                
+                tableHTML += `
+                    <tr>
+                        <td><strong>${escapeHtml(row.asin)}</strong></td>
+                        <td>${escapeHtml(name)}</td>
+                        <td>${escapeHtml(skus)}</td>
+                        <td>${escapeHtml(itemNumber)}</td>
+                        <td>${escapeHtml(brand)}</td>
+                        <td>${escapeHtml(countries)}</td>
+                        <td><small>${createdDate}</small></td>
+                    </tr>
+                `;
+            });
+            
+            tableHTML += `
+                    </tbody>
+                </table>
+                <div style="margin-top: 15px; text-align: center;">
+                    <button class="btn btn-secondary" onclick="exportReportCSV('${reportType}', '${reportTitle}')">
+                        📥 Export to CSV
+                    </button>
+                </div>
+            `;
+            
+            container.innerHTML = tableHTML;
+        } else {
+            container.innerHTML = `
+                <div class="report-empty">
+                    <div class="report-empty-icon">✅</div>
+                    <h3>No Issues Found</h3>
+                    <p>All records are in good standing for this report.</p>
+                </div>
+            `;
+        }
+    } catch (error) {
+        console.error('Error generating report:', error);
+        container.innerHTML = `
+            <div class="report-empty">
+                <div class="report-empty-icon">❌</div>
+                <h3>Error Loading Report</h3>
+                <p>Failed to generate report. Please try again.</p>
+            </div>
+        `;
+        showError('Failed to generate report');
+    }
+}
+
+async function exportReportCSV(reportType, reportTitle) {
+    let endpoint = '';
+    
+    switch(reportType) {
+        case 'temp-asins':
+            endpoint = `${API_BASE}/reports/temp-asins`;
+            break;
+        case 'pim-not-vc':
+            endpoint = `${API_BASE}/reports/pim-not-vc`;
+            break;
+        case 'vc-not-qpi':
+            endpoint = `${API_BASE}/reports/vc-not-qpi`;
+            break;
+        default:
+            showError('Unknown report type');
+            return;
+    }
+    
+    try {
+        const response = await fetch(endpoint);
+        const result = await response.json();
+        
+        if (!result.data || result.data.length === 0) {
+            showError('No data to export');
+            return;
+        }
+        
+        // Create CSV content
+        const headers = ['ASIN', 'Name', 'SKUs', 'Item Number', 'Brand', 'Countries', 'Created'];
+        const csvRows = [headers.join(',')];
+        
+        result.data.forEach(row => {
+            const skus = Array.isArray(row.skus) ? row.skus.join(';') : (row.skus || '');
+            const itemNumber = row.stage_1_item_number || '';
+            const brand = row.stage_1_brand || '';
+            const countries = row.stage_1_country || '';
+            const name = row.name || row.asin;
+            const createdDate = new Date(row.created_at).toLocaleDateString();
+            
+            const csvRow = [
+                `"${row.asin}"`,
+                `"${name.replace(/"/g, '""')}"`,
+                `"${skus}"`,
+                `"${itemNumber}"`,
+                `"${brand}"`,
+                `"${countries}"`,
+                `"${createdDate}"`
+            ].join(',');
+            
+            csvRows.push(csvRow);
+        });
+        
+        const csvContent = csvRows.join('\n');
+        
+        // Create download link
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        const link = document.createElement('a');
+        const url = URL.createObjectURL(blob);
+        
+        link.setAttribute('href', url);
+        link.setAttribute('download', `${reportTitle.replace(/\s+/g, '_')}_${new Date().toISOString().split('T')[0]}.csv`);
+        link.style.visibility = 'hidden';
+        
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        
+        showSuccess('Report exported successfully');
+    } catch (error) {
+        console.error('Error exporting report:', error);
+        showError('Failed to export report');
+    }
+}
+
 

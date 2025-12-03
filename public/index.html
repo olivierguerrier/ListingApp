@@ -24,6 +24,7 @@
         <div class="view-tabs">
             <button class="tab-btn active" data-view="products">Products (by ASIN)</button>
             <button class="tab-btn" data-view="skus">SKUs (by Item Number)</button>
+            <button class="tab-btn" data-view="reports">Reports</button>
             <button class="tab-btn" data-view="database">Database Explorer</button>
         </div>
 
@@ -85,6 +86,64 @@
                 <button id="skusPrevBtn" class="btn btn-secondary">← Previous</button>
                 <span id="skusPageInfo">Page 1 of 1</span>
                 <button id="skusNextBtn" class="btn btn-secondary">Next →</button>
+            </div>
+        </div>
+
+        <!-- Reports View -->
+        <div id="reportsView" class="view-container" style="display: none;">
+            <div style="margin-bottom: 30px;">
+                <h2 style="margin-bottom: 10px;">📊 Reports</h2>
+                <p style="color: var(--text-secondary);">Generate reports to identify gaps in your workflow</p>
+            </div>
+
+            <div class="reports-grid">
+                <!-- Report 1: Temporary ASINs not in PIM -->
+                <div class="report-card">
+                    <div class="report-header">
+                        <h3>🔴 Temporary ASINs Not in PIM</h3>
+                        <p>ASINs that don't have an Item Number assigned yet</p>
+                    </div>
+                    <div class="report-actions">
+                        <button class="btn btn-primary" onclick="generateReport('temp-asins')">
+                            Generate Report
+                        </button>
+                    </div>
+                    <div id="tempAsinsReport" class="report-results" style="display: none;">
+                        <!-- Results will be loaded here -->
+                    </div>
+                </div>
+
+                <!-- Report 2: PIM SKUs not in VC -->
+                <div class="report-card">
+                    <div class="report-header">
+                        <h3>🟡 PIM SKUs Not in VC</h3>
+                        <p>Products with Item Numbers but not yet listed in Vendor Central</p>
+                    </div>
+                    <div class="report-actions">
+                        <button class="btn btn-primary" onclick="generateReport('pim-not-vc')">
+                            Generate Report
+                        </button>
+                    </div>
+                    <div id="pimNotVcReport" class="report-results" style="display: none;">
+                        <!-- Results will be loaded here -->
+                    </div>
+                </div>
+
+                <!-- Report 3: VC SKUs not in QPI -->
+                <div class="report-card">
+                    <div class="report-header">
+                        <h3>🟠 VC Listed Products Not in QPI</h3>
+                        <p>Products listed in Vendor Central but not yet ordered</p>
+                    </div>
+                    <div class="report-actions">
+                        <button class="btn btn-primary" onclick="generateReport('vc-not-qpi')">
+                            Generate Report
+                        </button>
+                    </div>
+                    <div id="vcNotQpiReport" class="report-results" style="display: none;">
+                        <!-- Results will be loaded here -->
+                    </div>
+                </div>
             </div>
         </div>
 

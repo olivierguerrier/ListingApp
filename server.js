@@ -1795,6 +1795,127 @@ app.get('/api/export/items', (req, res) => {
   });
 });
 
+// ============================================
+// REPORTS ENDPOINTS
+// ============================================
+
+// Report 1: Temporary ASINs not in PIM (no item_number)
+app.get('/api/reports/temp-asins', (req, res) => {
+  const query = `
+    SELECT 
+      p.asin,
+      p.name,
+      p.is_temp_asin,
+      p.stage_1_item_number,
+      GROUP_CONCAT(DISTINCT ps.sku) as skus,
+      p.stage_1_brand,
+      p.stage_1_country,
+      p.created_at
+    FROM products p
+    LEFT JOIN product_skus ps ON p.id = ps.product_id
+    WHERE p.is_temp_asin = 1 
+      AND (p.stage_1_item_number IS NULL OR p.stage_1_item_number = '')
+    GROUP BY p.id
+    ORDER BY p.created_at DESC
+  `;
+  
+  db.all(query, [], (err, rows) => {
+    if (err) {
+      res.status(500).json({ error: err.message });
+      return;
+    }
+    
+    const results = rows.map(row => ({
+      ...row,
+      skus: row.skus ? row.skus.split(',') : []
+    }));
+    
+    res.json({
+      total: results.length,
+      data: results
+    });
+  });
+});
+
+// Report 2: PIM SKUs not in VC (has item_number but not stage_4_product_listed)
+app.get('/api/reports/pim-not-vc', (req, res) => {
+  const query = `
+    SELECT 
+      p.asin,
+      p.name,
+      p.stage_1_item_number,
+      GROUP_CONCAT(DISTINCT ps.sku) as skus,
+      p.stage_1_brand,
+      p.stage_1_country,
+      p.stage_2_product_finalized,
+      p.stage_4_product_listed,
+      p.created_at
+    FROM products p
+    LEFT JOIN product_skus ps ON p.id = ps.product_id
+    WHERE p.stage_1_item_number IS NOT NULL 
+      AND p.stage_1_item_number != ''
+      AND (p.stage_4_product_listed = 0 OR p.stage_4_product_listed IS NULL)
+    GROUP BY p.id
+    ORDER BY p.created_at DESC
+  `;
+  
+  db.all(query, [], (err, rows) => {
+    if (err) {
+      res.status(500).json({ error: err.message });
+      return;
+    }
+    
+    const results = rows.map(row => ({
+      ...row,
+      skus: row.skus ? row.skus.split(',') : []
+    }));
+    
+    res.json({
+      total: results.length,
+      data: results
+    });
+  });
+});
+
+// Report 3: VC SKUs not in QPI (stage_4_product_listed but not stage_5_product_ordered)
+app.get('/api/reports/vc-not-qpi', (req, res) => {
+  const query = `
+    SELECT 
+      p.asin,
+      p.name,
+      p.stage_1_item_number,
+      GROUP_CONCAT(DISTINCT ps.sku) as skus,
+      p.stage_1_brand,
+      p.stage_1_country,
+      p.stage_4_product_listed,
+      p.stage_5_product_ordered,
+      p.created_at
+    FROM products p
+    LEFT JOIN product_skus ps ON p.id = ps.product_id
+    WHERE p.stage_4_product_listed = 1
+      AND (p.stage_5_product_ordered = 0 OR p.stage_5_product_ordered IS NULL)
+    GROUP BY p.id
+    ORDER BY p.created_at DESC
+  `;
+  
+  db.all(query, [], (err, rows) => {
+    if (err) {
+      res.status(500).json({ error: err.message });
+      return;
+    }
+    
+    const results = rows.map(row => ({
+      ...row,
+      skus: row.skus ? row.skus.split(',') : []
+    }));
+    
+    res.json({
+      total: results.length,
+      data: results
+    });
+  });
+});
+
 // Serve frontend
 app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));

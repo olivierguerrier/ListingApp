@@ -1022,6 +1022,98 @@ table tbody tr:hover {
     margin: 20px 0;
 }
 
+/* Reports Section */
+.reports-grid {
+    display: grid;
+    gap: 20px;
+    grid-template-columns: 1fr;
+}
+
+.report-card {
+    background: var(--card-background);
+    border-radius: 12px;
+    padding: 25px;
+    box-shadow: var(--shadow);
+    border: 1px solid var(--border-color);
+}
+
+.report-header {
+    margin-bottom: 20px;
+}
+
+.report-header h3 {
+    margin: 0 0 8px 0;
+    color: var(--text-primary);
+    font-size: 18px;
+}
+
+.report-header p {
+    margin: 0;
+    color: var(--text-secondary);
+    font-size: 14px;
+}
+
+.report-actions {
+    margin-bottom: 15px;
+}
+
+.report-results {
+    margin-top: 20px;
+    border-top: 1px solid var(--border-color);
+    padding-top: 20px;
+}
+
+.report-results table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 10px;
+    background: var(--background);
+    border-radius: 8px;
+    overflow: hidden;
+}
+
+.report-results th {
+    background: var(--primary-color);
+    color: white;
+    padding: 12px;
+    text-align: left;
+    font-weight: 600;
+}
+
+.report-results td {
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.report-results tr:last-child td {
+    border-bottom: none;
+}
+
+.report-results tr:hover {
+    background: rgba(255, 153, 0, 0.05);
+}
+
+.report-summary {
+    display: inline-block;
+    background: var(--primary-color);
+    color: white;
+    padding: 8px 16px;
+    border-radius: 20px;
+    font-weight: 600;
+    margin-bottom: 15px;
+}
+
+.report-empty {
+    text-align: center;
+    padding: 40px 20px;
+    color: var(--text-secondary);
+}
+
+.report-empty-icon {
+    font-size: 48px;
+    margin-bottom: 10px;
+}
+
 .country-status-table {
     width: 100%;
     border-collapse: collapse;
