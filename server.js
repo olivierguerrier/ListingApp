@@ -337,8 +337,13 @@ function initializeSyncScheduler() {
 // Get all items with their pricing status
 // API Routes
 
-// Get all products (grouped by ASIN with their SKUs)
+// Get all products (grouped by ASIN with their SKUs) - with pagination
 app.get('/api/products', (req, res) => {
+  const limit = parseInt(req.query.limit) || 50;
+  const offset = parseInt(req.query.offset) || 0;
+  
+  const countQuery = `SELECT COUNT(*) as count FROM products`;
+  
   const query = `
     SELECT 
       p.*,
@@ -354,27 +359,49 @@ app.get('/api/products', (req, res) => {
     LEFT JOIN product_skus ps ON p.id = ps.product_id
     GROUP BY p.id
     ORDER BY p.created_at DESC
+    LIMIT ? OFFSET ?
   `;
 
-  db.all(query, [], (err, rows) => {
-    if (err) {
-      res.status(500).json({ error: err.message });
+  db.get(countQuery, [], (countErr, countRow) => {
+    if (countErr) {
+      res.status(500).json({ error: countErr.message });
       return;
     }
     
-    // Parse SKU details JSON
-    const products = rows.map(row => ({
-      ...row,
-      skus: row.skus ? row.skus.split(',') : [],
-      sku_details: row.sku_details ? JSON.parse(`[${row.sku_details}]`) : []
-    }));
-    
-    res.json(products);
+    db.all(query, [limit, offset], (err, rows) => {
+      if (err) {
+        res.status(500).json({ error: err.message });
+        return;
+      }
+      
+      // Parse SKU details JSON
+      const products = rows.map(row => ({
+        ...row,
+        skus: row.skus ? row.skus.split(',') : [],
+        sku_details: row.sku_details ? JSON.parse(`[${row.sku_details}]`) : []
+      }));
+      
+      res.json({
+        data: products,
+        pagination: {
+          total: countRow.count,
+          limit: limit,
+          offset: offset,
+          page: Math.floor(offset / limit) + 1,
+          total_pages: Math.ceil(countRow.count / limit)
+        }
+      });
+    });
   });
 });
 
-// Get all SKUs with their ASIN relationships
+// Get all SKUs with their ASIN relationships - with pagination
 app.get('/api/skus', (req, res) => {
+  const limit = parseInt(req.query.limit) || 50;
+  const offset = parseInt(req.query.offset) || 0;
+  
+  const countQuery = `SELECT COUNT(*) as count FROM product_skus`;
+  
   const query = `
     SELECT 
       ps.id,
@@ -395,15 +422,32 @@ app.get('/api/skus', (req, res) => {
     FROM product_skus ps
     LEFT JOIN products p ON ps.product_id = p.id
     ORDER BY ps.sku ASC
+    LIMIT ? OFFSET ?
   `;
 
-  db.all(query, [], (err, rows) => {
-    if (err) {
-      res.status(500).json({ error: err.message });
+  db.get(countQuery, [], (countErr, countRow) => {
+    if (countErr) {
+      res.status(500).json({ error: countErr.message });
       return;
     }
     
-    res.json(rows);
+    db.all(query, [limit, offset], (err, rows) => {
+      if (err) {
+        res.status(500).json({ error: err.message });
+        return;
+      }
+      
+      res.json({
+        data: rows,
+        pagination: {
+          total: countRow.count,
+          limit: limit,
+          offset: offset,
+          page: Math.floor(offset / limit) + 1,
+          total_pages: Math.ceil(countRow.count / limit)
+        }
+      });
+    });
   });
 });
 
@@ -665,9 +709,13 @@ app.get('/api/database/:table', (req, res) => {
   });
 });
 
-// Legacy endpoint for backward compatibility
+// Legacy endpoint for backward compatibility - with pagination
 app.get('/api/items', (req, res) => {
-  // Redirect to products endpoint
+  const limit = parseInt(req.query.limit) || 50;
+  const offset = parseInt(req.query.offset) || 0;
+  
+  const countQuery = `SELECT COUNT(*) as count FROM products`;
+  
   const query = `
     SELECT 
       p.*,
@@ -683,26 +731,43 @@ app.get('/api/items', (req, res) => {
     LEFT JOIN product_skus ps ON p.id = ps.product_id
     GROUP BY p.id
     ORDER BY p.created_at DESC
+    LIMIT ? OFFSET ?
   `;
 
-  db.all(query, [], (err, rows) => {
-    if (err) {
-      res.status(500).json({ error: err.message });
+  db.get(countQuery, [], (countErr, countRow) => {
+    if (countErr) {
+      res.status(500).json({ error: countErr.message });
       return;
     }
     
-    // Parse SKU details and convert to old format
-    const items = rows.map(row => ({
-      id: row.id,
-      sku: row.skus ? row.skus.split(',')[0] : '',  // First SKU as primary
-      asin: row.asin,
-      name: row.name,
-      ...row,
-      skus: row.skus ? row.skus.split(',') : [],
-      sku_details: row.sku_details ? JSON.parse(`[${row.sku_details}]`) : []
-    }));
-    
-    res.json(items);
+    db.all(query, [limit, offset], (err, rows) => {
+      if (err) {
+        res.status(500).json({ error: err.message });
+        return;
+      }
+      
+      // Parse SKU details and convert to old format
+      const items = rows.map(row => ({
+        id: row.id,
+        sku: row.skus ? row.skus.split(',')[0] : '',  // First SKU as primary
+        asin: row.asin,
+        name: row.name,
+        ...row,
+        skus: row.skus ? row.skus.split(',') : [],
+        sku_details: row.sku_details ? JSON.parse(`[${row.sku_details}]`) : []
+      }));
+      
+      res.json({
+        data: items,
+        pagination: {
+          total: countRow.count,
+          limit: limit,
+          offset: offset,
+          page: Math.floor(offset / limit) + 1,
+          total_pages: Math.ceil(countRow.count / limit)
+        }
+      });
+    });
   });
 });
 
