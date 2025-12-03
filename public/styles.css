@@ -755,6 +755,23 @@ select[multiple] option:checked {
     color: white;
 }
 
+/* Date input styling */
+input[type="date"] {
+    padding: 10px;
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    font-size: 14px;
+    font-family: inherit;
+    width: 100%;
+    cursor: pointer;
+}
+
+input[type="date"]:focus {
+    outline: none;
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 3px rgba(255, 153, 0, 0.1);
+}
+
 .modal-content {
     background-color: var(--card-background);
     margin: 50px auto;
