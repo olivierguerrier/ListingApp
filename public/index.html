@@ -133,11 +133,11 @@
                 </div>
 
                 <div class="form-group">
-                    <label for="country">Country *</label>
-                    <select id="country" required>
-                        <option value="">Select Country</option>
+                    <label for="country">Country * (Hold Ctrl/Cmd to select multiple)</label>
+                    <select id="country" multiple required style="height: 150px;">
                         <option value="US">United States</option>
                         <option value="CA">Canada</option>
+                        <option value="MX">Mexico</option>
                         <option value="UK">United Kingdom</option>
                         <option value="DE">Germany</option>
                         <option value="FR">France</option>
@@ -146,6 +146,9 @@
                         <option value="JP">Japan</option>
                         <option value="AU">Australia</option>
                     </select>
+                    <small style="color: var(--text-secondary); font-size: 12px; display: block; margin-top: 5px;">
+                        You can select multiple countries for this product
+                    </small>
                 </div>
 
                 <div class="form-group">

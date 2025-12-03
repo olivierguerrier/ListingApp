@@ -686,7 +686,12 @@ async function handleItemSubmit(e) {
     const brand = document.getElementById('brand').value;
     const description = document.getElementById('description').value;
     const seasonLaunch = document.getElementById('seasonLaunch').value;
-    const country = document.getElementById('country').value;
+    
+    // Get multiple selected countries
+    const countrySelect = document.getElementById('country');
+    const selectedCountries = Array.from(countrySelect.selectedOptions).map(opt => opt.value);
+    const country = selectedCountries.join(','); // Store as comma-separated string
+    
     const itemNumber = document.getElementById('itemNumber').value;
     
     const itemData = {
@@ -726,7 +731,13 @@ async function handleItemSubmit(e) {
             
             document.getElementById('itemModal').style.display = 'none';
             loadItems();
-            showSuccess(itemId ? 'Product updated successfully' : 'Product created at Ideation stage');
+            
+            // Show success message with country count
+            const countryCount = selectedCountries.length;
+            const successMsg = itemId 
+                ? 'Product updated successfully' 
+                : `Product created at Ideation stage for ${countryCount} ${countryCount === 1 ? 'country' : 'countries'}`;
+            showSuccess(successMsg);
         } else {
             throw new Error('Failed to save product');
         }
