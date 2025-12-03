@@ -54,6 +54,7 @@ function initializeDatabase() {
       stage_1_description TEXT,
       stage_1_season_launch TEXT,
       stage_1_country TEXT,
+      stage_1_item_number TEXT,
       stage_2_product_finalized BOOLEAN DEFAULT 0,
       stage_2_newly_finalized BOOLEAN DEFAULT 0,
       stage_3a_pricing_submitted BOOLEAN DEFAULT 0,
@@ -171,6 +172,22 @@ function initializeDatabase() {
                     db.run(`ALTER TABLE items ADD COLUMN ${col.name} ${col.type}`, (err) => {
                       if (err && !err.message.includes('duplicate column')) {
                         console.error(`Error adding ${col.name} column:`, err.message);
+                      }
+                    });
+                  }
+                });
+                
+                // Also migrate products table
+                db.all('PRAGMA table_info(products)', (err, prodColumns) => {
+                  if (!err && prodColumns) {
+                    flowColumns.forEach(col => {
+                      const hasColumn = prodColumns.some(c => c.name === col.name);
+                      if (!hasColumn) {
+                        db.run(`ALTER TABLE products ADD COLUMN ${col.name} ${col.type}`, (err) => {
+                          if (err && !err.message.includes('duplicate column')) {
+                            console.error(`Error adding ${col.name} to products:`, err.message);
+                          }
+                        });
                       }
                     });
                   }
