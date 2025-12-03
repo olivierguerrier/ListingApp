@@ -43,8 +43,27 @@
 
         <!-- Products View -->
         <div id="productsView" class="view-container active">
-            <div id="itemsContainer" class="items-container">
-                <!-- Products will be dynamically loaded here -->
+            <div class="table-wrapper">
+                <table class="products-table">
+                    <thead>
+                        <tr>
+                            <th>Name</th>
+                            <th>ASIN</th>
+                            <th>SKU(s)</th>
+                            <th title="Stage 1: Idea Considered">S1: Ideation</th>
+                            <th title="Stage 2: Product Finalized">S2: PIM</th>
+                            <th title="Stage 3a: Pricing Submitted">S3a: Price Sub</th>
+                            <th title="Stage 3b: Pricing Approved">S3b: Price App</th>
+                            <th title="Stage 4: Product Listed">S4: VC Listed</th>
+                            <th title="Stage 5: Product Ordered">S5: Ordered</th>
+                            <th title="Stage 6: Online">S6: Online</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="itemsTableBody">
+                        <!-- Products will be dynamically loaded here -->
+                    </tbody>
+                </table>
             </div>
             <div class="pagination-controls">
                 <button id="productsPrevBtn" class="btn btn-secondary">← Previous</button>
@@ -364,6 +383,17 @@
             <div style="display: flex; gap: 10px; margin-top: 20px;">
                 <button type="button" class="btn btn-primary" id="downloadExportBtn">📥 Download</button>
                 <button type="button" class="btn btn-secondary" id="cancelExportBtn">Cancel</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Workflow Details Modal -->
+    <div id="workflowModal" class="modal">
+        <div class="modal-content" style="max-width: 800px;">
+            <span class="close" id="workflowModalClose">&times;</span>
+            <h2 id="workflowModalTitle">Workflow Details</h2>
+            <div id="workflowModalContent">
+                <!-- Content will be dynamically loaded -->
             </div>
         </div>
     </div>

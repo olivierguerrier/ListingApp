@@ -282,26 +282,87 @@ function renderItems(itemsToRender) {
                         <h3>
                             ${escapeHtml(item.name || item.asin)}
                             ${isTempAsin ? '<span style="background-color: #f59e0b; color: white; padding: 2px 6px; border-radius: 4px; font-size: 11px; margin-left: 8px;">TEMP</span>' : ''}
-                <td class="item-name" title="${escapeHtml(item.name || item.asin)}">
-                    ${escapeHtml(item.name || item.asin)}
-                    ${isTempAsin ? '<span class="temp-badge">TEMP</span>' : ''}
-                </td>
-                <td class="item-asin">${escapeHtml(item.asin)}</td>
-                <td class="item-skus" title="${escapeHtml(displaySku)}">${escapeHtml(displaySku)}</td>
-                <td><span class="stage-badge ${item.stage_1_idea_considered ? 'completed' : 'pending'}" onclick="openWorkflowModal('${item.asin}', 1)" title="Stage 1: Ideation">${item.stage_1_idea_considered ? '✓' : '○'}</span></td>
-                <td><span class="stage-badge ${item.stage_2_product_finalized ? 'completed' : 'pending'}" onclick="openWorkflowModal('${item.asin}', 2)" title="Stage 2: PIM Finalized">${item.stage_2_product_finalized ? '✓' : '○'}</span></td>
-                <td><span class="stage-badge ${item.stage_3a_pricing_submitted ? 'completed' : 'pending'}" onclick="openWorkflowModal('${item.asin}', 3)" title="Stage 3a: Pricing Submitted">${item.stage_3a_pricing_submitted ? '✓' : '○'}</span></td>
-                <td><span class="stage-badge ${item.stage_3b_pricing_approved ? 'completed' : 'pending'}" onclick="openWorkflowModal('${item.asin}', 4)" title="Stage 3b: Pricing Approved">${item.stage_3b_pricing_approved ? '✓' : '○'}</span></td>
-                <td><span class="stage-badge ${item.stage_4_product_listed ? 'completed' : 'pending'}" onclick="openWorkflowModal('${item.asin}', 5)" title="Stage 4: VC Listed">${item.stage_4_product_listed ? '✓' : '○'}</span></td>
-                <td><span class="stage-badge ${item.stage_5_product_ordered ? 'completed' : 'pending'}" onclick="openWorkflowModal('${item.asin}', 6)" title="Stage 5: Ordered">${item.stage_5_product_ordered ? '✓' : '○'}</span></td>
-                <td><span class="stage-badge ${item.stage_6_product_online ? 'completed' : 'pending'}" onclick="openWorkflowModal('${item.asin}', 7)" title="Stage 6: Online">${item.stage_6_product_online ? '✓' : '○'}</span></td>
-                <td>
-                    <div class="action-btns">
-                        <button class="btn-icon" onclick="editItem('${item.asin}')" title="Edit">✏️</button>
-                        <button class="btn-icon" onclick="deleteItem('${item.asin}')" title="Delete">🗑️</button>
+                        </h3>
+                        <div class="item-sku">
+                            <strong>ASIN: ${escapeHtml(item.asin)}</strong>
+                            ${isTempAsin ? ' <button class="btn btn-link" onclick="editProductName(\'${item.asin}\', \'${escapeHtml(item.name || \'\')}\')">Edit Name</button>' : ''}
+                        </div>
+                        ${skus.length > 0 ? `
+                            <div class="item-sku-list">
+                                <small style="color: var(--text-secondary);">SKUs: ${escapeHtml(displaySku)}</small>
+                            </div>
+                        ` : ''}
                     </div>
-                </td>
-            </tr>
+                    <div class="item-actions">
+                        <button class="btn btn-secondary btn-small" onclick="editItem('${item.asin}')">Edit</button>
+                        <button class="btn btn-danger btn-small" onclick="deleteItem('${item.asin}')">Delete</button>
+                    </div>
+                </div>
+
+                <div class="item-details">
+                    <div class="detail-item">
+                        <div class="detail-label">Country</div>
+                        <div class="detail-value">${item.stage_1_country || 'N/A'}</div>
+                    </div>
+                    <div class="detail-item">
+                        <div class="detail-label"># of SKUs</div>
+                        <div class="detail-value">${skus.length}</div>
+                    </div>
+                    <div class="detail-item">
+                        <div class="detail-label">Current Stage</div>
+                        <div class="detail-value">
+                            ${currentStage.badge}
+                        </div>
+                    </div>
+                </div>
+
+                <div class="pricing-section">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                        <h3>Country Pricing</h3>
+                        <button class="btn btn-primary btn-small" onclick="openPricingModal('${item.asin}')">
+                            Manage Pricing
+                        </button>
+                    </div>
+                    
+                    ${pricingData.length > 0 ? `
+                        <div class="pricing-grid">
+                            ${pricingData.map(pricing => `
+                                <div class="pricing-card ${pricing.approval_status}">
+                                    <div class="pricing-header">
+                                        <span class="country-name">${pricing.country}</span>
+                                        <span class="status-badge ${pricing.approval_status}">
+                                            ${pricing.approval_status}
+                                        </span>
+                                    </div>
+                                    <div class="pricing-prices">
+                                        Retail: ${pricing.currency} ${parseFloat(pricing.retail_price).toFixed(2)}<br>
+                                        Sell: ${pricing.currency} ${parseFloat(pricing.sell_price).toFixed(2)}
+                                    </div>
+                                </div>
+                            `).join('')}
+                        </div>
+                    ` : '<p style="color: var(--text-secondary); font-size: 14px;">No pricing data available</p>'}
+                </div>
+
+                <div class="flow-progress">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                        <h3>Flow Progress</h3>
+                        <button class="btn btn-secondary btn-small" onclick="openFlowModal('${item.asin}')">
+                            Update Progress
+                        </button>
+                    </div>
+                    
+                    <div class="flow-stages-display">
+                        ${renderStageDisplay('1', 'Ideation', item.stage_1_idea_considered, true, item.asin)}
+                        ${renderStageDisplay('2', 'PIM Finalized', item.stage_2_product_finalized, false, item.asin, item.stage_2_newly_finalized)}
+                        ${renderStageDisplay('3a', 'Price Submit', item.stage_3a_pricing_submitted, false, item.asin, false, true)}
+                        ${renderStageDisplay('3b', 'Price Approved', item.stage_3b_pricing_approved, false, item.asin, false, true)}
+                        ${renderStageDisplay('4', 'VC Listed', item.stage_4_product_listed, false, item.asin)}
+                        ${renderStageDisplay('5', 'Ordered [In QPI]', item.stage_5_product_ordered, false, item.asin)}
+                        ${renderStageDisplay('6', 'Online', item.stage_6_product_online, false, item.asin)}
+                    </div>
+                </div>
+            </div>
         `;
     }).join('');
 }
@@ -1073,38 +1134,6 @@ document.getElementById('skusNextBtn').addEventListener('click', () => {
     if (skusPage < skusTotalPages) {
         loadSkus(skusPage + 1);
     }
-});
-
-// Workflow Modal
-function openWorkflowModal(asin, stageNumber) {
-    const modal = document.getElementById('workflowModal');
-    const title = document.getElementById('workflowModalTitle');
-    const content = document.getElementById('workflowModalContent');
-    
-    const stageNames = {
-        1: 'Stage 1: Ideation',
-        2: 'Stage 2: PIM Finalized',
-        3: 'Stage 3a: Pricing Submitted',
-        4: 'Stage 3b: Pricing Approved',
-        5: 'Stage 4: VC Listed',
-        6: 'Stage 5: Ordered',
-        7: 'Stage 6: Online'
-    };
-    
-    title.textContent = `${stageNames[stageNumber]} - ${asin}`;
-    content.innerHTML = `
-        <p>Workflow details for ASIN: <strong>${asin}</strong></p>
-        <p>Stage: <strong>${stageNames[stageNumber]}</strong></p>
-        <div style="margin-top: 20px;">
-            <button class="btn btn-primary" onclick="document.getElementById('workflowModal').style.display='none'">Close</button>
-        </div>
-    `;
-    
-    modal.style.display = 'block';
-}
-
-document.getElementById('workflowModalClose').addEventListener('click', () => {
-    document.getElementById('workflowModal').style.display = 'none';
 });
 
 
