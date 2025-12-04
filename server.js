@@ -1442,7 +1442,7 @@ app.get('/api/vendor-mapping', authenticateToken, requireRole('sales person', 'a
 
 // Get available QPI source files
 app.get('/api/qpi-files', authenticateToken, requireRole('sales person', 'approver', 'admin'), (req, res) => {
-  const qpiDir = 'A:\\Code\\InputFiles\\QPI_Validation_Full_Fill';
+  const qpiDir = 'A:\\ProcessOutput\\QPI_Validation';
   
   try {
     if (!fs.existsSync(qpiDir)) {
