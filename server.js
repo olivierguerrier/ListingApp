@@ -1283,8 +1283,8 @@ app.get('/api/items', (req, res) => {
       
       // For QPI: count how many QPI files for this marketplace contain this ASIN
       const codePlaceholders = marketplaceCountryCodes.map(() => '?').join(',');
-      qpiCountSubquery = `(SELECT COUNT(DISTINCT qpi_file) FROM vendor_mapping WHERE country_code IN (${codePlaceholders}) AND qpi_file IN (SELECT DISTINCT source_file FROM qpi_file_tracking WHERE asin = p.asin))`;
-      qpiTotalSubquery = `(SELECT COUNT(DISTINCT qpi_file) FROM vendor_mapping WHERE country_code IN (${codePlaceholders}) AND qpi_file IS NOT NULL AND qpi_file != '')`;
+      qpiCountSubquery = `(SELECT COUNT(DISTINCT qpi_source_file) FROM vendor_mapping WHERE customer_code IN (${codePlaceholders}) AND qpi_source_file IN (SELECT DISTINCT source_file FROM qpi_file_tracking WHERE asin = p.asin))`;
+      qpiTotalSubquery = `(SELECT COUNT(DISTINCT qpi_source_file) FROM vendor_mapping WHERE customer_code IN (${codePlaceholders}) AND qpi_source_file IS NOT NULL AND qpi_source_file != '')`;
       
       // For Online: check if ASIN is online in this marketplace
       onlineCountSubquery = `(SELECT CASE WHEN EXISTS(SELECT 1 FROM asin_online_status WHERE asin = p.asin AND country = ?) THEN 1 ELSE 0 END)`;
@@ -1299,7 +1299,7 @@ app.get('/api/items', (req, res) => {
       vcCountSubquery = `(SELECT COUNT(DISTINCT country_code) FROM asin_country_status WHERE asin = p.asin)`;
       vcTotalSubquery = `(SELECT COUNT(DISTINCT keepa_marketplace) FROM vendor_mapping)`;
       qpiCountSubquery = `(SELECT COUNT(DISTINCT source_file) FROM qpi_file_tracking WHERE asin = p.asin)`;
-      qpiTotalSubquery = `(SELECT COUNT(DISTINCT qpi_file) FROM vendor_mapping WHERE qpi_file IS NOT NULL AND qpi_file != '')`;
+      qpiTotalSubquery = `(SELECT COUNT(DISTINCT qpi_source_file) FROM vendor_mapping WHERE qpi_source_file IS NOT NULL AND qpi_source_file != '')`;
       onlineCountSubquery = `(SELECT COUNT(DISTINCT country) FROM asin_online_status WHERE asin = p.asin)`;
       onlineTotalSubquery = `(SELECT COUNT(DISTINCT country) FROM asin_online_status)`;  // Count actual countries in data, not all marketplaces
     }
