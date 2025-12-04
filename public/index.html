@@ -99,58 +99,58 @@
             <button class="tab-btn" data-view="database">Database Explorer</button>
         </div>
 
-        <div class="filters">
-            <input type="text" id="searchInput" placeholder="Search by ASIN, SKU or name..." class="search-input">
-            <select id="statusFilter" class="filter-select">
-                <option value="all">All Stages</option>
-                <option value="stage_1">Stage 1: Ideation</option>
-                <option value="stage_2">Stage 2: PIM Finalized</option>
-                <option value="stage_4">Stage 3: VC Listed</option>
-                <option value="stage_5">Stage 4: Ordered [In QPI]</option>
-                <option value="stage_6">Stage 5: Available Online</option>
-            </select>
-            <select id="countryFilter" class="filter-select">
-                <option value="all">All Countries</option>
-                <option value="loading">Loading countries...</option>
-            </select>
-            <select id="tempFilter" class="filter-select">
-                <option value="all">All ASINs</option>
-                <option value="temp">Temp ASINs Only</option>
-                <option value="permanent">Permanent ASINs Only</option>
-            </select>
-            <select id="missingFilter" class="filter-select">
-                <option value="all">All Products</option>
-                <option value="missing">Missing from VM</option>
-                <option value="present">Present in VM</option>
-            </select>
-            
-            <!-- Brand Filter with Search -->
-            <div class="multi-select-wrapper">
-                <input type="text" id="brandSearch" class="filter-search" placeholder="🔍 Search Brands..." />
-                <select id="brandFilter" class="filter-select" multiple size="5" style="min-width: 180px;">
-                    <option value="">All Brands</option>
-                </select>
-            </div>
-            
-            <!-- Bundle Filter with Search -->
-            <div class="multi-select-wrapper">
-                <input type="text" id="bundleSearch" class="filter-search" placeholder="🔍 Search Bundles..." />
-                <select id="bundleFilter" class="filter-select" multiple size="5" style="min-width: 180px;">
-                    <option value="">All Bundles</option>
-                </select>
-            </div>
-            
-            <!-- PPG Filter with Search -->
-            <div class="multi-select-wrapper">
-                <input type="text" id="ppgSearch" class="filter-search" placeholder="🔍 Search PPG..." />
-                <select id="ppgFilter" class="filter-select" multiple size="5" style="min-width: 180px;">
-                    <option value="">All PPG</option>
-                </select>
-            </div>
-        </div>
-
         <!-- Products View -->
         <div id="productsView" class="view-container active">
+            <!-- Filters - Only for Products View -->
+            <div class="filters">
+                <input type="text" id="searchInput" placeholder="Search by ASIN, SKU or name..." class="search-input">
+                <select id="statusFilter" class="filter-select">
+                    <option value="all">All Stages</option>
+                    <option value="stage_1">Stage 1: Ideation</option>
+                    <option value="stage_2">Stage 2: PIM Finalized</option>
+                    <option value="stage_4">Stage 3: VC Listed</option>
+                    <option value="stage_5">Stage 4: Ordered [In QPI]</option>
+                    <option value="stage_6">Stage 5: Available Online</option>
+                </select>
+                <select id="countryFilter" class="filter-select">
+                    <option value="all">All Countries</option>
+                    <option value="loading">Loading countries...</option>
+                </select>
+                <select id="tempFilter" class="filter-select">
+                    <option value="all">All ASINs</option>
+                    <option value="temp">Temp ASINs Only</option>
+                    <option value="permanent">Permanent ASINs Only</option>
+                </select>
+                <select id="missingFilter" class="filter-select">
+                    <option value="all">All Products</option>
+                    <option value="missing">Missing from VM</option>
+                    <option value="present">Present in VM</option>
+                </select>
+                
+                <!-- Brand Filter with Search -->
+                <div class="multi-select-wrapper">
+                    <input type="text" id="brandSearch" class="filter-search" placeholder="🔍 Search Brands..." />
+                    <select id="brandFilter" class="filter-select" multiple size="5" style="min-width: 180px;">
+                        <option value="">All Brands</option>
+                    </select>
+                </div>
+                
+                <!-- Bundle Filter with Search -->
+                <div class="multi-select-wrapper">
+                    <input type="text" id="bundleSearch" class="filter-search" placeholder="🔍 Search Bundles..." />
+                    <select id="bundleFilter" class="filter-select" multiple size="5" style="min-width: 180px;">
+                        <option value="">All Bundles</option>
+                    </select>
+                </div>
+                
+                <!-- PPG Filter with Search -->
+                <div class="multi-select-wrapper">
+                    <input type="text" id="ppgSearch" class="filter-search" placeholder="🔍 Search PPG..." />
+                    <select id="ppgFilter" class="filter-select" multiple size="5" style="min-width: 180px;">
+                        <option value="">All PPG</option>
+                    </select>
+                </div>
+            </div>
             <div class="table-wrapper">
                 <table class="products-table">
                     <thead>
