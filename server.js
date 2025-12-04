@@ -1446,6 +1446,10 @@ app.post('/api/sync/qpi', (req, res) => {
         }
       });
       
+      console.log(`Collected ${qpiSkus.size} SKUs, ${qpiAsins.size} ASINs, ${sourceFiles.size} source files`);
+      console.log(`Source files found: ${Array.from(sourceFiles).join(', ')}`);
+      console.log(`Sample items with source: ${qpiData.slice(0, 3).map(i => `${i.sku}:${i.sourceFile || 'NULL'}`).join(', ')}`);
+      
       let itemsUpdated = 0;
       let productsUpdated = 0;
       let errors = 0;
@@ -1524,15 +1528,23 @@ app.post('/api/sync/qpi', (req, res) => {
             last_seen = CURRENT_TIMESTAMP
         `);
         
+        let trackingInserts = 0;
+        let trackingErrors = 0;
         qpiData.forEach(item => {
           if (item.asin && item.sourceFile) {
-            trackStmt.run([item.asin, item.sku, item.sourceFile, syncDate], (err) => {
-              if (err) console.error('Error tracking QPI source file:', err.message);
+            trackStmt.run([item.asin, item.sku, item.sourceFile, syncDate], function(err) {
+              if (err) {
+                trackingErrors++;
+                console.error('Error tracking QPI source file:', err.message);
+              } else {
+                trackingInserts++;
+              }
             });
           }
         });
         trackStmt.finalize(() => {
-          console.log(`Tracked ASINs across ${sourceFiles.size} source files: ${Array.from(sourceFiles).join(', ')}`);
+          console.log(`Tracked ${trackingInserts} ASIN-source combinations across ${sourceFiles.size} source files`);
+          console.log(`Tracking errors: ${trackingErrors}`);
         });
       }
       
