@@ -2740,7 +2740,7 @@ async function loadAvailableQPIFiles() {
 }
 
 // Edit vendor mapping row - enables editing mode
-async function editVendorMappingRow(id) {
+window.editVendorMappingRow = async function(id) {
     const row = document.querySelector(`tr[data-id="${id}"]`);
     if (!row) {
         alert('Row not found');
@@ -2793,7 +2793,7 @@ function attachEditableHandlers() {
 }
 
 // Save vendor mapping row
-async function saveVendorMappingRow(id) {
+window.saveVendorMappingRow = async function(id) {
     const row = document.querySelector(`tr[data-id="${id}"]`);
     if (!row) {
         alert('Row not found');
