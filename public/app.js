@@ -585,6 +585,26 @@ function renderItems(itemsToRender) {
         const s1Circle = renderTableStageCircle(1, item.stage_1_idea_considered, item.asin);
         const s2Circle = renderTableStageCircle(2, item.stage_2_product_finalized, item.asin, item.stage_2_newly_finalized);
         
+        // Stage 2.5: Pricing - show submission and approval status
+        let pricingCircle = '';
+        if (!item.stage_2_product_finalized) {
+            // Stage 2 not done yet - gray circle
+            pricingCircle = `<div style="width: 40px; height: 40px; border-radius: 50%; background: #e5e7eb; display: flex; align-items: center; justify-content: center; color: #9ca3af; font-weight: 600; font-size: 11px; margin: 0 auto;"></div>`;
+        } else if (item.stage_3b_pricing_approved) {
+            // Approved - green checkmark
+            pricingCircle = `<div style="width: 40px; height: 40px; border-radius: 50%; background: var(--success-color); display: flex; align-items: center; justify-content: center; color: white; font-weight: 600; font-size: 18px; margin: 0 auto;">✓</div>`;
+        } else if (item.stage_3a_pricing_submitted) {
+            // Submitted but not approved yet - yellow pending
+            pricingCircle = `<div style="width: 40px; height: 40px; border-radius: 50%; background: var(--warning-color); display: flex; align-items: center; justify-content: center; color: white; font-weight: 600; font-size: 18px; margin: 0 auto; position: relative;">
+                <span>⏳</span>
+            </div>
+            <div style="text-align: center; margin-top: 5px; font-size: 11px; color: var(--warning-color); font-weight: 600;">Pending</div>`;
+        } else {
+            // Stage 2 done but pricing not submitted yet - gray with dollar sign
+            pricingCircle = `<div style="width: 40px; height: 40px; border-radius: 50%; background: #e5e7eb; display: flex; align-items: center; justify-content: center; color: #6b7280; font-weight: 600; font-size: 18px; margin: 0 auto;">💰</div>
+            <div style="text-align: center; margin-top: 5px; font-size: 11px; color: #6b7280;">Required</div>`;
+        }
+        
         // Stage 3: VC Listed - show country coverage
         const vcCountryCount = item.vc_country_count || 0;
         const vcTotalCountries = item.vc_total_countries || 11;
@@ -615,15 +635,14 @@ function renderItems(itemsToRender) {
                 <td><small>${escapeHtml(skus)}</small></td>
                 <td style="text-align: center;">${s1Circle}</td>
                 <td style="text-align: center;">${s2Circle}</td>
+                <td style="text-align: center;">${pricingCircle}</td>
                 <td style="text-align: center;">${s3Circle}</td>
                 <td style="text-align: center;">${s4Circle}</td>
                 <td style="text-align: center;">${s5Circle}</td>
                 <td>
                     <button class="btn btn-secondary btn-sm" onclick="openFlowModal(${item.id})">View</button>
                     ${item.stage_2_product_finalized && !item.stage_3b_pricing_approved && currentUser.role !== 'viewer' ? 
-                        `<button class="btn btn-primary btn-sm" onclick="openPricingSubmissionModal(${item.id})" style="background: var(--warning);">💰 Pricing</button>` : ''}
-                    ${item.stage_3a_pricing_submitted && !item.stage_3b_pricing_approved ? 
-                        `<span style="color: var(--warning); font-size: 12px;">⏳ Pending</span>` : ''}
+                        `<button class="btn btn-primary btn-sm" onclick="openPricingSubmissionModal(${item.id})" style="background: var(--warning-color);">💰 Pricing</button>` : ''}
                     <button class="btn btn-danger btn-sm" onclick="deleteItem(${item.id})">Delete</button>
                 </td>
             </tr>
