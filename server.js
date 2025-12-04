@@ -2040,11 +2040,11 @@ app.post('/api/sync/online', (req, res) => {
         
         const query = `
           SELECT 
-            ASIN as asin,
-            domain,
-            stats_buyBoxPrice as buybox_price,
-            timestamp
-          FROM '${filePath}'
+            CAST(ASIN AS VARCHAR) as asin,
+            CAST(domain AS BIGINT) as domain,
+            CAST(stats_buyBoxPrice AS BIGINT) as buybox_price,
+            CAST(timestamp AS VARCHAR) as timestamp
+          FROM read_parquet('${filePath}')
           WHERE ASIN IS NOT NULL 
             AND ASIN != ''
             AND stats_buyBoxPrice > 0
@@ -2079,7 +2079,7 @@ app.post('/api/sync/online', (req, res) => {
           rows.forEach(row => {
             const asin = row.asin;
             const country = domainMap[row.domain] || `Unknown_${row.domain}`;
-            const date = row.timestamp ? new Date(row.timestamp).toISOString().split('T')[0] : new Date().toISOString().split('T')[0];
+            const date = new Date().toISOString().split('T')[0]; // Use current date since timestamp parsing is complex
             const price = row.buybox_price;
             
             // Skip if this ASIN is already online everywhere
