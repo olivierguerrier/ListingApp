@@ -507,7 +507,7 @@ function filterSelectOptions(filterId, allOptions, searchTerm, defaultLabel) {
 function switchView(view) {
     currentView = view;
     
-    console.log('[View] Switching to:', view);
+    console.log('[View] ========== Switching to:', view, '==========');
     
     // Update active tab
     document.querySelectorAll('.tab-btn').forEach(btn => {
@@ -517,11 +517,18 @@ function switchView(view) {
         }
     });
     
-    // Show/hide sections with active class
+    // Get all view elements
     const productsView = document.getElementById('productsView');
     const pricingApprovalsView = document.getElementById('pricingApprovalsView');
     const customerAdminView = document.getElementById('customerAdminView');
     const databaseView = document.getElementById('databaseView');
+    
+    console.log('[View] Elements found:', {
+        productsView: !!productsView,
+        pricingApprovalsView: !!pricingApprovalsView,
+        customerAdminView: !!customerAdminView,
+        databaseView: !!databaseView
+    });
     
     // Remove active from all
     [productsView, pricingApprovalsView, customerAdminView, databaseView].forEach(v => {
@@ -541,22 +548,22 @@ function switchView(view) {
     } else if (view === 'customer-admin' && customerAdminView) {
         customerAdminView.classList.add('active');
         customerAdminView.style.display = 'block';
-        console.log('[View] Customer Admin now active and visible');
+        console.log('[View] ✓ Customer Admin now active');
+        console.log('[View] ✓ Display:', customerAdminView.style.display);
+        console.log('[View] ✓ Has active class:', customerAdminView.classList.contains('active'));
+        console.log('[View] ✓ Computed style:', window.getComputedStyle(customerAdminView).display);
+        console.log('[View] ✓ Visible:', customerAdminView.offsetHeight > 0);
     } else if (view === 'database' && databaseView) {
         databaseView.classList.add('active');
         databaseView.style.display = 'block';
     }
     
-    console.log('[View] customerAdminView exists:', !!customerAdminView);
-    console.log('[View] customerAdminView display:', customerAdminView?.style.display);
-    console.log('[View] customerAdminView has active class:', customerAdminView?.classList.contains('active'));
-    
     // Load data based on view
     if (view === 'pricing-approvals') {
         loadPricingApprovalsView();
     } else if (view === 'customer-admin') {
-        console.log('[View] Loading customer admin data...');
-        loadVendorMappingFromMain();
+        console.log('[View] About to load customer admin data...');
+        setTimeout(() => loadVendorMappingFromMain(), 100); // Small delay to ensure DOM is ready
     } else if (view === 'products' && items.length > 0) {
         renderItems(items);
     } else if (view === 'database') {
