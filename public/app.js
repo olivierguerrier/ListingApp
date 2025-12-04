@@ -507,6 +507,8 @@ function filterSelectOptions(filterId, allOptions, searchTerm, defaultLabel) {
 function switchView(view) {
     currentView = view;
     
+    console.log('[View] Switching to:', view);
+    
     // Update active tab
     document.querySelectorAll('.tab-btn').forEach(btn => {
         btn.classList.remove('active');
@@ -520,6 +522,8 @@ function switchView(view) {
     document.getElementById('pricingApprovalsView').style.display = view === 'pricing-approvals' ? 'block' : 'none';
     document.getElementById('customerAdminView').style.display = view === 'customer-admin' ? 'block' : 'none';
     document.getElementById('databaseView').style.display = view === 'database' ? 'block' : 'none';
+    
+    console.log('[View] customerAdminView display:', document.getElementById('customerAdminView').style.display);
     
     // Load data based on view
     if (view === 'pricing-approvals') {
