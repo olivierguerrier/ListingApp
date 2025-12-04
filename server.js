@@ -1442,20 +1442,52 @@ app.get('/api/vendor-mapping', authenticateToken, requireRole('sales person', 'a
 
 // Get available QPI source files
 app.get('/api/qpi-files', authenticateToken, requireRole('sales person', 'approver', 'admin'), (req, res) => {
-  const qpiDir = 'A:\\ProcessOutput\\QPI_Validation';
+  const qpiFile = 'A:\\ProcessOutput\\QPI_Validation\\QPI_validation_full.csv';
   
   try {
-    if (!fs.existsSync(qpiDir)) {
+    if (!fs.existsSync(qpiFile)) {
+      console.error('QPI validation file not found:', qpiFile);
       return res.json([]);
     }
     
-    const files = fs.readdirSync(qpiDir)
-      .filter(f => f.endsWith('.parquet') || f.endsWith('.csv') || f.endsWith('.xlsx'))
-      .sort();
+    // Read the CSV file
+    const csvData = fs.readFileSync(qpiFile, 'utf8');
+    const lines = csvData.split('\n');
     
-    res.json(files);
+    if (lines.length === 0) {
+      return res.json([]);
+    }
+    
+    // Parse header to find "Source File" column index
+    const header = lines[0].split(',').map(h => h.trim().replace(/"/g, ''));
+    const sourceFileIndex = header.findIndex(h => h.toLowerCase() === 'source file');
+    
+    if (sourceFileIndex === -1) {
+      console.error('Source File column not found in QPI validation file');
+      return res.json([]);
+    }
+    
+    // Extract unique source files
+    const sourceFiles = new Set();
+    for (let i = 1; i < lines.length; i++) {
+      if (!lines[i].trim()) continue;
+      
+      const cols = lines[i].split(',');
+      if (cols.length > sourceFileIndex) {
+        const sourceFile = cols[sourceFileIndex].trim().replace(/"/g, '');
+        if (sourceFile && sourceFile !== '') {
+          sourceFiles.add(sourceFile);
+        }
+      }
+    }
+    
+    // Convert to sorted array
+    const result = Array.from(sourceFiles).sort();
+    console.log(`[QPI Files] Found ${result.length} unique source files`);
+    
+    res.json(result);
   } catch (error) {
-    console.error('Error reading QPI directory:', error);
+    console.error('Error reading QPI validation file:', error);
     res.status(500).json({ error: error.message });
   }
 });
