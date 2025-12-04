@@ -50,6 +50,16 @@ window.editVendorMappingRow = async function(id) {
     
     const cells = row.querySelectorAll('td');
     
+    // Country (cell 1) - text input
+    const countryCell = cells[1];
+    const countryValue = countryCell.textContent.trim().replace('-', '');
+    countryCell.innerHTML = `<input type="text" value="${countryValue}" style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;" data-field="country">`;
+    
+    // Keepa Marketplace (cell 2) - text input
+    const keepaCell = cells[2];
+    const keepaValue = keepaCell.textContent.trim().replace(/<\/?strong>/g, '').replace('-', '');
+    keepaCell.innerHTML = `<input type="text" value="${keepaValue}" style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;" data-field="keepa_marketplace">`;
+    
     // Customer Code (cell 3) - text input
     const customerCodeCell = cells[3];
     const customerCodeValue = customerCodeCell.textContent.trim().replace(/<\/?code>/g, '').replace('-', '');
@@ -65,18 +75,18 @@ window.editVendorMappingRow = async function(id) {
     });
     qpiCell.innerHTML = `<select style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;" data-field="qpi_source_file">${qpiOptions}</select>`;
     
-    // Language (cell 7) - text input
-    const languageCell = cells[7];
+    // Language (cell 6) - text input
+    const languageCell = cells[6];
     const languageValue = languageCell.textContent.trim().replace('-', '');
     languageCell.innerHTML = `<input type="text" value="${languageValue}" style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;" data-field="language">`;
     
-    // Currency (cell 8) - text input
-    const currencyCell = cells[8];
+    // Currency (cell 7) - text input
+    const currencyCell = cells[7];
     const currencyValue = currencyCell.textContent.trim().replace('-', '');
     currencyCell.innerHTML = `<input type="text" value="${currencyValue}" style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;" data-field="currency">`;
     
     // Replace Edit button with Save and Cancel buttons
-    const actionCell = cells[9];
+    const actionCell = cells[8];
     actionCell.innerHTML = `
         <button onclick="saveVendorMappingRow(${id})" class="btn-sm" style="padding: 4px 8px; font-size: 12px; background: #10b981; color: white; margin-right: 4px;">💾 Save</button>
         <button onclick="loadVendorMappingFromMain()" class="btn-sm" style="padding: 4px 8px; font-size: 12px; background: #6b7280; color: white;">✖ Cancel</button>
@@ -99,21 +109,23 @@ window.saveVendorMappingRow = async function(id) {
         const select = cell.querySelector('select');
         if (input) return input.value.trim();
         if (select) return select.value.trim();
-        return fallbackText.replace(/<\/?code>/g, '').replace(/<\/?small>/g, '').trim();
+        return fallbackText.replace(/<\/?code>/g, '').replace(/<\/?small>/g, '').replace(/<\/?strong>/g, '').trim();
     };
     
+    const country = getFieldValue(cells[1], cells[1].textContent);
+    const keepaMarketplace = getFieldValue(cells[2], cells[2].textContent);
     const customerCode = getFieldValue(cells[3], cells[3].textContent);
     const vendorCode = cells[4].textContent.trim();
     const qpiSourceFile = getFieldValue(cells[5], cells[5].textContent);
-    const vcFile = cells[6].textContent.trim();
-    const language = getFieldValue(cells[7], cells[7].textContent);
-    const currency = getFieldValue(cells[8], cells[8].textContent);
+    const language = getFieldValue(cells[6], cells[6].textContent);
+    const currency = getFieldValue(cells[7], cells[7].textContent);
     
     const data = {
+        country: country === '-' ? null : country,
+        keepa_marketplace: keepaMarketplace === '-' ? null : keepaMarketplace,
         customer_code: customerCode === '-' ? null : customerCode,
         vendor_code: vendorCode === '-' ? null : vendorCode,
         qpi_source_file: qpiSourceFile === '-' ? null : qpiSourceFile,
-        vc_file: vcFile === '-' ? null : vcFile,
         language: language === '-' ? null : language,
         currency: currency === '-' ? null : currency
     };
@@ -2778,12 +2790,11 @@ function renderVendorMappingFromMain(data) {
     tbody.innerHTML = data.map(row => `
         <tr data-id="${row.id}">
             <td style="padding: 12px; border: 1px solid #e5e7eb;">${row.customer || '-'}</td>
-            <td style="padding: 12px; border: 1px solid #e5e7eb;">${row.country || '-'}</td>
-            <td style="padding: 12px; border: 1px solid #e5e7eb;"><strong>${row.keepa_marketplace || '-'}</strong></td>
+            <td style="padding: 12px; border: 1px solid #e5e7eb;" data-field="country">${row.country || '-'}</td>
+            <td style="padding: 12px; border: 1px solid #e5e7eb;" data-field="keepa_marketplace"><strong>${row.keepa_marketplace || '-'}</strong></td>
             <td style="padding: 12px; border: 1px solid #e5e7eb;" data-field="customer_code"><code>${row.customer_code || '-'}</code></td>
             <td style="padding: 12px; border: 1px solid #e5e7eb;">${row.vendor_code || '-'}</td>
             <td style="padding: 12px; border: 1px solid #e5e7eb;" data-field="qpi_source_file"><small>${row.qpi_source_file || '-'}</small></td>
-            <td style="padding: 12px; border: 1px solid #e5e7eb;"><small>${row.vc_file || '-'}</small></td>
             <td style="padding: 12px; border: 1px solid #e5e7eb;" data-field="language">${row.language || '-'}</td>
             <td style="padding: 12px; border: 1px solid #e5e7eb;" data-field="currency">${row.currency || '-'}</td>
             <td style="padding: 12px; border: 1px solid #e5e7eb; text-align: center;">

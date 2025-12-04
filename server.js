@@ -1495,9 +1495,9 @@ app.get('/api/qpi-files', authenticateToken, requireRole('sales person', 'approv
 // Update vendor mapping record
 app.put('/api/vendor-mapping/:id', authenticateToken, requireRole('sales person', 'admin'), (req, res) => {
   const { id } = req.params;
-  const { customer_code, vendor_code, qpi_source_file, vc_file, language, currency } = req.body;
+  const { country, keepa_marketplace, customer_code, vendor_code, qpi_source_file, language, currency } = req.body;
 
-  // First, get the country for this record
+  // First, get the original country for this record
   db.get('SELECT country FROM vendor_mapping WHERE id = ?', [id], (err, row) => {
     if (err) {
       return res.status(500).json({ error: err.message });
@@ -1506,26 +1506,28 @@ app.put('/api/vendor-mapping/:id', authenticateToken, requireRole('sales person'
       return res.status(404).json({ error: 'Vendor mapping not found' });
     }
 
-    const country = row.country;
+    const originalCountry = row.country;
 
-    // Update all records with the same country
+    // Update all records with the same original country
     db.run(`
       UPDATE vendor_mapping 
       SET 
+        country = ?,
+        keepa_marketplace = ?,
         customer_code = ?,
         qpi_source_file = ?,
         language = ?,
         currency = ?,
         updated_at = CURRENT_TIMESTAMP
       WHERE country = ?
-    `, [customer_code, qpi_source_file, language, currency, country], function(err) {
+    `, [country, keepa_marketplace, customer_code, qpi_source_file, language, currency, originalCountry], function(err) {
       if (err) {
         return res.status(500).json({ error: err.message });
       }
       
-      console.log(`[Vendor Mapping] Updated ${this.changes} records for country: ${country}`);
+      console.log(`[Vendor Mapping] Updated ${this.changes} records for country: ${originalCountry} -> ${country}`);
       res.json({ 
-        message: `Vendor mapping updated for all ${this.changes} records in ${country}`, 
+        message: `Vendor mapping updated for all ${this.changes} records`, 
         changes: this.changes,
         country: country
       });
