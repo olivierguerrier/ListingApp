@@ -548,11 +548,26 @@ function switchView(view) {
     } else if (view === 'customer-admin' && customerAdminView) {
         customerAdminView.classList.add('active');
         customerAdminView.style.display = 'block';
+        customerAdminView.style.visibility = 'visible';
+        customerAdminView.style.opacity = '1';
+        customerAdminView.style.position = 'relative';
+        customerAdminView.style.zIndex = '1';
+        
         console.log('[View] ✓ Customer Admin now active');
         console.log('[View] ✓ Display:', customerAdminView.style.display);
         console.log('[View] ✓ Has active class:', customerAdminView.classList.contains('active'));
         console.log('[View] ✓ Computed style:', window.getComputedStyle(customerAdminView).display);
-        console.log('[View] ✓ Visible:', customerAdminView.offsetHeight > 0);
+        console.log('[View] ✓ offsetHeight:', customerAdminView.offsetHeight);
+        console.log('[View] ✓ clientHeight:', customerAdminView.clientHeight);
+        console.log('[View] ✓ scrollHeight:', customerAdminView.scrollHeight);
+        console.log('[View] ✓ Parent:', customerAdminView.parentElement?.id);
+        console.log('[View] ✓ Parent display:', window.getComputedStyle(customerAdminView.parentElement).display);
+        console.log('[View] ✓ Parent height:', customerAdminView.parentElement?.offsetHeight);
+        
+        // Force reflow
+        customerAdminView.offsetHeight;
+        
+        console.log('[View] ✓ After reflow - Visible:', customerAdminView.offsetHeight > 0);
     } else if (view === 'database' && databaseView) {
         databaseView.classList.add('active');
         databaseView.style.display = 'block';
