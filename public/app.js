@@ -1018,8 +1018,8 @@ function openPricingSubmissionModal(productId) {
     
     // Reset form
     document.getElementById('pricingSubmissionForm').reset();
-    document.getElementById('companyMargin').value = '';
-    document.getElementById('customerMargin').value = '';
+    document.getElementById('pricingCompanyMargin').value = '';
+    document.getElementById('pricingCustomerMargin').value = '';
     
     // Show modal
     document.getElementById('pricingSubmissionModal').style.display = 'block';
@@ -1027,11 +1027,11 @@ function openPricingSubmissionModal(productId) {
 
 // Global function for calculating pricing margins (called from HTML oninput)
 window.calculatePricingMargins = function() {
-    const productCost = document.getElementById('productCost');
-    const sellPrice = document.getElementById('sellPrice');
-    const retailPrice = document.getElementById('retailPrice');
-    const companyMargin = document.getElementById('companyMargin');
-    const customerMargin = document.getElementById('customerMargin');
+    const productCost = document.getElementById('pricingProductCost');
+    const sellPrice = document.getElementById('pricingSellPrice');
+    const retailPrice = document.getElementById('pricingRetailPrice');
+    const companyMargin = document.getElementById('pricingCompanyMargin');
+    const customerMargin = document.getElementById('pricingCustomerMargin');
     
     if (!productCost || !sellPrice || !retailPrice || !companyMargin || !customerMargin) {
         return;
@@ -1083,20 +1083,28 @@ function closePricingSubmissionModal() {
 async function handlePricingSubmissionSubmit(e) {
     e.preventDefault();
     
-    const productCost = parseFloat(document.getElementById('productCost').value);
-    const sellPrice = parseFloat(document.getElementById('sellPrice').value);
-    const retailPrice = parseFloat(document.getElementById('retailPrice').value);
+    const productCostValue = document.getElementById('pricingProductCost').value;
+    const sellPriceValue = document.getElementById('pricingSellPrice').value;
+    const retailPriceValue = document.getElementById('pricingRetailPrice').value;
+    
+    console.log('Form values:', { productCostValue, sellPriceValue, retailPriceValue });
+    
+    const productCost = parseFloat(productCostValue);
+    const sellPrice = parseFloat(sellPriceValue);
+    const retailPrice = parseFloat(retailPriceValue);
+    
+    console.log('Parsed values:', { productCost, sellPrice, retailPrice });
     
     // Validate required fields
-    if (!productCost || productCost <= 0) {
+    if (isNaN(productCost) || productCost <= 0) {
         showError('Please enter a valid Product Cost');
         return;
     }
-    if (!sellPrice || sellPrice <= 0) {
+    if (isNaN(sellPrice) || sellPrice <= 0) {
         showError('Please enter a valid Sell Price');
         return;
     }
-    if (!retailPrice || retailPrice <= 0) {
+    if (isNaN(retailPrice) || retailPrice <= 0) {
         showError('Please enter a valid Retail Price');
         return;
     }

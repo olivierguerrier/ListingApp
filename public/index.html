@@ -564,9 +564,9 @@
                 <input type="hidden" id="pricingAsin">
                 
                 <div class="form-group">
-                    <label for="productCost">Product Cost * (Your cost from supplier)</label>
+                    <label for="pricingProductCost">Product Cost * (Your cost from supplier)</label>
                     <div style="display: flex; gap: 10px;">
-                        <input type="number" id="productCost" step="0.01" required style="flex: 1;" oninput="calculatePricingMargins()">
+                        <input type="number" id="pricingProductCost" step="0.01" required style="flex: 1;" oninput="calculatePricingMargins()">
                         <select id="pricingCurrency" style="width: 100px;">
                             <option value="USD">USD</option>
                             <option value="CAD">CAD</option>
@@ -577,23 +577,23 @@
                 </div>
                 
                 <div class="form-group">
-                    <label for="sellPrice">Sell Price * (Price to Amazon)</label>
-                    <input type="number" id="sellPrice" step="0.01" required oninput="calculatePricingMargins()">
+                    <label for="pricingSellPrice">Sell Price * (Price to Amazon)</label>
+                    <input type="number" id="pricingSellPrice" step="0.01" required oninput="calculatePricingMargins()">
                 </div>
                 
                 <div class="form-group">
                     <label>Company Margin</label>
-                    <input type="text" id="companyMargin" readonly disabled style="background: var(--bg-secondary); font-weight: 600; color: var(--success); opacity: 1;">
+                    <input type="text" id="pricingCompanyMargin" readonly disabled style="background: var(--bg-secondary); font-weight: 600; color: var(--success); opacity: 1;">
                 </div>
                 
                 <div class="form-group">
-                    <label for="retailPrice">Retail Price * (Price to customer)</label>
-                    <input type="number" id="retailPrice" step="0.01" required oninput="calculatePricingMargins()">
+                    <label for="pricingRetailPrice">Retail Price * (Price to customer)</label>
+                    <input type="number" id="pricingRetailPrice" step="0.01" required oninput="calculatePricingMargins()">
                 </div>
                 
                 <div class="form-group">
                     <label>Customer Margin</label>
-                    <input type="text" id="customerMargin" readonly disabled style="background: var(--bg-secondary); font-weight: 600; color: var(--success); opacity: 1;">
+                    <input type="text" id="pricingCustomerMargin" readonly disabled style="background: var(--bg-secondary); font-weight: 600; color: var(--success); opacity: 1;">
                 </div>
                 
                 <div class="form-group">
