@@ -1231,10 +1231,14 @@ async function openWorkflowModal(asin, stageNumber) {
             const qpiResponse = await fetch(`${API_BASE}/qpi-files/${asin}`);
             const qpiData = await qpiResponse.json();
             
+            console.log('QPI Data:', qpiData); // Debug log
+            
             const inQPI = productData.stage_5_product_ordered === 1;
             const skus = productData.skus || [];
             const filesFound = qpiData.files.filter(f => f.found).length;
             const totalFiles = qpiData.total_source_files;
+            
+            console.log(`Files found: ${filesFound}/${totalFiles}`, qpiData.files); // Debug log
             
             // Map source file names to regions
             const regionMap = {
