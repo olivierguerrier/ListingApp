@@ -148,6 +148,7 @@ function logout() {
 document.addEventListener('DOMContentLoaded', () => {
     if (!checkAuth()) return;
     
+    initSidebar();
     loadItems();
     loadSkus();
     loadCountries();
@@ -1490,6 +1491,77 @@ async function quickApproveReject(submissionId, action) {
     
     await reviewPricing(submissionId, action, notes);
     loadPricingApprovalsView(); // Refresh the view
+}
+
+// ============ SIDEBAR NAVIGATION ============
+
+function initSidebar() {
+    const sidebar = document.getElementById('sidebar');
+    const sidebarOverlay = document.getElementById('sidebarOverlay');
+    const sidebarToggle = document.getElementById('sidebarToggle');
+    const sidebarClose = document.getElementById('sidebarClose');
+    
+    // Open sidebar
+    sidebarToggle.addEventListener('click', () => {
+        sidebar.classList.add('active');
+        sidebarOverlay.classList.add('active');
+    });
+    
+    // Close sidebar
+    const closeSidebar = () => {
+        sidebar.classList.remove('active');
+        sidebarOverlay.classList.remove('active');
+    };
+    
+    sidebarClose.addEventListener('click', closeSidebar);
+    sidebarOverlay.addEventListener('click', closeSidebar);
+    
+    // Submenu toggle
+    document.querySelectorAll('.sidebar-toggle').forEach(toggle => {
+        toggle.addEventListener('click', () => {
+            const targetId = toggle.dataset.target;
+            const submenu = document.getElementById(targetId);
+            
+            toggle.classList.toggle('active');
+            submenu.classList.toggle('active');
+        });
+    });
+    
+    // Wire up sidebar buttons to existing functions
+    document.getElementById('sidebarExportBtn').addEventListener('click', () => {
+        exportToCSV();
+        closeSidebar();
+    });
+    
+    document.getElementById('sidebarSyncPimBtn').addEventListener('click', () => {
+        syncPimData();
+        closeSidebar();
+    });
+    
+    document.getElementById('sidebarSyncVcBtn').addEventListener('click', () => {
+        syncVcData();
+        closeSidebar();
+    });
+    
+    document.getElementById('sidebarSyncQpiBtn').addEventListener('click', () => {
+        syncQpiData();
+        closeSidebar();
+    });
+    
+    document.getElementById('sidebarImportQpiBtn').addEventListener('click', () => {
+        importFromQpi();
+        closeSidebar();
+    });
+    
+    document.getElementById('sidebarSyncVariationsBtn').addEventListener('click', () => {
+        syncVariations();
+        closeSidebar();
+    });
+    
+    document.getElementById('sidebarSyncOnlineBtn').addEventListener('click', () => {
+        syncOnlineStatus();
+        closeSidebar();
+    });
 }
 
 // Handle item form submission

@@ -7,17 +7,77 @@
     <link rel="stylesheet" href="styles.css">
 </head>
 <body>
+    <!-- Sidebar -->
+    <div id="sidebar" class="sidebar">
+        <div class="sidebar-header">
+            <h2>📋 Menu</h2>
+            <button id="sidebarClose" class="sidebar-close">&times;</button>
+        </div>
+        
+        <nav class="sidebar-nav">
+            <!-- Admin Console -->
+            <div class="sidebar-section">
+                <a href="/admin.html" class="sidebar-item">
+                    <span class="sidebar-icon">⚙️</span>
+                    <span>Admin Console</span>
+                </a>
+            </div>
+            
+            <!-- Export -->
+            <div class="sidebar-section">
+                <button class="sidebar-item" id="sidebarExportBtn">
+                    <span class="sidebar-icon">📥</span>
+                    <span>Export</span>
+                </button>
+            </div>
+            
+            <!-- Sync -->
+            <div class="sidebar-section">
+                <button class="sidebar-item sidebar-toggle" data-target="syncSubmenu">
+                    <span class="sidebar-icon">🔄</span>
+                    <span>Sync</span>
+                    <span class="sidebar-arrow">▼</span>
+                </button>
+                <div class="sidebar-submenu" id="syncSubmenu">
+                    <button class="sidebar-subitem" id="sidebarSyncPimBtn">
+                        <span class="sidebar-icon">📊</span>
+                        <span>Sync PIM Data</span>
+                    </button>
+                    <button class="sidebar-subitem" id="sidebarSyncVcBtn">
+                        <span class="sidebar-icon">🏪</span>
+                        <span>Sync VC Data</span>
+                    </button>
+                    <button class="sidebar-subitem" id="sidebarSyncQpiBtn">
+                        <span class="sidebar-icon">📦</span>
+                        <span>Sync QPI Data</span>
+                    </button>
+                    <button class="sidebar-subitem" id="sidebarImportQpiBtn">
+                        <span class="sidebar-icon">📥</span>
+                        <span>Import from QPI</span>
+                    </button>
+                    <button class="sidebar-subitem" id="sidebarSyncVariationsBtn">
+                        <span class="sidebar-icon">🔗</span>
+                        <span>Sync Variations</span>
+                    </button>
+                    <button class="sidebar-subitem" id="sidebarSyncOnlineBtn">
+                        <span class="sidebar-icon">🌐</span>
+                        <span>Sync Online Status</span>
+                    </button>
+                </div>
+            </div>
+        </nav>
+    </div>
+    
+    <!-- Sidebar Overlay -->
+    <div id="sidebarOverlay" class="sidebar-overlay"></div>
+    
     <div class="container">
         <header>
-            <h1>Amazon Vendor Central Item Tracker</h1>
-            <div style="display: flex; gap: 10px; flex-wrap: wrap;">
-                <button id="exportBtn" class="btn btn-info">📥 Export List</button>
-                <button id="syncPimBtn" class="btn btn-secondary">Sync PIM Data</button>
-                <button id="syncVcBtn" class="btn btn-secondary">Sync VC Data</button>
-                <button id="syncQpiBtn" class="btn btn-secondary">Sync QPI Data</button>
-                <button id="importQpiBtn" class="btn btn-secondary">Import from QPI</button>
-                <button id="syncVariationsBtn" class="btn btn-secondary">Sync Variations</button>
-                <button id="syncOnlineBtn" class="btn btn-secondary">Sync Online Status</button>
+            <div style="display: flex; align-items: center; gap: 20px;">
+                <button id="sidebarToggle" class="btn btn-secondary">☰ Menu</button>
+                <h1>Amazon Vendor Central Item Tracker</h1>
+            </div>
+            <div style="display: flex; gap: 10px;">
                 <button id="addItemBtn" class="btn btn-primary">+ Add New Item</button>
             </div>
         </header>

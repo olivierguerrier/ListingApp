@@ -1260,3 +1260,150 @@ table tbody tr:hover {
     text-align: center;
 }
 
+
+/* Sidebar styles */
+.sidebar {
+    position: fixed;
+    left: -300px;
+    top: 0;
+    width: 300px;
+    height: 100vh;
+    background: var(--card-background);
+    box-shadow: 2px 0 10px rgba(0, 0, 0, 0.1);
+    z-index: 1000;
+    transition: left 0.3s ease;
+    overflow-y: auto;
+}
+
+.sidebar.active {
+    left: 0;
+}
+
+.sidebar-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 20px;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.sidebar-header h2 {
+    margin: 0;
+    font-size: 20px;
+}
+
+.sidebar-close {
+    background: none;
+    border: none;
+    font-size: 32px;
+    cursor: pointer;
+    color: var(--text-secondary);
+    line-height: 1;
+}
+
+.sidebar-close:hover {
+    color: var(--text-primary);
+}
+
+.sidebar-nav {
+    padding: 10px 0;
+}
+
+.sidebar-section {
+    border-bottom: 1px solid var(--border-color);
+}
+
+.sidebar-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 15px 20px;
+    width: 100%;
+    background: none;
+    border: none;
+    text-align: left;
+    cursor: pointer;
+    transition: background 0.2s;
+    color: var(--text-primary);
+    text-decoration: none;
+    font-size: 15px;
+}
+
+.sidebar-item:hover {
+    background: var(--background);
+}
+
+.sidebar-icon {
+    font-size: 18px;
+    width: 24px;
+    text-align: center;
+}
+
+.sidebar-toggle {
+    position: relative;
+}
+
+.sidebar-arrow {
+    margin-left: auto;
+    transition: transform 0.3s;
+    font-size: 12px;
+}
+
+.sidebar-toggle.active .sidebar-arrow {
+    transform: rotate(-180deg);
+}
+
+.sidebar-submenu {
+    max-height: 0;
+    overflow: hidden;
+    transition: max-height 0.3s ease;
+    background: var(--background);
+}
+
+.sidebar-submenu.active {
+    max-height: 500px;
+}
+
+.sidebar-subitem {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 20px 12px 52px;
+    width: 100%;
+    background: none;
+    border: none;
+    text-align: left;
+    cursor: pointer;
+    transition: background 0.2s;
+    color: var(--text-secondary);
+    font-size: 14px;
+}
+
+.sidebar-subitem:hover {
+    background: var(--card-background);
+    color: var(--text-primary);
+}
+
+.sidebar-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100vh;
+    background: rgba(0, 0, 0, 0.5);
+    z-index: 999;
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.3s, visibility 0.3s;
+}
+
+.sidebar-overlay.active {
+    opacity: 1;
+    visibility: visible;
+}
+
+#sidebarToggle {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
