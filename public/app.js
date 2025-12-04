@@ -509,8 +509,8 @@ function renderItems(itemsToRender) {
         
         return `
             <tr data-item-id="${item.id}">
-                <td class="item-name" title="${escapeHtml(item.name || item.asin)}">
-                    ${escapeHtml(item.name || item.asin)}
+                <td class="item-name" title="${escapeHtml(item.display_name || item.name || item.asin)}">
+                    ${escapeHtml(item.display_name || item.name || item.asin)}
                     ${isTempAsin ? '<span class="temp-badge">TEMP</span>' : ''}
                     ${missingVariations ? '<span class="missing-badge" title="Not found in Variations Master">MISSING</span>' : ''}
                 </td>
