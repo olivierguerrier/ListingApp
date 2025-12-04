@@ -2632,20 +2632,26 @@ function renderVendorMappingFromMain(data) {
     }
     
     tbody.innerHTML = data.map(row => `
-        <tr>
+        <tr data-id="${row.id}">
             <td style="padding: 12px; border: 1px solid #e5e7eb;">${row.customer || '-'}</td>
             <td style="padding: 12px; border: 1px solid #e5e7eb;">${row.country || '-'}</td>
             <td style="padding: 12px; border: 1px solid #e5e7eb;"><strong>${row.keepa_marketplace || '-'}</strong></td>
-            <td style="padding: 12px; border: 1px solid #e5e7eb;"><code>${row.customer_code || '-'}</code></td>
-            <td style="padding: 12px; border: 1px solid #e5e7eb;"><code>${row.vendor_code || '-'}</code></td>
-            <td style="padding: 12px; border: 1px solid #e5e7eb;"><small>${row.qpi_source_file || '-'}</small></td>
+            <td style="padding: 12px; border: 1px solid #e5e7eb;" class="editable" data-field="customer_code"><code>${row.customer_code || '-'}</code></td>
+            <td style="padding: 12px; border: 1px solid #e5e7eb;">${row.vendor_code || '-'}</td>
+            <td style="padding: 12px; border: 1px solid #e5e7eb;" class="editable-dropdown" data-field="qpi_source_file"><small>${row.qpi_source_file || '-'}</small></td>
             <td style="padding: 12px; border: 1px solid #e5e7eb;"><small>${row.vc_file || '-'}</small></td>
-            <td style="padding: 12px; border: 1px solid #e5e7eb;">${row.language || '-'}</td>
-            <td style="padding: 12px; border: 1px solid #e5e7eb;">${row.currency || '-'}</td>
+            <td style="padding: 12px; border: 1px solid #e5e7eb;" class="editable" data-field="language">${row.language || '-'}</td>
+            <td style="padding: 12px; border: 1px solid #e5e7eb;" class="editable" data-field="currency">${row.currency || '-'}</td>
+            <td style="padding: 12px; border: 1px solid #e5e7eb; text-align: center;">
+                <button onclick="saveVendorMappingRow(${row.id})" class="btn-sm" style="padding: 4px 8px; font-size: 12px;">💾 Save</button>
+            </td>
         </tr>
     `).join('');
     
     console.log('[Customer Admin] Rendered', tbody.children.length, 'rows in table');
+    
+    // Attach click handlers for editable cells
+    attachEditableHandlers();
 }
 
 function updateMappingStatsFromMain(data) {
@@ -2712,4 +2718,191 @@ async function syncVendorMappingFromMain() {
 
 function setupCustomerAdminFilters() {
     // No filters needed anymore
+}
+
+// ============================================================================
+// Customer Admin - Editable Table Functions
+// ============================================================================
+
+// Store available QPI files for dropdowns
+let availableQPIFiles = [];
+
+// Load available QPI files
+async function loadAvailableQPIFiles() {
+    try {
+        const response = await fetch('/api/qpi-files', {
+            headers: { 'Authorization': `Bearer ${getJWT()}` }
+        });
+        if (response.ok) {
+            availableQPIFiles = await response.json();
+            console.log('[Customer Admin] Loaded', availableQPIFiles.length, 'QPI files');
+        }
+    } catch (error) {
+        console.error('[Customer Admin] Error loading QPI files:', error);
+    }
+}
+
+// Attach click handlers for editable cells
+function attachEditableHandlers() {
+    // Regular text editable cells
+    document.querySelectorAll('#mainVendorMappingTableBody .editable').forEach(cell => {
+        cell.style.cursor = 'pointer';
+        cell.title = 'Click to edit';
+        
+        cell.addEventListener('click', function() {
+            const currentValue = this.textContent.trim();
+            const cleanValue = currentValue === '-' ? '' : currentValue.replace(/<\/?code>/g, '');
+            
+            const input = document.createElement('input');
+            input.type = 'text';
+            input.value = cleanValue;
+            input.style.width = '100%';
+            input.style.padding = '8px';
+            input.style.border = '2px solid var(--primary-color)';
+            input.style.borderRadius = '4px';
+            input.style.fontSize = '14px';
+            
+            this.innerHTML = '';
+            this.appendChild(input);
+            input.focus();
+            
+            const saveValue = () => {
+                const field = this.dataset.field;
+                const newValue = input.value.trim();
+                if (field === 'customer_code') {
+                    this.innerHTML = `<code>${newValue || '-'}</code>`;
+                } else {
+                    this.textContent = newValue || '-';
+                }
+            };
+            
+            input.addEventListener('blur', saveValue);
+            input.addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') {
+                    saveValue();
+                }
+            });
+        });
+    });
+    
+    // Dropdown editable cells
+    document.querySelectorAll('#mainVendorMappingTableBody .editable-dropdown').forEach(cell => {
+        cell.style.cursor = 'pointer';
+        cell.title = 'Click to select from dropdown';
+        
+        cell.addEventListener('click', async function() {
+            if (availableQPIFiles.length === 0) {
+                await loadAvailableQPIFiles();
+            }
+            
+            const currentValue = this.textContent.trim();
+            const cleanValue = currentValue === '-' ? '' : currentValue;
+            
+            const select = document.createElement('select');
+            select.style.width = '100%';
+            select.style.padding = '8px';
+            select.style.border = '2px solid var(--primary-color)';
+            select.style.borderRadius = '4px';
+            select.style.fontSize = '14px';
+            
+            // Add empty option
+            const emptyOption = document.createElement('option');
+            emptyOption.value = '';
+            emptyOption.textContent = '(None)';
+            select.appendChild(emptyOption);
+            
+            // Add available QPI files
+            availableQPIFiles.forEach(file => {
+                const option = document.createElement('option');
+                option.value = file;
+                option.textContent = file;
+                if (file === cleanValue) {
+                    option.selected = true;
+                }
+                select.appendChild(option);
+            });
+            
+            this.innerHTML = '';
+            this.appendChild(select);
+            select.focus();
+            
+            const saveValue = () => {
+                const newValue = select.value.trim();
+                this.innerHTML = `<small>${newValue || '-'}</small>`;
+            };
+            
+            select.addEventListener('blur', saveValue);
+            select.addEventListener('change', saveValue);
+        });
+    });
+}
+
+// Save vendor mapping row
+async function saveVendorMappingRow(id) {
+    const row = document.querySelector(`tr[data-id="${id}"]`);
+    if (!row) {
+        alert('Row not found');
+        return;
+    }
+    
+    const cells = row.querySelectorAll('td');
+    const customerCode = cells[3].textContent.trim().replace(/<\/?code>/g, '');
+    const vendorCode = cells[4].textContent.trim();
+    const qpiSourceFile = cells[5].textContent.trim();
+    const vcFile = cells[6].textContent.trim();
+    const language = cells[7].textContent.trim();
+    const currency = cells[8].textContent.trim();
+    
+    const data = {
+        customer_code: customerCode === '-' ? null : customerCode,
+        vendor_code: vendorCode === '-' ? null : vendorCode,
+        qpi_source_file: qpiSourceFile === '-' ? null : qpiSourceFile,
+        vc_file: vcFile === '-' ? null : vcFile,
+        language: language === '-' ? null : language,
+        currency: currency === '-' ? null : currency
+    };
+    
+    try {
+        const response = await fetch(`/api/vendor-mapping/${id}`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${getJWT()}`
+            },
+            body: JSON.stringify(data)
+        });
+        
+        if (response.ok) {
+            showToast('✓ Vendor mapping updated successfully', 'success');
+            loadVendorMappingFromMain(); // Reload data
+        } else {
+            const error = await response.json();
+            alert('Error updating: ' + error.error);
+        }
+    } catch (error) {
+        console.error('Error saving vendor mapping:', error);
+        alert('Error saving changes');
+    }
+}
+
+// Simple toast notification
+function showToast(message, type = 'info') {
+    const toast = document.createElement('div');
+    toast.style.position = 'fixed';
+    toast.style.top = '20px';
+    toast.style.right = '20px';
+    toast.style.padding = '12px 24px';
+    toast.style.borderRadius = '8px';
+    toast.style.backgroundColor = type === 'success' ? '#10b981' : '#ef4444';
+    toast.style.color = 'white';
+    toast.style.fontWeight = 'bold';
+    toast.style.zIndex = '10000';
+    toast.style.boxShadow = '0 4px 6px rgba(0,0,0,0.1)';
+    toast.textContent = message;
+    
+    document.body.appendChild(toast);
+    
+    setTimeout(() => {
+        toast.remove();
+    }, 3000);
 }

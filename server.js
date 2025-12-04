@@ -1440,6 +1440,48 @@ app.get('/api/vendor-mapping', authenticateToken, requireRole('sales person', 'a
   });
 });
 
+// Get available QPI source files
+app.get('/api/qpi-files', authenticateToken, requireRole('sales person', 'approver', 'admin'), (req, res) => {
+  db.all(`
+    SELECT DISTINCT source_file 
+    FROM qpi_file_tracking 
+    WHERE source_file IS NOT NULL AND source_file != ''
+    ORDER BY source_file
+  `, [], (err, rows) => {
+    if (err) {
+      return res.status(500).json({ error: err.message });
+    }
+    res.json(rows.map(r => r.source_file));
+  });
+});
+
+// Update vendor mapping record
+app.put('/api/vendor-mapping/:id', authenticateToken, requireRole('sales person', 'admin'), (req, res) => {
+  const { id } = req.params;
+  const { customer_code, vendor_code, qpi_source_file, vc_file, language, currency } = req.body;
+
+  db.run(`
+    UPDATE vendor_mapping 
+    SET 
+      customer_code = ?,
+      vendor_code = ?,
+      qpi_source_file = ?,
+      vc_file = ?,
+      language = ?,
+      currency = ?,
+      updated_at = CURRENT_TIMESTAMP
+    WHERE id = ?
+  `, [customer_code, vendor_code, qpi_source_file, vc_file, language, currency, id], function(err) {
+    if (err) {
+      return res.status(500).json({ error: err.message });
+    }
+    if (this.changes === 0) {
+      return res.status(404).json({ error: 'Vendor mapping not found' });
+    }
+    res.json({ message: 'Vendor mapping updated', changes: this.changes });
+  });
+});
+
 // Get list of marketplaces from vendor mapping (legacy)
 app.get('/api/countries', (req, res) => {
   db.all(`
