@@ -205,6 +205,7 @@ h3 {
     width: 100%;
     border-collapse: collapse;
     font-size: 14px;
+    table-layout: fixed;
 }
 
 .products-table thead {
@@ -216,7 +217,7 @@ h3 {
 
 .products-table th {
     padding: 12px 10px;
-    text-align: left;
+    text-align: center;
     font-weight: 600;
     color: var(--text-primary);
     border-bottom: 2px solid var(--border-color);
@@ -228,6 +229,7 @@ h3 {
     padding: 12px 10px;
     border-bottom: 1px solid var(--border-color);
     vertical-align: middle;
+    text-align: center;
 }
 
 .products-table tbody tr:hover {
@@ -237,7 +239,6 @@ h3 {
 .products-table .item-name {
     font-weight: 500;
     color: var(--text-primary);
-    max-width: 300px;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -252,7 +253,6 @@ h3 {
 .products-table .item-skus {
     font-size: 12px;
     color: var(--text-secondary);
-    max-width: 150px;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
