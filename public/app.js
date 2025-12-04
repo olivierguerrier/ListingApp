@@ -2627,7 +2627,7 @@ function renderVendorMappingFromMain(data) {
     
     if (!data || data.length === 0) {
         console.warn('[Customer Admin] No data to display');
-        tbody.innerHTML = '<tr><td colspan="8" style="text-align: center; padding: 40px; color: var(--text-secondary); border: 1px solid #e5e7eb;">No mappings found</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="9" style="text-align: center; padding: 40px; color: var(--text-secondary); border: 1px solid #e5e7eb;">No mappings found</td></tr>';
         return;
     }
     
@@ -2635,12 +2635,13 @@ function renderVendorMappingFromMain(data) {
         <tr>
             <td style="padding: 12px; border: 1px solid #e5e7eb;">${row.customer || '-'}</td>
             <td style="padding: 12px; border: 1px solid #e5e7eb;">${row.country || '-'}</td>
-            <td style="padding: 12px; border: 1px solid #e5e7eb;"><strong>${row.marketplace || '-'}</strong></td>
-            <td style="padding: 12px; border: 1px solid #e5e7eb;"><code>${row.country_code || '-'}</code></td>
+            <td style="padding: 12px; border: 1px solid #e5e7eb;"><strong>${row.keepa_marketplace || '-'}</strong></td>
+            <td style="padding: 12px; border: 1px solid #e5e7eb;"><code>${row.customer_code || '-'}</code></td>
             <td style="padding: 12px; border: 1px solid #e5e7eb;"><code>${row.vendor_code || '-'}</code></td>
-            <td style="padding: 12px; border: 1px solid #e5e7eb;"><small>${row.qpi_file || '-'}</small></td>
+            <td style="padding: 12px; border: 1px solid #e5e7eb;"><small>${row.qpi_source_file || '-'}</small></td>
             <td style="padding: 12px; border: 1px solid #e5e7eb;"><small>${row.vc_file || '-'}</small></td>
-            <td style="padding: 12px; border: 1px solid #e5e7eb;">${row.ppg_default || '-'}</td>
+            <td style="padding: 12px; border: 1px solid #e5e7eb;">${row.language || '-'}</td>
+            <td style="padding: 12px; border: 1px solid #e5e7eb;">${row.currency || '-'}</td>
         </tr>
     `).join('');
     
@@ -2663,9 +2664,10 @@ function updateMappingStatsFromMain(data) {
     const stats = {
         totalRecords: data.length,
         uniqueCountries: new Set(data.map(r => r.country)).size,
-        uniqueMarketplaces: new Set(data.map(r => r.marketplace)).size,
+        uniqueMarketplaces: new Set(data.map(r => r.keepa_marketplace)).size,
         uniqueVendorCodes: new Set(data.map(r => r.vendor_code)).size,
-        uniqueQPIs: new Set(data.map(r => r.qpi_file).filter(Boolean)).size
+        uniqueQPIs: new Set(data.map(r => r.qpi_source_file).filter(Boolean)).size,
+        uniqueCurrencies: new Set(data.map(r => r.currency).filter(Boolean)).size
     };
     
     statsElement.innerHTML = `
@@ -2673,7 +2675,8 @@ function updateMappingStatsFromMain(data) {
         ${stats.uniqueCountries} countries | 
         ${stats.uniqueMarketplaces} marketplaces | 
         ${stats.uniqueVendorCodes} vendor codes | 
-        ${stats.uniqueQPIs} QPI files
+        ${stats.uniqueQPIs} QPI files | 
+        ${stats.uniqueCurrencies} currencies
     `;
 }
 

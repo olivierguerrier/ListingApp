@@ -104,39 +104,39 @@ function requireRole(...allowedRoles) {
 function insertDefaultVendorMapping() {
   const amazonMappings = [
     // United States
-    { customer: 'Amazon', country: 'United States', marketplace: 'United States', country_code: 'C002', vendor_code: 'AMZN US', qpi_file: 'US_QPI.parquet', vc_file: 'US_VC.parquet', ppg_default: 'US_PPG', domain: 1 },
+    { customer: 'Amazon', country: 'United States', keepa_marketplace: 'United States', customer_code: 'C002', vendor_code: 'AMZN US', qpi_source_file: 'US_QPI.parquet', vc_file: 'US_VC.parquet', language: 'English', currency: 'USD', domain: 1 },
     // Canada
-    { customer: 'Amazon', country: 'Canada', marketplace: 'Canada', country_code: 'C055', vendor_code: 'AMZN CA', qpi_file: 'CA_QPI.parquet', vc_file: 'CA_VC.parquet', ppg_default: 'CA_PPG', domain: 7 },
+    { customer: 'Amazon', country: 'Canada', keepa_marketplace: 'Canada', customer_code: 'C055', vendor_code: 'AMZN CA', qpi_source_file: 'CA_QPI.parquet', vc_file: 'CA_VC.parquet', language: 'English', currency: 'CAD', domain: 7 },
     // Mexico
-    { customer: 'Amazon', country: 'Mexico', marketplace: 'Mexico', country_code: 'C059', vendor_code: 'AMZN MX', qpi_file: 'MX_QPI.parquet', vc_file: 'MX_VC.parquet', ppg_default: 'MX_PPG', domain: 8 },
+    { customer: 'Amazon', country: 'Mexico', keepa_marketplace: 'Mexico', customer_code: 'C059', vendor_code: 'AMZN MX', qpi_source_file: 'MX_QPI.parquet', vc_file: 'MX_VC.parquet', language: 'Spanish', currency: 'MXN', domain: 8 },
     // United Kingdom
-    { customer: 'Amazon', country: 'United Kingdom', marketplace: 'United Kingdom', country_code: 'C003', vendor_code: 'AMZN UK', qpi_file: 'UK_QPI.parquet', vc_file: 'UK_VC.parquet', ppg_default: 'UK_PPG', domain: 3 },
+    { customer: 'Amazon', country: 'United Kingdom', keepa_marketplace: 'United Kingdom', customer_code: 'C003', vendor_code: 'AMZN UK', qpi_source_file: 'UK_QPI.parquet', vc_file: 'UK_VC.parquet', language: 'English', currency: 'GBP', domain: 3 },
     // Germany
-    { customer: 'Amazon', country: 'Germany', marketplace: 'Germany', country_code: 'C004', vendor_code: 'AMZN DE', qpi_file: 'DE_QPI.parquet', vc_file: 'DE_VC.parquet', ppg_default: 'DE_PPG', domain: 4 },
+    { customer: 'Amazon', country: 'Germany', keepa_marketplace: 'Germany', customer_code: 'C004', vendor_code: 'AMZN DE', qpi_source_file: 'DE_QPI.parquet', vc_file: 'DE_VC.parquet', language: 'German', currency: 'EUR', domain: 4 },
     // France
-    { customer: 'Amazon', country: 'France', marketplace: 'France', country_code: 'C005', vendor_code: 'AMZN FR', qpi_file: 'FR_QPI.parquet', vc_file: 'FR_VC.parquet', ppg_default: 'FR_PPG', domain: 5 },
+    { customer: 'Amazon', country: 'France', keepa_marketplace: 'France', customer_code: 'C005', vendor_code: 'AMZN FR', qpi_source_file: 'FR_QPI.parquet', vc_file: 'FR_VC.parquet', language: 'French', currency: 'EUR', domain: 5 },
     // Italy
-    { customer: 'Amazon', country: 'Italy', marketplace: 'Italy', country_code: 'C035', vendor_code: 'AMZN IT', qpi_file: 'IT_QPI.parquet', vc_file: 'IT_VC.parquet', ppg_default: 'IT_PPG', domain: 35 },
+    { customer: 'Amazon', country: 'Italy', keepa_marketplace: 'Italy', customer_code: 'C035', vendor_code: 'AMZN IT', qpi_source_file: 'IT_QPI.parquet', vc_file: 'IT_VC.parquet', language: 'Italian', currency: 'EUR', domain: 35 },
     // Spain
-    { customer: 'Amazon', country: 'Spain', marketplace: 'Spain', country_code: 'C044', vendor_code: 'AMZN ES', qpi_file: 'ES_QPI.parquet', vc_file: 'ES_VC.parquet', ppg_default: 'ES_PPG', domain: 44 },
+    { customer: 'Amazon', country: 'Spain', keepa_marketplace: 'Spain', customer_code: 'C044', vendor_code: 'AMZN ES', qpi_source_file: 'ES_QPI.parquet', vc_file: 'ES_VC.parquet', language: 'Spanish', currency: 'EUR', domain: 44 },
     // Japan
-    { customer: 'Amazon', country: 'Japan', marketplace: 'Japan', country_code: 'C006', vendor_code: 'AMZN JP', qpi_file: 'JP_QPI.parquet', vc_file: 'JP_VC.parquet', ppg_default: 'JP_PPG', domain: 6 },
+    { customer: 'Amazon', country: 'Japan', keepa_marketplace: 'Japan', customer_code: 'C006', vendor_code: 'AMZN JP', qpi_source_file: 'JP_QPI.parquet', vc_file: 'JP_VC.parquet', language: 'Japanese', currency: 'JPY', domain: 6 },
     // Australia
-    { customer: 'Amazon', country: 'Australia', marketplace: 'Australia', country_code: 'C071', vendor_code: 'AMZN AU', qpi_file: 'AU_QPI.parquet', vc_file: 'AU_VC.parquet', ppg_default: 'AU_PPG', domain: 71 },
+    { customer: 'Amazon', country: 'Australia', keepa_marketplace: 'Australia', customer_code: 'C071', vendor_code: 'AMZN AU', qpi_source_file: 'AU_QPI.parquet', vc_file: 'AU_VC.parquet', language: 'English', currency: 'AUD', domain: 71 },
     // Singapore
-    { customer: 'Amazon', country: 'Singapore', marketplace: 'Singapore', country_code: 'C052', vendor_code: 'AMZN SG', qpi_file: 'SG_QPI.parquet', vc_file: 'SG_VC.parquet', ppg_default: 'SG_PPG', domain: 52 },
+    { customer: 'Amazon', country: 'Singapore', keepa_marketplace: 'Singapore', customer_code: 'C052', vendor_code: 'AMZN SG', qpi_source_file: 'SG_QPI.parquet', vc_file: 'SG_VC.parquet', language: 'English', currency: 'SGD', domain: 52 },
     // United Arab Emirates
-    { customer: 'Amazon', country: 'United Arab Emirates', marketplace: 'United Arab Emirates', country_code: 'C062', vendor_code: 'AMZN AE', qpi_file: 'AE_QPI.parquet', vc_file: 'AE_VC.parquet', ppg_default: 'AE_PPG', domain: 62 },
+    { customer: 'Amazon', country: 'United Arab Emirates', keepa_marketplace: 'United Arab Emirates', customer_code: 'C062', vendor_code: 'AMZN AE', qpi_source_file: 'AE_QPI.parquet', vc_file: 'AE_VC.parquet', language: 'Arabic', currency: 'AED', domain: 62 },
     // India
-    { customer: 'Amazon', country: 'India', marketplace: 'India', country_code: 'C031', vendor_code: 'AMZN IN', qpi_file: 'IN_QPI.parquet', vc_file: 'IN_VC.parquet', ppg_default: 'IN_PPG', domain: 31 },
+    { customer: 'Amazon', country: 'India', keepa_marketplace: 'India', customer_code: 'C031', vendor_code: 'AMZN IN', qpi_source_file: 'IN_QPI.parquet', vc_file: 'IN_VC.parquet', language: 'English', currency: 'INR', domain: 31 },
     // Brazil
-    { customer: 'Amazon', country: 'Brazil', marketplace: 'Brazil', country_code: 'C029', vendor_code: 'AMZN BR', qpi_file: 'BR_QPI.parquet', vc_file: 'BR_VC.parquet', ppg_default: 'BR_PPG', domain: 29 }
+    { customer: 'Amazon', country: 'Brazil', keepa_marketplace: 'Brazil', customer_code: 'C029', vendor_code: 'AMZN BR', qpi_source_file: 'BR_QPI.parquet', vc_file: 'BR_VC.parquet', language: 'Portuguese', currency: 'BRL', domain: 29 }
   ];
 
   const insertStmt = db.prepare(`
     INSERT OR IGNORE INTO vendor_mapping 
-    (customer, country, marketplace, country_code, vendor_code, qpi_file, vc_file, ppg_default, domain)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    (customer, country, keepa_marketplace, customer_code, vendor_code, qpi_source_file, vc_file, language, currency, domain)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `);
 
   db.serialize(() => {
@@ -145,12 +145,13 @@ function insertDefaultVendorMapping() {
       insertStmt.run(
         mapping.customer,
         mapping.country,
-        mapping.marketplace,
-        mapping.country_code,
+        mapping.keepa_marketplace,
+        mapping.customer_code,
         mapping.vendor_code,
-        mapping.qpi_file,
+        mapping.qpi_source_file,
         mapping.vc_file,
-        mapping.ppg_default,
+        mapping.language,
+        mapping.currency,
         mapping.domain
       );
     });
@@ -488,15 +489,17 @@ function initializeDatabase() {
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       customer TEXT DEFAULT 'Amazon',
       country TEXT NOT NULL,
-      marketplace TEXT NOT NULL,
-      country_code TEXT NOT NULL,
+      keepa_marketplace TEXT NOT NULL,
+      customer_code TEXT NOT NULL,
       vendor_code TEXT,
-      qpi_file TEXT,
+      qpi_source_file TEXT,
       vc_file TEXT,
-      ppg_default TEXT,
+      language TEXT,
+      currency TEXT,
       domain INTEGER,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      UNIQUE(country_code, vendor_code)
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE(customer_code, vendor_code)
     )`, (err) => {
       if (err) {
         console.error('Error creating vendor_mapping table:', err.message);
@@ -1294,7 +1297,7 @@ app.get('/api/items', (req, res) => {
     } else {
       // No marketplace filter - use all countries that exist in the data
       vcCountSubquery = `(SELECT COUNT(DISTINCT country_code) FROM asin_country_status WHERE asin = p.asin)`;
-      vcTotalSubquery = `(SELECT COUNT(DISTINCT marketplace) FROM vendor_mapping)`;
+      vcTotalSubquery = `(SELECT COUNT(DISTINCT keepa_marketplace) FROM vendor_mapping)`;
       qpiCountSubquery = `(SELECT COUNT(DISTINCT source_file) FROM qpi_file_tracking WHERE asin = p.asin)`;
       qpiTotalSubquery = `(SELECT COUNT(DISTINCT qpi_file) FROM vendor_mapping WHERE qpi_file IS NOT NULL AND qpi_file != '')`;
       onlineCountSubquery = `(SELECT COUNT(DISTINCT country) FROM asin_online_status WHERE asin = p.asin)`;
@@ -1384,12 +1387,12 @@ app.get('/api/items', (req, res) => {
   
   // If marketplace is selected, get country codes for that marketplace
   if (country && country !== 'all') {
-    db.all('SELECT DISTINCT country_code FROM vendor_mapping WHERE marketplace = ?', [country], (err, rows) => {
+    db.all('SELECT DISTINCT customer_code FROM vendor_mapping WHERE keepa_marketplace = ?', [country], (err, rows) => {
       if (err) {
         res.status(500).json({ error: err.message });
         return;
       }
-      const countryCodes = rows.map(row => row.country_code);
+      const countryCodes = rows.map(row => row.customer_code);
       buildAndExecuteQuery(country, countryCodes);
     });
   } else {
@@ -1401,15 +1404,15 @@ app.get('/api/items', (req, res) => {
 // Get list of marketplaces for filter dropdown
 app.get('/api/marketplaces', (req, res) => {
   db.all(`
-    SELECT DISTINCT marketplace
+    SELECT DISTINCT keepa_marketplace
     FROM vendor_mapping
-    ORDER BY marketplace
+    ORDER BY keepa_marketplace
   `, [], (err, rows) => {
     if (err) {
       res.status(500).json({ error: err.message });
       return;
     }
-    res.json(rows.map(row => row.marketplace));
+    res.json(rows.map(row => row.keepa_marketplace));
   });
 });
 
@@ -1420,14 +1423,15 @@ app.get('/api/vendor-mapping', authenticateToken, requireRole('sales person', 'a
       id,
       customer,
       country,
-      marketplace,
-      country_code,
+      keepa_marketplace,
+      customer_code,
       vendor_code,
-      qpi_file,
+      qpi_source_file,
       vc_file,
-      ppg_default
+      language,
+      currency
     FROM vendor_mapping
-    ORDER BY customer, marketplace, country
+    ORDER BY customer, keepa_marketplace, country
   `, [], (err, rows) => {
     if (err) {
       return res.status(500).json({ error: err.message });
