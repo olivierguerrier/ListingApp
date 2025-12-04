@@ -1637,102 +1637,95 @@ app.get('/api/variations/filters', (req, res) => {
   const selectedBundles = req.query.bundles ? req.query.bundles.split(',').filter(b => b) : [];
   const selectedPpgs = req.query.ppgs ? req.query.ppgs.split(',').filter(p => p) : [];
   
-  // Build WHERE clauses for cross-filtering
-  let whereConditions = [];
-  let queryParams = [];
-  
-  if (selectedBrands.length > 0) {
-    const placeholders = selectedBrands.map(() => '?').join(',');
-    whereConditions.push(`brand IN (${placeholders})`);
-    queryParams.push(...selectedBrands);
-  }
-  
-  if (selectedBundles.length > 0) {
-    const placeholders = selectedBundles.map(() => '?').join(',');
-    whereConditions.push(`bundle IN (${placeholders})`);
-    queryParams.push(...selectedBundles);
-  }
-  
-  if (selectedPpgs.length > 0) {
-    const placeholders = selectedPpgs.map(() => '?').join(',');
-    whereConditions.push(`ppg IN (${placeholders})`);
-    queryParams.push(...selectedPpgs);
-  }
-  
-  const whereClause = whereConditions.length > 0 ? 'WHERE ' + whereConditions.join(' AND ') : '';
-  
-  const queries = {
-    brands: `SELECT DISTINCT brand FROM variations_master ${whereClause} AND brand IS NOT NULL AND brand != "" ORDER BY brand`,
-    bundles: `SELECT DISTINCT bundle FROM variations_master ${whereClause} AND bundle IS NOT NULL AND bundle != "" ORDER BY bundle`,
-    ppgs: `SELECT DISTINCT ppg FROM variations_master ${whereClause} AND ppg IS NOT NULL AND ppg != "" ORDER BY ppg`
-  };
-  
   const results = {};
   let completed = 0;
   
-  Object.keys(queries).forEach(key => {
-    let query = queries[key];
-    let params = [...queryParams];
-    
-    // For cross-filtering, we need to exclude the current filter type from WHERE
-    if (key === 'brands') {
-      // When getting brands, don't filter by brands
-      let conditions = [];
-      if (selectedBundles.length > 0) {
-        const placeholders = selectedBundles.map(() => '?').join(',');
-        conditions.push(`bundle IN (${placeholders})`);
-      }
-      if (selectedPpgs.length > 0) {
-        const placeholders = selectedPpgs.map(() => '?').join(',');
-        conditions.push(`ppg IN (${placeholders})`);
-      }
-      const brandWhere = conditions.length > 0 ? 'WHERE ' + conditions.join(' AND ') : '';
-      query = `SELECT DISTINCT brand FROM variations_master ${brandWhere} AND brand IS NOT NULL AND brand != "" ORDER BY brand`;
-      params = [...selectedBundles, ...selectedPpgs];
-    } else if (key === 'bundles') {
-      // When getting bundles, don't filter by bundles
-      let conditions = [];
-      if (selectedBrands.length > 0) {
-        const placeholders = selectedBrands.map(() => '?').join(',');
-        conditions.push(`brand IN (${placeholders})`);
-      }
-      if (selectedPpgs.length > 0) {
-        const placeholders = selectedPpgs.map(() => '?').join(',');
-        conditions.push(`ppg IN (${placeholders})`);
-      }
-      const bundleWhere = conditions.length > 0 ? 'WHERE ' + conditions.join(' AND ') : '';
-      query = `SELECT DISTINCT bundle FROM variations_master ${bundleWhere} AND bundle IS NOT NULL AND bundle != "" ORDER BY bundle`;
-      params = [...selectedBrands, ...selectedPpgs];
-    } else if (key === 'ppgs') {
-      // When getting ppgs, don't filter by ppgs
-      let conditions = [];
-      if (selectedBrands.length > 0) {
-        const placeholders = selectedBrands.map(() => '?').join(',');
-        conditions.push(`brand IN (${placeholders})`);
-      }
-      if (selectedBundles.length > 0) {
-        const placeholders = selectedBundles.map(() => '?').join(',');
-        conditions.push(`bundle IN (${placeholders})`);
-      }
-      const ppgWhere = conditions.length > 0 ? 'WHERE ' + conditions.join(' AND ') : '';
-      query = `SELECT DISTINCT ppg FROM variations_master ${ppgWhere} AND ppg IS NOT NULL AND ppg != "" ORDER BY ppg`;
-      params = [...selectedBrands, ...selectedBundles];
+  // Get brands (filtered by bundles and ppgs if selected)
+  let brandConditions = [];
+  let brandParams = [];
+  if (selectedBundles.length > 0) {
+    const placeholders = selectedBundles.map(() => '?').join(',');
+    brandConditions.push(`bundle IN (${placeholders})`);
+    brandParams.push(...selectedBundles);
+  }
+  if (selectedPpgs.length > 0) {
+    const placeholders = selectedPpgs.map(() => '?').join(',');
+    brandConditions.push(`ppg IN (${placeholders})`);
+    brandParams.push(...selectedPpgs);
+  }
+  brandConditions.push('brand IS NOT NULL');
+  brandConditions.push('brand != ""');
+  const brandWhere = 'WHERE ' + brandConditions.join(' AND ');
+  const brandQuery = `SELECT DISTINCT brand FROM variations_master ${brandWhere} ORDER BY brand`;
+  
+  // Get bundles (filtered by brands and ppgs if selected)
+  let bundleConditions = [];
+  let bundleParams = [];
+  if (selectedBrands.length > 0) {
+    const placeholders = selectedBrands.map(() => '?').join(',');
+    bundleConditions.push(`brand IN (${placeholders})`);
+    bundleParams.push(...selectedBrands);
+  }
+  if (selectedPpgs.length > 0) {
+    const placeholders = selectedPpgs.map(() => '?').join(',');
+    bundleConditions.push(`ppg IN (${placeholders})`);
+    bundleParams.push(...selectedPpgs);
+  }
+  bundleConditions.push('bundle IS NOT NULL');
+  bundleConditions.push('bundle != ""');
+  const bundleWhere = 'WHERE ' + bundleConditions.join(' AND ');
+  const bundleQuery = `SELECT DISTINCT bundle FROM variations_master ${bundleWhere} ORDER BY bundle`;
+  
+  // Get ppgs (filtered by brands and bundles if selected)
+  let ppgConditions = [];
+  let ppgParams = [];
+  if (selectedBrands.length > 0) {
+    const placeholders = selectedBrands.map(() => '?').join(',');
+    ppgConditions.push(`brand IN (${placeholders})`);
+    ppgParams.push(...selectedBrands);
+  }
+  if (selectedBundles.length > 0) {
+    const placeholders = selectedBundles.map(() => '?').join(',');
+    ppgConditions.push(`bundle IN (${placeholders})`);
+    ppgParams.push(...selectedBundles);
+  }
+  ppgConditions.push('ppg IS NOT NULL');
+  ppgConditions.push('ppg != ""');
+  const ppgWhere = 'WHERE ' + ppgConditions.join(' AND ');
+  const ppgQuery = `SELECT DISTINCT ppg FROM variations_master ${ppgWhere} ORDER BY ppg`;
+  
+  // Execute queries
+  db.all(brandQuery, brandParams, (err, rows) => {
+    if (err) {
+      console.error('Error fetching brands:', err.message);
+      results.brands = [];
+    } else {
+      results.brands = rows.map(r => r.brand);
     }
-    
-    db.all(query, params, (err, rows) => {
-      if (err) {
-        console.error(`Error fetching ${key}:`, err.message);
-        results[key] = [];
-      } else {
-        const column = key === 'brands' ? 'brand' : (key === 'bundles' ? 'bundle' : 'ppg');
-        results[key] = rows.map(r => r[column]);
-      }
-      
-      completed++;
-      if (completed === Object.keys(queries).length) {
-        res.json(results);
-      }
-    });
+    completed++;
+    if (completed === 3) res.json(results);
+  });
+  
+  db.all(bundleQuery, bundleParams, (err, rows) => {
+    if (err) {
+      console.error('Error fetching bundles:', err.message);
+      results.bundles = [];
+    } else {
+      results.bundles = rows.map(r => r.bundle);
+    }
+    completed++;
+    if (completed === 3) res.json(results);
+  });
+  
+  db.all(ppgQuery, ppgParams, (err, rows) => {
+    if (err) {
+      console.error('Error fetching ppgs:', err.message);
+      results.ppgs = [];
+    } else {
+      results.ppgs = rows.map(r => r.ppg);
+    }
+    completed++;
+    if (completed === 3) res.json(results);
   });
 });
 
