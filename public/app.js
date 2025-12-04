@@ -1241,7 +1241,8 @@ async function openWorkflowModal(asin, stageNumber) {
                 'S26 QPI CA.xlsx': 'Canada',
                 'S26 QPI EMG.xlsx': 'Emerging Markets',
                 'S26 QPI EU.xlsx': 'Europe',
-                'S26 QPI JP003.xlsx': 'Japan'
+                'S26 QPI JP003.xlsx': 'Japan',
+                'S26 QPI US.xlsx': 'United States'
             };
             
             content.innerHTML = `

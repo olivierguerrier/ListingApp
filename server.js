@@ -2068,7 +2068,7 @@ app.get('/api/qpi-files/:asin', (req, res) => {
       // Get all unique source files (in case table is empty, use defaults)
       const knownSourceFiles = allFiles.length > 0 
         ? allFiles.map(f => f.source_file)
-        : ['S26 QPI CA.xlsx', 'S26 QPI EMG.xlsx', 'S26 QPI EU.xlsx', 'S26 QPI JP003.xlsx'];
+        : ['S26 QPI CA.xlsx', 'S26 QPI EMG.xlsx', 'S26 QPI EU.xlsx', 'S26 QPI JP003.xlsx', 'S26 QPI US.xlsx'];
       
       // Build response showing all source files
       const fileStatus = knownSourceFiles.map(fileName => ({
