@@ -1442,17 +1442,22 @@ app.get('/api/vendor-mapping', authenticateToken, requireRole('sales person', 'a
 
 // Get available QPI source files
 app.get('/api/qpi-files', authenticateToken, requireRole('sales person', 'approver', 'admin'), (req, res) => {
-  db.all(`
-    SELECT DISTINCT source_file 
-    FROM qpi_file_tracking 
-    WHERE source_file IS NOT NULL AND source_file != ''
-    ORDER BY source_file
-  `, [], (err, rows) => {
-    if (err) {
-      return res.status(500).json({ error: err.message });
+  const qpiDir = 'A:\\Code\\InputFiles\\QPI_Validation_Full_Fill';
+  
+  try {
+    if (!fs.existsSync(qpiDir)) {
+      return res.json([]);
     }
-    res.json(rows.map(r => r.source_file));
-  });
+    
+    const files = fs.readdirSync(qpiDir)
+      .filter(f => f.endsWith('.parquet') || f.endsWith('.csv') || f.endsWith('.xlsx'))
+      .sort();
+    
+    res.json(files);
+  } catch (error) {
+    console.error('Error reading QPI directory:', error);
+    res.status(500).json({ error: error.message });
+  }
 });
 
 // Update vendor mapping record
