@@ -104,33 +104,33 @@ function requireRole(...allowedRoles) {
 function insertDefaultVendorMapping() {
   const amazonMappings = [
     // United States
-    { customer: 'Amazon', country: 'United States', keepa_marketplace: 'United States', customer_code: 'C002', vendor_code: 'AMZN US', qpi_source_file: 'US_QPI.parquet', vc_file: 'US_VC.parquet', language: 'English', currency: 'USD', domain: 1 },
+    { customer: 'Amazon', country: 'United States', keepa_marketplace: 'United States', customer_code: 'C002', vendor_code: null, qpi_source_file: 'US_QPI.parquet', vc_file: 'US_VC.parquet', language: 'English', currency: 'USD', domain: 1 },
     // Canada
-    { customer: 'Amazon', country: 'Canada', keepa_marketplace: 'Canada', customer_code: 'C055', vendor_code: 'AMZN CA', qpi_source_file: 'CA_QPI.parquet', vc_file: 'CA_VC.parquet', language: 'English', currency: 'CAD', domain: 7 },
+    { customer: 'Amazon', country: 'Canada', keepa_marketplace: 'Canada', customer_code: 'C055', vendor_code: null, qpi_source_file: 'CA_QPI.parquet', vc_file: 'CA_VC.parquet', language: 'English', currency: 'CAD', domain: 7 },
     // Mexico
-    { customer: 'Amazon', country: 'Mexico', keepa_marketplace: 'Mexico', customer_code: 'C059', vendor_code: 'AMZN MX', qpi_source_file: 'MX_QPI.parquet', vc_file: 'MX_VC.parquet', language: 'Spanish', currency: 'MXN', domain: 8 },
+    { customer: 'Amazon', country: 'Mexico', keepa_marketplace: 'Mexico', customer_code: 'C059', vendor_code: null, qpi_source_file: 'MX_QPI.parquet', vc_file: 'MX_VC.parquet', language: 'Spanish', currency: 'MXN', domain: 8 },
     // United Kingdom
-    { customer: 'Amazon', country: 'United Kingdom', keepa_marketplace: 'United Kingdom', customer_code: 'C003', vendor_code: 'AMZN UK', qpi_source_file: 'UK_QPI.parquet', vc_file: 'UK_VC.parquet', language: 'English', currency: 'GBP', domain: 3 },
+    { customer: 'Amazon', country: 'United Kingdom', keepa_marketplace: 'United Kingdom', customer_code: 'C003', vendor_code: null, qpi_source_file: 'UK_QPI.parquet', vc_file: 'UK_VC.parquet', language: 'English', currency: 'GBP', domain: 3 },
     // Germany
-    { customer: 'Amazon', country: 'Germany', keepa_marketplace: 'Germany', customer_code: 'C004', vendor_code: 'AMZN DE', qpi_source_file: 'DE_QPI.parquet', vc_file: 'DE_VC.parquet', language: 'German', currency: 'EUR', domain: 4 },
+    { customer: 'Amazon', country: 'Germany', keepa_marketplace: 'Germany', customer_code: 'C004', vendor_code: null, qpi_source_file: 'DE_QPI.parquet', vc_file: 'DE_VC.parquet', language: 'German', currency: 'EUR', domain: 4 },
     // France
-    { customer: 'Amazon', country: 'France', keepa_marketplace: 'France', customer_code: 'C005', vendor_code: 'AMZN FR', qpi_source_file: 'FR_QPI.parquet', vc_file: 'FR_VC.parquet', language: 'French', currency: 'EUR', domain: 5 },
+    { customer: 'Amazon', country: 'France', keepa_marketplace: 'France', customer_code: 'C005', vendor_code: null, qpi_source_file: 'FR_QPI.parquet', vc_file: 'FR_VC.parquet', language: 'French', currency: 'EUR', domain: 5 },
     // Italy
-    { customer: 'Amazon', country: 'Italy', keepa_marketplace: 'Italy', customer_code: 'C035', vendor_code: 'AMZN IT', qpi_source_file: 'IT_QPI.parquet', vc_file: 'IT_VC.parquet', language: 'Italian', currency: 'EUR', domain: 35 },
+    { customer: 'Amazon', country: 'Italy', keepa_marketplace: 'Italy', customer_code: 'C035', vendor_code: null, qpi_source_file: 'IT_QPI.parquet', vc_file: 'IT_VC.parquet', language: 'Italian', currency: 'EUR', domain: 35 },
     // Spain
-    { customer: 'Amazon', country: 'Spain', keepa_marketplace: 'Spain', customer_code: 'C044', vendor_code: 'AMZN ES', qpi_source_file: 'ES_QPI.parquet', vc_file: 'ES_VC.parquet', language: 'Spanish', currency: 'EUR', domain: 44 },
+    { customer: 'Amazon', country: 'Spain', keepa_marketplace: 'Spain', customer_code: 'C044', vendor_code: null, qpi_source_file: 'ES_QPI.parquet', vc_file: 'ES_VC.parquet', language: 'Spanish', currency: 'EUR', domain: 44 },
     // Japan
-    { customer: 'Amazon', country: 'Japan', keepa_marketplace: 'Japan', customer_code: 'C006', vendor_code: 'AMZN JP', qpi_source_file: 'JP_QPI.parquet', vc_file: 'JP_VC.parquet', language: 'Japanese', currency: 'JPY', domain: 6 },
+    { customer: 'Amazon', country: 'Japan', keepa_marketplace: 'Japan', customer_code: 'C006', vendor_code: null, qpi_source_file: 'JP_QPI.parquet', vc_file: 'JP_VC.parquet', language: 'Japanese', currency: 'JPY', domain: 6 },
     // Australia
-    { customer: 'Amazon', country: 'Australia', keepa_marketplace: 'Australia', customer_code: 'C071', vendor_code: 'AMZN AU', qpi_source_file: 'AU_QPI.parquet', vc_file: 'AU_VC.parquet', language: 'English', currency: 'AUD', domain: 71 },
+    { customer: 'Amazon', country: 'Australia', keepa_marketplace: 'Australia', customer_code: 'C071', vendor_code: null, qpi_source_file: 'AU_QPI.parquet', vc_file: 'AU_VC.parquet', language: 'English', currency: 'AUD', domain: 71 },
     // Singapore
-    { customer: 'Amazon', country: 'Singapore', keepa_marketplace: 'Singapore', customer_code: 'C052', vendor_code: 'AMZN SG', qpi_source_file: 'SG_QPI.parquet', vc_file: 'SG_VC.parquet', language: 'English', currency: 'SGD', domain: 52 },
+    { customer: 'Amazon', country: 'Singapore', keepa_marketplace: 'Singapore', customer_code: 'C052', vendor_code: null, qpi_source_file: 'SG_QPI.parquet', vc_file: 'SG_VC.parquet', language: 'English', currency: 'SGD', domain: 52 },
     // United Arab Emirates
-    { customer: 'Amazon', country: 'United Arab Emirates', keepa_marketplace: 'United Arab Emirates', customer_code: 'C062', vendor_code: 'AMZN AE', qpi_source_file: 'AE_QPI.parquet', vc_file: 'AE_VC.parquet', language: 'Arabic', currency: 'AED', domain: 62 },
+    { customer: 'Amazon', country: 'United Arab Emirates', keepa_marketplace: 'United Arab Emirates', customer_code: 'C062', vendor_code: null, qpi_source_file: 'AE_QPI.parquet', vc_file: 'AE_VC.parquet', language: 'Arabic', currency: 'AED', domain: 62 },
     // India
-    { customer: 'Amazon', country: 'India', keepa_marketplace: 'India', customer_code: 'C031', vendor_code: 'AMZN IN', qpi_source_file: 'IN_QPI.parquet', vc_file: 'IN_VC.parquet', language: 'English', currency: 'INR', domain: 31 },
+    { customer: 'Amazon', country: 'India', keepa_marketplace: 'India', customer_code: 'C031', vendor_code: null, qpi_source_file: 'IN_QPI.parquet', vc_file: 'IN_VC.parquet', language: 'English', currency: 'INR', domain: 31 },
     // Brazil
-    { customer: 'Amazon', country: 'Brazil', keepa_marketplace: 'Brazil', customer_code: 'C029', vendor_code: 'AMZN BR', qpi_source_file: 'BR_QPI.parquet', vc_file: 'BR_VC.parquet', language: 'Portuguese', currency: 'BRL', domain: 29 }
+    { customer: 'Amazon', country: 'Brazil', keepa_marketplace: 'Brazil', customer_code: 'C029', vendor_code: null, qpi_source_file: 'BR_QPI.parquet', vc_file: 'BR_VC.parquet', language: 'Portuguese', currency: 'BRL', domain: 29 }
   ];
 
   const insertStmt = db.prepare(`
@@ -499,7 +499,7 @@ function initializeDatabase() {
       domain INTEGER,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      UNIQUE(customer_code, vendor_code)
+      UNIQUE(customer_code)
     )`, (err) => {
       if (err) {
         console.error('Error creating vendor_mapping table:', err.message);
@@ -2709,7 +2709,8 @@ app.post('/api/sync/vc', (req, res) => {
         sku,
         summaries_0_asin as asin,
         summaries_0_status_0 as status,
-        country
+        country,
+        vendor_code
       FROM '${latestFile}'
       WHERE sku IS NOT NULL AND sku != ''
     `;
@@ -2768,6 +2769,42 @@ app.post('/api/sync/vc', (req, res) => {
           }
         );
       }
+
+      // Update vendor_mapping table with real vendor codes from VC extract
+      const vendorCodesByCountry = new Map();
+      rows.forEach(row => {
+        if (row.vendor_code && row.country) {
+          if (!vendorCodesByCountry.has(row.country)) {
+            vendorCodesByCountry.set(row.country, new Set());
+          }
+          vendorCodesByCountry.get(row.country).add(row.vendor_code);
+        }
+      });
+
+      console.log(`Found vendor codes for ${vendorCodesByCountry.size} countries`);
+      
+      // Update vendor_mapping with discovered vendor codes
+      vendorCodesByCountry.forEach((vendorCodes, country) => {
+        const vendorCodeList = Array.from(vendorCodes).join(', ');
+        console.log(`  ${country}: ${vendorCodeList}`);
+        
+        vendorCodes.forEach(vendorCode => {
+          db.run(
+            `UPDATE vendor_mapping 
+             SET vendor_code = ?,
+                 updated_at = CURRENT_TIMESTAMP
+             WHERE country = ? AND (vendor_code IS NULL OR vendor_code = '')`,
+            [vendorCode, country],
+            function(err) {
+              if (err) {
+                console.error(`Error updating vendor_mapping for ${country}:`, err.message);
+              } else if (this.changes > 0) {
+                console.log(`  ✓ Updated vendor_code for ${country} to ${vendorCode}`);
+              }
+            }
+          );
+        });
+      });
 
       // Batch insert/update ASIN country status
       if (asinCountryData.length > 0) {
