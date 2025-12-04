@@ -343,6 +343,26 @@ function renderItems(itemsToRender) {
         const displaySku = skus.length > 0 ? skus.join(', ') : '-';
         const isTempAsin = item.is_temp_asin === 1;
         
+        // Calculate Stage 4 percentage (VC Listed by country)
+        const stage4Percent = item.vc_country_count && item.vc_total_countries 
+            ? Math.round((item.vc_country_count / item.vc_total_countries) * 100)
+            : (item.stage_4_product_listed ? 100 : 0);
+        
+        // Calculate Stage 5 percentage (QPI by source file)
+        const stage5Percent = item.qpi_file_count && item.qpi_total_files
+            ? Math.round((item.qpi_file_count / item.qpi_total_files) * 100)
+            : (item.stage_5_product_ordered ? 100 : 0);
+        
+        // Helper function to get color based on percentage
+        const getPercentColor = (percent) => {
+            if (percent === 0) return '#94a3b8'; // gray
+            if (percent < 25) return '#ef4444'; // red
+            if (percent < 50) return '#f59e0b'; // orange
+            if (percent < 75) return '#eab308'; // yellow
+            if (percent < 100) return '#3b82f6'; // blue
+            return '#10b981'; // green
+        };
+        
         return `
             <tr data-item-id="${item.id}">
                 <td class="item-name" title="${escapeHtml(item.name || item.asin)}">
@@ -355,8 +375,8 @@ function renderItems(itemsToRender) {
                 <td><span class="stage-badge ${item.stage_2_product_finalized ? 'completed' : 'pending'}" onclick="openWorkflowModal('${item.asin}', 2)" title="Stage 2: PIM Finalized">${item.stage_2_product_finalized ? '✓' : '○'}</span></td>
                 <td><span class="stage-badge ${item.stage_3a_pricing_submitted ? 'completed' : 'pending'}" onclick="openWorkflowModal('${item.asin}', 3)" title="Stage 3a: Pricing Submitted">${item.stage_3a_pricing_submitted ? '✓' : '○'}</span></td>
                 <td><span class="stage-badge ${item.stage_3b_pricing_approved ? 'completed' : 'pending'}" onclick="openWorkflowModal('${item.asin}', 4)" title="Stage 3b: Pricing Approved">${item.stage_3b_pricing_approved ? '✓' : '○'}</span></td>
-                <td><span class="stage-badge ${item.stage_4_product_listed ? 'completed' : 'pending'}" onclick="openWorkflowModal('${item.asin}', 5)" title="Stage 4: VC Listed">${item.stage_4_product_listed ? '✓' : '○'}</span></td>
-                <td><span class="stage-badge ${item.stage_5_product_ordered ? 'completed' : 'pending'}" onclick="openWorkflowModal('${item.asin}', 6)" title="Stage 5: Ordered">${item.stage_5_product_ordered ? '✓' : '○'}</span></td>
+                <td><span class="stage-badge percent-badge" style="background-color: ${getPercentColor(stage4Percent)}; color: white;" onclick="openWorkflowModal('${item.asin}', 5)" title="Stage 4: VC Listed - ${stage4Percent}% of countries">${stage4Percent}%</span></td>
+                <td><span class="stage-badge percent-badge" style="background-color: ${getPercentColor(stage5Percent)}; color: white;" onclick="openWorkflowModal('${item.asin}', 6)" title="Stage 5: QPI - ${stage5Percent}% of source files">${stage5Percent}%</span></td>
                 <td><span class="stage-badge ${item.stage_6_product_online ? 'completed' : 'pending'}" onclick="openWorkflowModal('${item.asin}', 7)" title="Stage 6: Online">${item.stage_6_product_online ? '✓' : '○'}</span></td>
                 <td>
                     <div class="action-btns">

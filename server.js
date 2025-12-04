@@ -443,7 +443,11 @@ app.get('/api/products', (req, res) => {
           'is_primary', ps.is_primary,
           'source', ps.source
         )
-      ) as sku_details
+      ) as sku_details,
+      (SELECT COUNT(DISTINCT country_code) FROM asin_country_status WHERE asin = p.asin) as vc_country_count,
+      (SELECT COUNT(DISTINCT country_code) FROM asin_country_status) as vc_total_countries,
+      (SELECT COUNT(DISTINCT source_file) FROM qpi_file_tracking WHERE asin = p.asin) as qpi_file_count,
+      (SELECT COUNT(DISTINCT source_file) FROM qpi_file_tracking) as qpi_total_files
     FROM products p
     LEFT JOIN product_skus ps ON p.id = ps.product_id
     GROUP BY p.id
@@ -869,7 +873,11 @@ app.get('/api/items', (req, res) => {
           'is_primary', ps.is_primary,
           'source', ps.source
         )
-      ) as sku_details
+      ) as sku_details,
+      (SELECT COUNT(DISTINCT country_code) FROM asin_country_status WHERE asin = p.asin) as vc_country_count,
+      (SELECT COUNT(DISTINCT country_code) FROM asin_country_status) as vc_total_countries,
+      (SELECT COUNT(DISTINCT source_file) FROM qpi_file_tracking WHERE asin = p.asin) as qpi_file_count,
+      (SELECT COUNT(DISTINCT source_file) FROM qpi_file_tracking) as qpi_total_files
     FROM products p
     LEFT JOIN product_skus ps ON p.id = ps.product_id
     ${joinClause}
