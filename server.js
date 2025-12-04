@@ -491,6 +491,54 @@ function initializeDatabase() {
         createDefaultAdmin();
       }
     });
+    
+    // Pricing submissions table
+    db.run(`CREATE TABLE IF NOT EXISTS pricing_submissions (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      product_id INTEGER NOT NULL,
+      asin TEXT NOT NULL,
+      product_cost DECIMAL(10,2) NOT NULL,
+      sell_price DECIMAL(10,2) NOT NULL,
+      company_margin DECIMAL(5,2) NOT NULL,
+      retail_price DECIMAL(10,2) NOT NULL,
+      customer_margin DECIMAL(5,2) NOT NULL,
+      currency TEXT DEFAULT 'USD',
+      notes TEXT,
+      status TEXT CHECK(status IN ('pending', 'approved', 'rejected')) DEFAULT 'pending',
+      submitted_by INTEGER NOT NULL,
+      submitted_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      reviewed_by INTEGER,
+      reviewed_at DATETIME,
+      review_notes TEXT,
+      FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE,
+      FOREIGN KEY (submitted_by) REFERENCES users(id),
+      FOREIGN KEY (reviewed_by) REFERENCES users(id)
+    )`, (err) => {
+      if (err) {
+        console.error('Error creating pricing_submissions table:', err.message);
+      } else {
+        console.log('[SETUP] pricing_submissions table ready');
+      }
+    });
+    
+    // Notifications table
+    db.run(`CREATE TABLE IF NOT EXISTS notifications (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL,
+      type TEXT NOT NULL,
+      title TEXT NOT NULL,
+      message TEXT NOT NULL,
+      link TEXT,
+      is_read BOOLEAN DEFAULT 0,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    )`, (err) => {
+      if (err) {
+        console.error('Error creating notifications table:', err.message);
+      } else {
+        console.log('[SETUP] notifications table ready');
+      }
+    });
 
     console.log('Database tables initialized');
     
@@ -3378,6 +3426,224 @@ app.delete('/api/users/:id', authenticateToken, requireRole('admin'), (req, res)
     }
     res.json({ message: 'User deleted successfully' });
   });
+});
+
+// ============ PRICING APPROVAL WORKFLOW ============
+
+// Submit pricing for approval
+app.post('/api/pricing/submit', authenticateToken, requireRole('salesperson', 'admin'), (req, res) => {
+  const { product_id, asin, product_cost, sell_price, retail_price, currency, notes } = req.body;
+  
+  if (!product_id || !asin || !product_cost || !sell_price || !retail_price) {
+    return res.status(400).json({ error: 'All pricing fields are required' });
+  }
+  
+  // Calculate margins
+  const company_margin = ((sell_price - product_cost) / sell_price * 100).toFixed(2);
+  const customer_margin = ((retail_price - sell_price) / retail_price * 100).toFixed(2);
+  
+  db.run(`
+    INSERT INTO pricing_submissions 
+    (product_id, asin, product_cost, sell_price, company_margin, retail_price, customer_margin, currency, notes, submitted_by)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `, [product_id, asin, product_cost, sell_price, company_margin, retail_price, customer_margin, currency || 'USD', notes, req.user.id], 
+  function(err) {
+    if (err) {
+      return res.status(500).json({ error: err.message });
+    }
+    
+    const submissionId = this.lastID;
+    
+    // Create notifications for all approvers
+    db.all('SELECT id FROM users WHERE role = "approver" AND is_active = 1', [], (err, approvers) => {
+      if (!err && approvers.length > 0) {
+        const stmt = db.prepare(`
+          INSERT INTO notifications (user_id, type, title, message, link)
+          VALUES (?, 'pricing_approval', ?, ?, ?)
+        `);
+        
+        approvers.forEach(approver => {
+          stmt.run([
+            approver.id,
+            'Pricing Approval Required',
+            `New pricing submission for ASIN ${asin} requires your approval`,
+            `/pricing-approvals`
+          ]);
+        });
+        
+        stmt.finalize();
+      }
+    });
+    
+    // Update product stage
+    db.run(`
+      UPDATE products 
+      SET stage_3a_pricing_submitted = 1,
+          updated_at = CURRENT_TIMESTAMP
+      WHERE id = ?
+    `, [product_id]);
+    
+    res.json({
+      id: submissionId,
+      message: 'Pricing submitted for approval',
+      company_margin,
+      customer_margin
+    });
+  });
+});
+
+// Get pricing submissions (for approvers or own submissions)
+app.get('/api/pricing/submissions', authenticateToken, (req, res) => {
+  const { status, product_id } = req.query;
+  
+  let query = `
+    SELECT 
+      ps.*,
+      p.asin as product_asin,
+      p.name as product_name,
+      submitter.username as submitted_by_name,
+      submitter.full_name as submitted_by_full_name,
+      reviewer.username as reviewed_by_name,
+      reviewer.full_name as reviewed_by_full_name
+    FROM pricing_submissions ps
+    LEFT JOIN products p ON ps.product_id = p.id
+    LEFT JOIN users submitter ON ps.submitted_by = submitter.id
+    LEFT JOIN users reviewer ON ps.reviewed_by = reviewer.id
+    WHERE 1=1
+  `;
+  
+  const params = [];
+  
+  // Approvers see all pending, others see only their own
+  if (req.user.role !== 'approver' && req.user.role !== 'admin') {
+    query += ' AND ps.submitted_by = ?';
+    params.push(req.user.id);
+  }
+  
+  if (status) {
+    query += ' AND ps.status = ?';
+    params.push(status);
+  }
+  
+  if (product_id) {
+    query += ' AND ps.product_id = ?';
+    params.push(product_id);
+  }
+  
+  query += ' ORDER BY ps.submitted_at DESC';
+  
+  db.all(query, params, (err, rows) => {
+    if (err) {
+      return res.status(500).json({ error: err.message });
+    }
+    res.json(rows);
+  });
+});
+
+// Approve or reject pricing
+app.post('/api/pricing/:id/review', authenticateToken, requireRole('approver', 'admin'), (req, res) => {
+  const { id } = req.params;
+  const { action, notes } = req.body; // action: 'approve' or 'reject'
+  
+  if (!action || !['approve', 'reject'].includes(action)) {
+    return res.status(400).json({ error: 'Invalid action' });
+  }
+  
+  const status = action === 'approve' ? 'approved' : 'rejected';
+  
+  // Get submission details first
+  db.get('SELECT * FROM pricing_submissions WHERE id = ?', [id], (err, submission) => {
+    if (err) {
+      return res.status(500).json({ error: err.message });
+    }
+    if (!submission) {
+      return res.status(404).json({ error: 'Submission not found' });
+    }
+    
+    // Update submission
+    db.run(`
+      UPDATE pricing_submissions 
+      SET status = ?,
+          reviewed_by = ?,
+          reviewed_at = CURRENT_TIMESTAMP,
+          review_notes = ?
+      WHERE id = ?
+    `, [status, req.user.id, notes, id], function(err) {
+      if (err) {
+        return res.status(500).json({ error: err.message });
+      }
+      
+      // If approved, update product stage
+      if (status === 'approved') {
+        db.run(`
+          UPDATE products 
+          SET stage_3b_pricing_approved = 1,
+              updated_at = CURRENT_TIMESTAMP
+          WHERE id = ?
+        `, [submission.product_id]);
+      }
+      
+      // Notify submitter
+      db.run(`
+        INSERT INTO notifications (user_id, type, title, message, link)
+        VALUES (?, 'pricing_review', ?, ?, ?)
+      `, [
+        submission.submitted_by,
+        `Pricing ${status === 'approved' ? 'Approved' : 'Rejected'}`,
+        `Your pricing submission for ASIN ${submission.asin} has been ${status}`,
+        `/pricing-submissions`
+      ]);
+      
+      res.json({ 
+        message: `Pricing ${status} successfully`,
+        status
+      });
+    });
+  });
+});
+
+// Get notifications for current user
+app.get('/api/notifications', authenticateToken, (req, res) => {
+  const { unread_only } = req.query;
+  
+  let query = 'SELECT * FROM notifications WHERE user_id = ?';
+  if (unread_only === 'true') {
+    query += ' AND is_read = 0';
+  }
+  query += ' ORDER BY created_at DESC LIMIT 50';
+  
+  db.all(query, [req.user.id], (err, rows) => {
+    if (err) {
+      return res.status(500).json({ error: err.message });
+    }
+    res.json(rows);
+  });
+});
+
+// Mark notification as read
+app.put('/api/notifications/:id/read', authenticateToken, (req, res) => {
+  db.run('UPDATE notifications SET is_read = 1 WHERE id = ? AND user_id = ?', 
+    [req.params.id, req.user.id], 
+    function(err) {
+      if (err) {
+        return res.status(500).json({ error: err.message });
+      }
+      res.json({ message: 'Notification marked as read' });
+    }
+  );
+});
+
+// Mark all notifications as read
+app.put('/api/notifications/read-all', authenticateToken, (req, res) => {
+  db.run('UPDATE notifications SET is_read = 1 WHERE user_id = ?', 
+    [req.user.id], 
+    function(err) {
+      if (err) {
+        return res.status(500).json({ error: err.message });
+      }
+      res.json({ message: 'All notifications marked as read', count: this.changes });
+    }
+  );
 });
 
 app.get('*', (req, res) => {

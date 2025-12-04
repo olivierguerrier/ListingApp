@@ -37,11 +37,13 @@ function setupUserUI() {
     // Show user info
     const userInfoHTML = `
         <div style="display: flex; align-items: center; gap: 10px; margin-left: auto;">
+            ${currentUser.role === 'approver' || currentUser.role === 'admin' ? 
+                '<button class="btn btn-warning btn-sm" onclick="openApprovalsModal()" id="approvalsBtn" style="position: relative;">💰 Approvals <span id="approvalsBadge" class="badge" style="display: none;"></span></button>' : ''}
             <span style="color: var(--text-secondary); font-size: 14px;">${currentUser.full_name || currentUser.username}</span>
             <span style="background: var(--primary); color: white; padding: 4px 12px; border-radius: 12px; font-size: 12px; font-weight: 600;">
                 ${currentUser.role.toUpperCase()}
             </span>
-            ${currentUser.role === 'admin' ? '<button class="btn btn-secondary btn-sm" onclick="window.location.href=\'/admin.html\'">Admin</button>' : ''}
+            ${currentUser.role === 'admin' ? '<button class="btn btn-secondary btn-sm" onclick="window.location.href=\'/admin.html\'">👥 Admin</button>' : ''}
             <button class="btn btn-secondary btn-sm" onclick="logout()">Logout</button>
         </div>
     `;
@@ -51,6 +53,11 @@ function setupUserUI() {
         const userDiv = document.createElement('div');
         userDiv.innerHTML = userInfoHTML;
         header.appendChild(userDiv.firstElementChild);
+    }
+    
+    // Load notifications count for approvers
+    if (currentUser.role === 'approver' || currentUser.role === 'admin') {
+        loadPendingApprovalsCount();
     }
     
     // Hide features based on role
@@ -64,6 +71,42 @@ function setupUserUI() {
         hideElement('syncVariationsBtn');
         hideElement('syncOnlineBtn');
         disableEditing();
+    }
+}
+
+async function loadPendingApprovalsCount() {
+    const token = localStorage.getItem('token');
+    
+    try {
+        const response = await fetch(`${API_BASE}/pricing/submissions?status=pending`, {
+            headers: {
+                'Authorization': `Bearer ${token}`
+            }
+        });
+        
+        const submissions = await response.json();
+        const badge = document.getElementById('approvalsBadge');
+        
+        if (badge && submissions.length > 0) {
+            badge.textContent = submissions.length;
+            badge.style.display = 'inline-block';
+            badge.style.cssText = `
+                display: inline-block;
+                position: absolute;
+                top: -8px;
+                right: -8px;
+                background: var(--danger);
+                color: white;
+                border-radius: 50%;
+                padding: 2px 6px;
+                font-size: 11px;
+                font-weight: 600;
+                min-width: 18px;
+                text-align: center;
+            `;
+        }
+    } catch (error) {
+        console.error('Error loading approvals count:', error);
     }
 }
 
@@ -155,6 +198,9 @@ function setupEventListeners() {
 
     // Item Form Submit
     document.getElementById('itemForm').addEventListener('submit', handleItemSubmit);
+    
+    // Pricing Submission Form Submit
+    document.getElementById('pricingSubmissionForm').addEventListener('submit', handlePricingSubmissionSubmit);
 
     // Pricing Form Submit
     document.getElementById('pricingForm').addEventListener('submit', handlePricingSubmit);
@@ -574,6 +620,10 @@ function renderItems(itemsToRender) {
                 <td style="text-align: center;">${s5Circle}</td>
                 <td>
                     <button class="btn btn-secondary btn-sm" onclick="openFlowModal(${item.id})">View</button>
+                    ${item.stage_2_product_finalized && !item.stage_3b_pricing_approved && currentUser.role !== 'viewer' ? 
+                        `<button class="btn btn-primary btn-sm" onclick="openPricingSubmissionModal(${item.id})" style="background: var(--warning);">💰 Pricing</button>` : ''}
+                    ${item.stage_3a_pricing_submitted && !item.stage_3b_pricing_approved ? 
+                        `<span style="color: var(--warning); font-size: 12px;">⏳ Pending</span>` : ''}
                     <button class="btn btn-danger btn-sm" onclick="deleteItem(${item.id})">Delete</button>
                 </td>
             </tr>
@@ -923,6 +973,240 @@ async function loadCountryStatusData(asin) {
 
 function closeProductDetailsModal() {
     document.getElementById('productDetailsModal').style.display = 'none';
+}
+
+// ============ PRICING APPROVAL WORKFLOW ============
+
+function openPricingSubmissionModal(productId) {
+    const item = items.find(i => i.id === productId);
+    if (!item) {
+        showError('Product not found');
+        return;
+    }
+    
+    // Check if user has permission
+    if (currentUser.role === 'viewer') {
+        showError('You do not have permission to submit pricing');
+        return;
+    }
+    
+    // Populate modal
+    document.getElementById('pricingProductId').value = item.id;
+    document.getElementById('pricingAsin').value = item.asin;
+    document.getElementById('pricingProductName').textContent = item.display_name || item.name || item.asin;
+    
+    // Reset form
+    document.getElementById('pricingSubmissionForm').reset();
+    document.getElementById('companyMargin').value = '';
+    document.getElementById('customerMargin').value = '';
+    
+    // Setup margin calculation
+    setupMarginCalculations();
+    
+    document.getElementById('pricingSubmissionModal').style.display = 'block';
+}
+
+function setupMarginCalculations() {
+    const productCost = document.getElementById('productCost');
+    const sellPrice = document.getElementById('sellPrice');
+    const retailPrice = document.getElementById('retailPrice');
+    const companyMargin = document.getElementById('companyMargin');
+    const customerMargin = document.getElementById('customerMargin');
+    
+    function calculateMargins() {
+        const cost = parseFloat(productCost.value) || 0;
+        const sell = parseFloat(sellPrice.value) || 0;
+        const retail = parseFloat(retailPrice.value) || 0;
+        
+        if (cost > 0 && sell > 0) {
+            const cMargin = ((sell - cost) / sell * 100).toFixed(2);
+            companyMargin.value = `${cMargin}% ($${(sell - cost).toFixed(2)} profit)`;
+            
+            // Color code based on margin
+            if (cMargin < 20) {
+                companyMargin.style.color = 'var(--danger)';
+            } else if (cMargin < 35) {
+                companyMargin.style.color = 'var(--warning)';
+            } else {
+                companyMargin.style.color = 'var(--success)';
+            }
+        } else {
+            companyMargin.value = '';
+        }
+        
+        if (sell > 0 && retail > 0) {
+            const custMargin = ((retail - sell) / retail * 100).toFixed(2);
+            customerMargin.value = `${custMargin}% ($${(retail - sell).toFixed(2)} markup)`;
+            
+            // Color code based on margin
+            if (custMargin < 25) {
+                customerMargin.style.color = 'var(--danger)';
+            } else if (custMargin < 40) {
+                customerMargin.style.color = 'var(--warning)';
+            } else {
+                customerMargin.style.color = 'var(--success)';
+            }
+        } else {
+            customerMargin.value = '';
+        }
+    }
+    
+    productCost.addEventListener('input', calculateMargins);
+    sellPrice.addEventListener('input', calculateMargins);
+    retailPrice.addEventListener('input', calculateMargins);
+}
+
+function closePricingSubmissionModal() {
+    document.getElementById('pricingSubmissionModal').style.display = 'none';
+}
+
+async function handlePricingSubmissionSubmit(e) {
+    e.preventDefault();
+    
+    const token = localStorage.getItem('token');
+    const data = {
+        product_id: parseInt(document.getElementById('pricingProductId').value),
+        asin: document.getElementById('pricingAsin').value,
+        product_cost: parseFloat(document.getElementById('productCost').value),
+        sell_price: parseFloat(document.getElementById('sellPrice').value),
+        retail_price: parseFloat(document.getElementById('retailPrice').value),
+        currency: document.getElementById('pricingCurrency').value,
+        notes: document.getElementById('pricingNotes').value
+    };
+    
+    try {
+        const response = await fetch(`${API_BASE}/pricing/submit`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify(data)
+        });
+        
+        const result = await response.json();
+        
+        if (response.ok) {
+            closePricingSubmissionModal();
+            loadItems(); // Refresh to show updated stage
+            showSuccess('Pricing submitted for approval successfully!');
+        } else {
+            showError(result.error || 'Failed to submit pricing');
+        }
+    } catch (error) {
+        showError('Error submitting pricing: ' + error.message);
+    }
+}
+
+// Open approvals modal (for approvers)
+async function openApprovalsModal() {
+    const modal = document.getElementById('approvalsModal');
+    const container = document.getElementById('approvalsList');
+    
+    container.innerHTML = '<p style="text-align: center; padding: 40px;">Loading approvals...</p>';
+    modal.style.display = 'block';
+    
+    const token = localStorage.getItem('token');
+    
+    try {
+        const response = await fetch(`${API_BASE}/pricing/submissions?status=pending`, {
+            headers: {
+                'Authorization': `Bearer ${token}`
+            }
+        });
+        
+        const submissions = await response.json();
+        
+        if (submissions.length === 0) {
+            container.innerHTML = '<p style="text-align: center; padding: 40px; color: var(--text-secondary);">No pending approvals</p>';
+            return;
+        }
+        
+        container.innerHTML = submissions.map(sub => `
+            <div class="approval-card" style="background: var(--card-bg); padding: 20px; border-radius: 8px; margin-bottom: 15px; border-left: 4px solid var(--warning);">
+                <div style="display: flex; justify-content: space-between; align-items: start;">
+                    <div>
+                        <h3 style="margin: 0 0 10px 0;">${sub.product_name || sub.asin}</h3>
+                        <p style="color: var(--text-secondary); margin: 0;">ASIN: ${sub.asin}</p>
+                        <p style="color: var(--text-secondary); margin: 5px 0 0 0; font-size: 13px;">
+                            Submitted by: ${sub.submitted_by_full_name || sub.submitted_by_name} on ${new Date(sub.submitted_at).toLocaleString()}
+                        </p>
+                    </div>
+                    <div style="text-align: right;">
+                        <span style="background: var(--warning); color: white; padding: 4px 12px; border-radius: 12px; font-size: 12px; font-weight: 600;">
+                            PENDING
+                        </span>
+                    </div>
+                </div>
+                
+                <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 15px; margin: 20px 0; padding: 15px; background: var(--bg-secondary); border-radius: 6px;">
+                    <div>
+                        <small style="color: var(--text-secondary);">Product Cost</small>
+                        <div style="font-size: 18px; font-weight: 600;">${sub.currency} $${parseFloat(sub.product_cost).toFixed(2)}</div>
+                    </div>
+                    <div>
+                        <small style="color: var(--text-secondary);">Sell Price</small>
+                        <div style="font-size: 18px; font-weight: 600;">${sub.currency} $${parseFloat(sub.sell_price).toFixed(2)}</div>
+                    </div>
+                    <div>
+                        <small style="color: var(--text-secondary);">Company Margin</small>
+                        <div style="font-size: 18px; font-weight: 600; color: var(--success);">${parseFloat(sub.company_margin).toFixed(2)}%</div>
+                    </div>
+                    <div>
+                        <small style="color: var(--text-secondary);">Retail Price</small>
+                        <div style="font-size: 18px; font-weight: 600;">${sub.currency} $${parseFloat(sub.retail_price).toFixed(2)}</div>
+                    </div>
+                    <div>
+                        <small style="color: var(--text-secondary);">Customer Margin</small>
+                        <div style="font-size: 18px; font-weight: 600; color: var(--success);">${parseFloat(sub.customer_margin).toFixed(2)}%</div>
+                    </div>
+                </div>
+                
+                ${sub.notes ? `<div style="padding: 10px; background: var(--bg-primary); border-radius: 6px; margin-bottom: 15px;"><strong>Notes:</strong> ${sub.notes}</div>` : ''}
+                
+                <div style="display: flex; gap: 10px; margin-top: 15px;">
+                    <input type="text" id="reviewNotes_${sub.id}" placeholder="Add review notes (optional)" style="flex: 1;">
+                    <button class="btn btn-success" onclick="reviewPricing(${sub.id}, 'approve')">✓ Approve</button>
+                    <button class="btn btn-danger" onclick="reviewPricing(${sub.id}, 'reject')">✗ Reject</button>
+                </div>
+            </div>
+        `).join('');
+        
+    } catch (error) {
+        container.innerHTML = '<p style="text-align: center; padding: 40px; color: var(--danger);">Error loading approvals</p>';
+    }
+}
+
+async function reviewPricing(submissionId, action) {
+    const notes = document.getElementById(`reviewNotes_${submissionId}`)?.value || '';
+    const token = localStorage.getItem('token');
+    
+    try {
+        const response = await fetch(`${API_BASE}/pricing/${submissionId}/review`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify({ action, notes })
+        });
+        
+        const result = await response.json();
+        
+        if (response.ok) {
+            showSuccess(`Pricing ${action === 'approve' ? 'approved' : 'rejected'} successfully!`);
+            openApprovalsModal(); // Refresh the list
+            loadItems(); // Refresh products to show updated stages
+        } else {
+            showError(result.error || 'Failed to review pricing');
+        }
+    } catch (error) {
+        showError('Error: ' + error.message);
+    }
+}
+
+function closeApprovalsModal() {
+    document.getElementById('approvalsModal').style.display = 'none';
 }
 
 // Handle item form submission
@@ -1725,6 +2009,20 @@ async function openWorkflowModal(asin, stageNumber) {
 
 document.getElementById('workflowModalClose').addEventListener('click', () => {
     document.getElementById('workflowModal').style.display = 'none';
+});
+
+// Add close handlers for pricing modals
+document.querySelectorAll('#pricingSubmissionModal .close, #approvalsModal .close').forEach(closeBtn => {
+    closeBtn.addEventListener('click', (e) => {
+        e.target.closest('.modal').style.display = 'none';
+    });
+});
+
+// Close modals when clicking outside
+window.addEventListener('click', (e) => {
+    if (e.target.classList.contains('modal')) {
+        e.target.style.display = 'none';
+    }
 });
 
 // ============================================

@@ -549,6 +549,77 @@
         </div>
     </div>
 
+    <!-- Pricing Submission Modal -->
+    <div id="pricingSubmissionModal" class="modal">
+        <div class="modal-content">
+            <span class="close">&times;</span>
+            <h2>📊 Submit Pricing for Approval</h2>
+            <p style="color: var(--text-secondary); margin-bottom: 20px;">
+                Product: <strong id="pricingProductName"></strong>
+            </p>
+            
+            <form id="pricingSubmissionForm">
+                <input type="hidden" id="pricingProductId">
+                <input type="hidden" id="pricingAsin">
+                
+                <div class="form-group">
+                    <label for="productCost">Product Cost * (Your cost from supplier)</label>
+                    <div style="display: flex; gap: 10px;">
+                        <input type="number" id="productCost" step="0.01" required style="flex: 1;">
+                        <select id="pricingCurrency" style="width: 100px;">
+                            <option value="USD">USD</option>
+                            <option value="CAD">CAD</option>
+                            <option value="EUR">EUR</option>
+                            <option value="GBP">GBP</option>
+                        </select>
+                    </div>
+                </div>
+                
+                <div class="form-group">
+                    <label for="sellPrice">Sell Price * (Price to Amazon)</label>
+                    <input type="number" id="sellPrice" step="0.01" required>
+                </div>
+                
+                <div class="form-group">
+                    <label>Company Margin</label>
+                    <input type="text" id="companyMargin" readonly style="background: var(--bg-secondary); font-weight: 600; color: var(--success);">
+                </div>
+                
+                <div class="form-group">
+                    <label for="retailPrice">Retail Price * (Price to customer)</label>
+                    <input type="number" id="retailPrice" step="0.01" required>
+                </div>
+                
+                <div class="form-group">
+                    <label>Customer Margin</label>
+                    <input type="text" id="customerMargin" readonly style="background: var(--bg-secondary); font-weight: 600; color: var(--success);">
+                </div>
+                
+                <div class="form-group">
+                    <label for="pricingNotes">Notes (optional)</label>
+                    <textarea id="pricingNotes" rows="3" placeholder="Add any additional notes about this pricing..."></textarea>
+                </div>
+                
+                <div class="form-actions">
+                    <button type="button" class="btn btn-secondary" onclick="closePricingSubmissionModal()">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Submit for Approval</button>
+                </div>
+            </form>
+        </div>
+    </div>
+    
+    <!-- Pricing Approvals Modal (for Approvers) -->
+    <div id="approvalsModal" class="modal">
+        <div class="modal-content modal-large" style="max-width: 1000px;">
+            <span class="close">&times;</span>
+            <h2>💰 Pending Pricing Approvals</h2>
+            
+            <div id="approvalsList" style="margin-top: 20px;">
+                <p style="text-align: center; padding: 40px;">Loading...</p>
+            </div>
+        </div>
+    </div>
+
     <script src="app.js"></script>
 </body>
 </html>
