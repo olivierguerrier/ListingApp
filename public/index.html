@@ -570,11 +570,11 @@
         </div>
     </div>
 
-    <!-- Pricing Submission Modal -->
+    <!-- Multi-Country Pricing Submission Modal -->
     <div id="pricingSubmissionModal" class="modal">
-        <div class="modal-content">
+        <div class="modal-content modal-large" style="max-width: 1400px;">
             <span class="close">&times;</span>
-            <h2>📊 Submit Pricing for Approval</h2>
+            <h2>📊 Submit Multi-Country Pricing for Approval</h2>
             <p style="color: var(--text-secondary); margin-bottom: 20px;">
                 Product: <strong id="pricingProductName"></strong>
             </p>
@@ -583,37 +583,54 @@
                 <input type="hidden" id="pricingProductId">
                 <input type="hidden" id="pricingAsin">
                 
-                <div class="form-group">
-                    <label for="pricingProductCost">Product Cost * (Your cost from supplier)</label>
-                    <div style="display: flex; gap: 10px;">
-                        <input type="number" id="pricingProductCost" step="0.01" required style="flex: 1;" oninput="calculatePricingMargins()">
-                        <select id="pricingCurrency" style="width: 100px;">
-                            <option value="USD">USD</option>
-                            <option value="CAD">CAD</option>
-                            <option value="EUR">EUR</option>
-                            <option value="GBP">GBP</option>
-                        </select>
+                <!-- USD Pricing Section -->
+                <div style="background: var(--bg-secondary); padding: 20px; border-radius: 8px; margin-bottom: 20px;">
+                    <h3 style="margin-top: 0;">💵 USD Pricing (Global)</h3>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 15px;">
+                        <div class="form-group">
+                            <label for="pricingProductCost">Product Cost * (USD)</label>
+                            <input type="number" id="pricingProductCost" step="0.01" required oninput="calculateMultiCountryPricing()">
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="pricingSellPrice">Sell Price * (USD)</label>
+                            <input type="number" id="pricingSellPrice" step="0.01" required oninput="calculateMultiCountryPricing()">
+                        </div>
+                        
+                        <div class="form-group">
+                            <label>Company Margin</label>
+                            <input type="text" id="pricingCompanyMargin" readonly disabled style="background: var(--bg-primary); font-weight: 600; opacity: 1;">
+                        </div>
                     </div>
                 </div>
                 
-                <div class="form-group">
-                    <label for="pricingSellPrice">Sell Price * (Price to Amazon)</label>
-                    <input type="number" id="pricingSellPrice" step="0.01" required oninput="calculatePricingMargins()">
-                </div>
-                
-                <div class="form-group">
-                    <label>Company Margin</label>
-                    <input type="text" id="pricingCompanyMargin" readonly disabled style="background: var(--bg-secondary); font-weight: 600; color: var(--success); opacity: 1;">
-                </div>
-                
-                <div class="form-group">
-                    <label for="pricingRetailPrice">Retail Price * (Price to customer)</label>
-                    <input type="number" id="pricingRetailPrice" step="0.01" required oninput="calculatePricingMargins()">
-                </div>
-                
-                <div class="form-group">
-                    <label>Customer Margin</label>
-                    <input type="text" id="pricingCustomerMargin" readonly disabled style="background: var(--bg-secondary); font-weight: 600; color: var(--success); opacity: 1;">
+                <!-- Country-by-Country Pricing Table -->
+                <div style="margin-bottom: 20px;">
+                    <h3>🌍 Retail Pricing by Country</h3>
+                    <p style="color: var(--text-secondary); font-size: 14px; margin-bottom: 15px;">
+                        Enter retail price in local currency for each country. Customer margin will be calculated automatically.
+                    </p>
+                    
+                    <div style="overflow-x: auto;">
+                        <table class="products-table" id="countryPricingTable">
+                            <thead>
+                                <tr>
+                                    <th>Country</th>
+                                    <th>Currency</th>
+                                    <th>FX Rate</th>
+                                    <th>Sell Price (USD)</th>
+                                    <th>Retail Price (Local)*</th>
+                                    <th>Retail Price (USD)</th>
+                                    <th>Customer Margin</th>
+                                </tr>
+                            </thead>
+                            <tbody id="countryPricingTableBody">
+                                <tr>
+                                    <td colspan="7" style="text-align: center; padding: 40px;">Loading countries...</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
                 
                 <div class="form-group">

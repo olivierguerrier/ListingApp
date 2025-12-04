@@ -90,8 +90,8 @@
     <div class="container">
         <div class="admin-header">
             <div>
-                <h1>👥 User Management</h1>
-                <p style="color: var(--text-secondary);">Admin Portal</p>
+                <h1>⚙️ Admin Portal</h1>
+                <p style="color: var(--text-secondary);">System Administration</p>
             </div>
             <div class="user-info">
                 <span class="user-badge" id="currentUser"></span>
@@ -100,6 +100,14 @@
             </div>
         </div>
         
+        <!-- Admin Tabs -->
+        <div class="view-tabs" style="margin-bottom: 30px;">
+            <button class="tab-btn active" data-tab="users">👥 User Management</button>
+            <button class="tab-btn" data-tab="fx-rates">💱 FX Rates</button>
+        </div>
+        
+        <!-- User Management Tab -->
+        <div id="usersTab" class="admin-tab-content">
         <div class="card">
             <div class="card-header">
                 <h2>Users</h2>
@@ -124,6 +132,41 @@
                     </tr>
                 </tbody>
             </table>
+        </div>
+        </div>
+        </div>
+        
+        <!-- FX Rates Tab -->
+        <div id="fxRatesTab" class="admin-tab-content" style="display: none;">
+            <div class="card">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                    <h2>💱 Exchange Rates Management</h2>
+                    <button class="btn btn-primary" onclick="saveFxRates()">💾 Save All Changes</button>
+                </div>
+                <p style="color: var(--text-secondary); margin-bottom: 20px;">
+                    Exchange rates are used to convert USD sell prices to local retail prices. 
+                    Rate = Local Currency per 1 USD (e.g., CAD 1.35 = $1.35 CAD per $1 USD)
+                </p>
+                
+                <div style="overflow-x: auto;">
+                    <table class="users-table" id="fxRatesTable">
+                        <thead>
+                            <tr>
+                                <th>Country</th>
+                                <th>Currency</th>
+                                <th>Rate to USD</th>
+                                <th>Last Updated</th>
+                                <th>Updated By</th>
+                            </tr>
+                        </thead>
+                        <tbody id="fxRatesTableBody">
+                            <tr>
+                                <td colspan="5" style="text-align: center; padding: 40px;">Loading FX rates...</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
         </div>
     </div>
     

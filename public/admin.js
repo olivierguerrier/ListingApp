@@ -6,6 +6,15 @@ let users = [];
 document.addEventListener('DOMContentLoaded', () => {
     checkAuth();
     loadUsers();
+    loadFxRates();
+    
+    // Setup tab switching
+    document.querySelectorAll('.tab-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const tab = btn.dataset.tab;
+            switchTab(tab);
+        });
+    });
     
     // Setup modal close handlers
     document.querySelector('.close').addEventListener('click', closeUserModal);
@@ -17,6 +26,21 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 });
+
+function switchTab(tab) {
+    // Update tab buttons
+    document.querySelectorAll('.tab-btn').forEach(btn => {
+        if (btn.dataset.tab === tab) {
+            btn.classList.add('active');
+        } else {
+            btn.classList.remove('active');
+        }
+    });
+    
+    // Show/hide content
+    document.getElementById('usersTab').style.display = tab === 'users' ? 'block' : 'none';
+    document.getElementById('fxRatesTab').style.display = tab === 'fx-rates' ? 'block' : 'none';
+}
 
 async function checkAuth() {
     const token = localStorage.getItem('token');
@@ -195,6 +219,116 @@ function logout() {
     fetch(`${API_BASE}/auth/logout`, { method: 'POST' });
     localStorage.clear();
     window.location.href = '/login.html';
+}
+
+// ============ FX RATES MANAGEMENT ============
+
+let fxRatesData = [];
+
+async function loadFxRates() {
+    const token = localStorage.getItem('token');
+    
+    try {
+        const response = await fetch(`${API_BASE}/fx-rates`, {
+            headers: {
+                'Authorization': `Bearer ${token}`
+            }
+        });
+        
+        if (!response.ok) {
+            throw new Error('Failed to load FX rates');
+        }
+        
+        fxRatesData = await response.json();
+        renderFxRates();
+    } catch (error) {
+        console.error('Error loading FX rates:', error);
+        showMessage('Error loading FX rates: ' + error.message, 'error');
+    }
+}
+
+function renderFxRates() {
+    const tbody = document.getElementById('fxRatesTableBody');
+    
+    if (fxRatesData.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="5" style="text-align: center; padding: 40px; color: var(--text-secondary);">No FX rates found</td></tr>';
+        return;
+    }
+    
+    tbody.innerHTML = fxRatesData.map(rate => `
+        <tr>
+            <td><strong>${rate.country}</strong></td>
+            <td>${rate.currency}</td>
+            <td>
+                <input 
+                    type="number" 
+                    step="0.000001" 
+                    value="${rate.rate_to_usd}" 
+                    data-rate-id="${rate.id}"
+                    style="width: 150px; padding: 8px; border: 1px solid var(--border-color); border-radius: 4px;"
+                    onchange="markFxRateChanged(${rate.id}, this.value)"
+                />
+            </td>
+            <td>${rate.updated_at ? new Date(rate.updated_at).toLocaleString() : 'Never'}</td>
+            <td>${rate.updated_by || '-'}</td>
+        </tr>
+    `).join('');
+}
+
+const changedFxRates = new Set();
+
+function markFxRateChanged(rateId, newValue) {
+    const rate = fxRatesData.find(r => r.id === rateId);
+    if (rate && parseFloat(newValue) !== parseFloat(rate.rate_to_usd)) {
+        changedFxRates.add(rateId);
+    } else {
+        changedFxRates.delete(rateId);
+    }
+}
+
+async function saveFxRates() {
+    if (changedFxRates.size === 0) {
+        showMessage('No changes to save', 'info');
+        return;
+    }
+    
+    const token = localStorage.getItem('token');
+    const ratesToUpdate = [];
+    
+    changedFxRates.forEach(rateId => {
+        const input = document.querySelector(`input[data-rate-id="${rateId}"]`);
+        const newRate = parseFloat(input.value);
+        
+        if (newRate > 0) {
+            ratesToUpdate.push({
+                id: rateId,
+                rate_to_usd: newRate
+            });
+        }
+    });
+    
+    try {
+        const response = await fetch(`${API_BASE}/fx-rates/bulk-update`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify({ rates: ratesToUpdate })
+        });
+        
+        const result = await response.json();
+        
+        if (response.ok) {
+            showMessage(result.message || 'FX rates updated successfully!', 'success');
+            changedFxRates.clear();
+            loadFxRates(); // Reload to show updated timestamps
+        } else {
+            showMessage('Error: ' + (result.error || 'Failed to update FX rates'), 'error');
+        }
+    } catch (error) {
+        showMessage('Error updating FX rates: ' + error.message, 'error');
+    }
 }
 
 function showSuccess(message) {
