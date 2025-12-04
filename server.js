@@ -100,6 +100,71 @@ function requireRole(...allowedRoles) {
   };
 }
 
+// Hardcoded Amazon vendor mapping data
+function insertDefaultVendorMapping() {
+  const amazonMappings = [
+    // United States
+    { customer: 'Amazon', country: 'United States', marketplace: 'United States', country_code: 'C002', vendor_code: 'AMZN US', qpi_file: 'US_QPI.parquet', vc_file: 'US_VC.parquet', ppg_default: 'US_PPG', domain: 1 },
+    // Canada
+    { customer: 'Amazon', country: 'Canada', marketplace: 'Canada', country_code: 'C055', vendor_code: 'AMZN CA', qpi_file: 'CA_QPI.parquet', vc_file: 'CA_VC.parquet', ppg_default: 'CA_PPG', domain: 7 },
+    // Mexico
+    { customer: 'Amazon', country: 'Mexico', marketplace: 'Mexico', country_code: 'C059', vendor_code: 'AMZN MX', qpi_file: 'MX_QPI.parquet', vc_file: 'MX_VC.parquet', ppg_default: 'MX_PPG', domain: 8 },
+    // United Kingdom
+    { customer: 'Amazon', country: 'United Kingdom', marketplace: 'United Kingdom', country_code: 'C003', vendor_code: 'AMZN UK', qpi_file: 'UK_QPI.parquet', vc_file: 'UK_VC.parquet', ppg_default: 'UK_PPG', domain: 3 },
+    // Germany
+    { customer: 'Amazon', country: 'Germany', marketplace: 'Germany', country_code: 'C004', vendor_code: 'AMZN DE', qpi_file: 'DE_QPI.parquet', vc_file: 'DE_VC.parquet', ppg_default: 'DE_PPG', domain: 4 },
+    // France
+    { customer: 'Amazon', country: 'France', marketplace: 'France', country_code: 'C005', vendor_code: 'AMZN FR', qpi_file: 'FR_QPI.parquet', vc_file: 'FR_VC.parquet', ppg_default: 'FR_PPG', domain: 5 },
+    // Italy
+    { customer: 'Amazon', country: 'Italy', marketplace: 'Italy', country_code: 'C035', vendor_code: 'AMZN IT', qpi_file: 'IT_QPI.parquet', vc_file: 'IT_VC.parquet', ppg_default: 'IT_PPG', domain: 35 },
+    // Spain
+    { customer: 'Amazon', country: 'Spain', marketplace: 'Spain', country_code: 'C044', vendor_code: 'AMZN ES', qpi_file: 'ES_QPI.parquet', vc_file: 'ES_VC.parquet', ppg_default: 'ES_PPG', domain: 44 },
+    // Japan
+    { customer: 'Amazon', country: 'Japan', marketplace: 'Japan', country_code: 'C006', vendor_code: 'AMZN JP', qpi_file: 'JP_QPI.parquet', vc_file: 'JP_VC.parquet', ppg_default: 'JP_PPG', domain: 6 },
+    // Australia
+    { customer: 'Amazon', country: 'Australia', marketplace: 'Australia', country_code: 'C071', vendor_code: 'AMZN AU', qpi_file: 'AU_QPI.parquet', vc_file: 'AU_VC.parquet', ppg_default: 'AU_PPG', domain: 71 },
+    // Singapore
+    { customer: 'Amazon', country: 'Singapore', marketplace: 'Singapore', country_code: 'C052', vendor_code: 'AMZN SG', qpi_file: 'SG_QPI.parquet', vc_file: 'SG_VC.parquet', ppg_default: 'SG_PPG', domain: 52 },
+    // United Arab Emirates
+    { customer: 'Amazon', country: 'United Arab Emirates', marketplace: 'United Arab Emirates', country_code: 'C062', vendor_code: 'AMZN AE', qpi_file: 'AE_QPI.parquet', vc_file: 'AE_VC.parquet', ppg_default: 'AE_PPG', domain: 62 },
+    // India
+    { customer: 'Amazon', country: 'India', marketplace: 'India', country_code: 'C031', vendor_code: 'AMZN IN', qpi_file: 'IN_QPI.parquet', vc_file: 'IN_VC.parquet', ppg_default: 'IN_PPG', domain: 31 },
+    // Brazil
+    { customer: 'Amazon', country: 'Brazil', marketplace: 'Brazil', country_code: 'C029', vendor_code: 'AMZN BR', qpi_file: 'BR_QPI.parquet', vc_file: 'BR_VC.parquet', ppg_default: 'BR_PPG', domain: 29 }
+  ];
+
+  const insertStmt = db.prepare(`
+    INSERT OR IGNORE INTO vendor_mapping 
+    (customer, country, marketplace, country_code, vendor_code, qpi_file, vc_file, ppg_default, domain)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `);
+
+  db.serialize(() => {
+    db.run('BEGIN TRANSACTION');
+    amazonMappings.forEach(mapping => {
+      insertStmt.run(
+        mapping.customer,
+        mapping.country,
+        mapping.marketplace,
+        mapping.country_code,
+        mapping.vendor_code,
+        mapping.qpi_file,
+        mapping.vc_file,
+        mapping.ppg_default,
+        mapping.domain
+      );
+    });
+    insertStmt.finalize();
+    db.run('COMMIT', (err) => {
+      if (err) {
+        console.error('[SETUP] Error inserting default mappings:', err);
+      } else {
+        console.log('[SETUP] ✓ Inserted', amazonMappings.length, 'Amazon marketplace mappings');
+      }
+    });
+  });
+}
+
 // Initialize database tables
 function initializeDatabase() {
   db.serialize(() => {
@@ -421,11 +486,14 @@ function initializeDatabase() {
     // Vendor code mapping table
     db.run(`CREATE TABLE IF NOT EXISTS vendor_mapping (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
+      customer TEXT DEFAULT 'Amazon',
       country TEXT NOT NULL,
       marketplace TEXT NOT NULL,
       country_code TEXT NOT NULL,
       vendor_code TEXT,
       qpi_file TEXT,
+      vc_file TEXT,
+      ppg_default TEXT,
       domain INTEGER,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       UNIQUE(country_code, vendor_code)
@@ -434,6 +502,15 @@ function initializeDatabase() {
         console.error('Error creating vendor_mapping table:', err.message);
       } else {
         console.log('[SETUP] vendor_mapping table ready');
+        // Insert hardcoded Amazon mapping data if table is empty
+        db.get('SELECT COUNT(*) as count FROM vendor_mapping', [], (err, row) => {
+          if (err) {
+            console.error('Error checking vendor_mapping:', err);
+          } else if (row.count === 0) {
+            console.log('[SETUP] Inserting hardcoded Amazon vendor mapping...');
+            insertDefaultVendorMapping();
+          }
+        });
       }
     });
     
