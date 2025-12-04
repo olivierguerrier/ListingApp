@@ -239,7 +239,7 @@ async function loadSkus(page = 1) {
     }
 }
 
-// Load available countries from ASIN status
+// Load available countries/marketplaces from vendor mapping
 async function loadCountries() {
     try {
         const response = await fetch(`${API_BASE}/countries`);
@@ -251,11 +251,12 @@ async function loadCountries() {
             countryFilter.remove(1);
         }
         
-        // Add new options
+        // Add new options with marketplace names
         countries.forEach(country => {
             const option = document.createElement('option');
-            option.value = country.country_code;
-            option.textContent = `${country.country_code}`;
+            option.value = country.marketplace;
+            option.textContent = country.marketplace;
+            option.dataset.countryCode = country.country_code;
             countryFilter.appendChild(option);
         });
     } catch (error) {

@@ -347,6 +347,25 @@ function initializeDatabase() {
       }
     });
     
+    // Vendor code mapping table
+    db.run(`CREATE TABLE IF NOT EXISTS vendor_mapping (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      country TEXT NOT NULL,
+      marketplace TEXT NOT NULL,
+      country_code TEXT NOT NULL,
+      vendor_code TEXT,
+      qpi_file TEXT,
+      domain INTEGER,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE(country_code, vendor_code)
+    )`, (err) => {
+      if (err) {
+        console.error('Error creating vendor_mapping table:', err.message);
+      } else {
+        console.log('[SETUP] vendor_mapping table ready');
+      }
+    });
+    
     // Online status tracking table
     db.run(`CREATE TABLE IF NOT EXISTS asin_online_status (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -1040,6 +1059,21 @@ app.get('/api/items', (req, res) => {
         }
       });
     });
+  });
+});
+
+// Get list of marketplaces from vendor mapping
+app.get('/api/countries', (req, res) => {
+  db.all(`
+    SELECT DISTINCT marketplace, country_code
+    FROM vendor_mapping
+    ORDER BY marketplace
+  `, [], (err, rows) => {
+    if (err) {
+      res.status(500).json({ error: err.message });
+      return;
+    }
+    res.json(rows);
   });
 });
 
@@ -1920,6 +1954,76 @@ app.post('/api/sync/variations', (req, res) => {
       console.error('[VARIATIONS SYNC] Error reading CSV:', err.message);
       res.status(500).json({ error: 'Error reading Variations Master CSV: ' + err.message });
     });
+});
+
+// Sync Vendor Code Mapping from Excel file
+app.post('/api/sync/vendor-mapping', (req, res) => {
+  const XLSX = require('xlsx');
+  const mappingFile = 'A:\\Code\\InputFiles\\Mapping\\VendorCode_Mapping.xlsx';
+  
+  if (!fs.existsSync(mappingFile)) {
+    res.status(404).json({ error: 'Vendor mapping file not found' });
+    return;
+  }
+  
+  try {
+    console.log('[VENDOR MAPPING] Reading Excel file...');
+    const workbook = XLSX.readFile(mappingFile);
+    const sheetName = workbook.SheetNames[0];
+    const sheet = workbook.Sheets[sheetName];
+    const data = XLSX.utils.sheet_to_json(sheet);
+    
+    console.log(`[VENDOR MAPPING] Found ${data.length} mapping records`);
+    
+    let imported = 0;
+    let updated = 0;
+    let errors = 0;
+    
+    db.run('DELETE FROM vendor_mapping', (err) => {
+      if (err) {
+        console.error('[VENDOR MAPPING] Error clearing table:', err.message);
+      }
+      
+      const stmt = db.prepare(`
+        INSERT INTO vendor_mapping (country, marketplace, country_code, vendor_code, qpi_file, domain)
+        VALUES (?, ?, ?, ?, ?, ?)
+      `);
+      
+      data.forEach(row => {
+        const country = row['Country'] || row['Country_1'] || '';
+        const marketplace = row['Marketplace'] || row['Country_1'] || '';
+        const countryCode = row['Country code'] || '';
+        const vendorCode = row['Sub Vendor code'] || '';
+        const qpiFile = row['QPI'] || row['QPI_1'] || '';
+        const domain = row['Domain'] || null;
+        
+        if (country && marketplace && countryCode) {
+          stmt.run([country, marketplace, countryCode, vendorCode, qpiFile, domain], (err) => {
+            if (err) {
+              errors++;
+              console.error(`[VENDOR MAPPING] Error inserting:`, err.message);
+            } else {
+              imported++;
+            }
+          });
+        }
+      });
+      
+      stmt.finalize(() => {
+        console.log(`[VENDOR MAPPING] Complete - Imported: ${imported}, Errors: ${errors}`);
+        res.json({
+          message: 'Vendor mapping sync completed',
+          total: data.length,
+          imported: imported,
+          errors: errors
+        });
+      });
+    });
+    
+  } catch (error) {
+    console.error('[VENDOR MAPPING] Error:', error.message);
+    res.status(500).json({ error: 'Error syncing vendor mapping: ' + error.message });
+  }
 });
 
 // Sync Online Status from Keepa parquet files
