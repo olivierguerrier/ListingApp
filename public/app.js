@@ -2528,6 +2528,8 @@ async function exportReportExcel(reportType, reportTitle) {
 async function loadVendorMappingFromMain() {
     const token = localStorage.getItem('token');
     
+    console.log('[Customer Admin] Loading vendor mapping...');
+    
     try {
         const response = await fetch(`${API_BASE}/vendor-mapping`, {
             headers: {
@@ -2540,24 +2542,38 @@ async function loadVendorMappingFromMain() {
         }
         
         vendorMappingData = await response.json();
+        console.log('[Customer Admin] Loaded', vendorMappingData.length, 'records');
         
         renderVendorMappingFromMain(vendorMappingData);
         updateMappingStatsFromMain(vendorMappingData);
+        
+        console.log('[Customer Admin] Rendering complete');
     } catch (error) {
-        console.error('Error loading vendor mapping:', error);
+        console.error('[Customer Admin] Error loading vendor mapping:', error);
         showError('Failed to load vendor mapping: ' + error.message);
+        
+        // Show error in the table
+        const tbody = document.getElementById('mainVendorMappingTableBody');
+        if (tbody) {
+            tbody.innerHTML = `<tr><td colspan="8" style="text-align: center; padding: 40px; color: var(--danger-color);">Error: ${error.message}</td></tr>`;
+        }
     }
 }
 
 function renderVendorMappingFromMain(data) {
+    console.log('[Customer Admin] Rendering', data?.length || 0, 'rows');
+    
     const tbody = document.getElementById('mainVendorMappingTableBody');
     
     if (!tbody) {
-        console.error('mainVendorMappingTableBody element not found');
+        console.error('[Customer Admin] mainVendorMappingTableBody element not found!');
         return;
     }
     
+    console.log('[Customer Admin] Table body element found');
+    
     if (!data || data.length === 0) {
+        console.warn('[Customer Admin] No data to display');
         tbody.innerHTML = '<tr><td colspan="8" style="text-align: center; padding: 40px; color: var(--text-secondary);">No mappings found</td></tr>';
         return;
     }
@@ -2574,6 +2590,8 @@ function renderVendorMappingFromMain(data) {
             <td>${row.ppg_default || '-'}</td>
         </tr>
     `).join('');
+    
+    console.log('[Customer Admin] Rendered', tbody.children.length, 'rows in table');
 }
 
 function updateMappingStatsFromMain(data) {
