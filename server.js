@@ -2165,24 +2165,57 @@ app.post('/api/sync/qpi', (req, res) => {
       // Batch update products table - mark stage_5_product_ordered for all ASINs in QPI
       if (qpiAsins.size > 0) {
         const asinList = Array.from(qpiAsins);
-        const placeholders = asinList.map(() => '?').join(',');
         
-        db.run(
-          `UPDATE products 
-           SET stage_5_product_ordered = 1,
-               updated_at = CURRENT_TIMESTAMP
-           WHERE asin IN (${placeholders})`,
-          asinList,
-          function(err) {
+        // First, create products for ASINs that don't exist yet using a more efficient approach
+        console.log(`[QPI] Creating products for ASINs not in products table...`);
+        
+        // Use INSERT OR IGNORE with all values at once
+        db.serialize(() => {
+          db.run('BEGIN TRANSACTION');
+          
+          const insertStmt = db.prepare(`
+            INSERT OR IGNORE INTO products (asin, name, stage_5_product_ordered, created_at, updated_at)
+            VALUES (?, ?, 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+          `);
+          
+          asinList.forEach(asin => {
+            insertStmt.run([asin, `Product ${asin}`]);
+          });
+          
+          insertStmt.finalize();
+          
+          db.run('COMMIT', (err) => {
             if (err) {
-              console.error('Error updating products stage_5:', err.message);
-              errors++;
+              console.error('Error committing product inserts:', err.message);
             } else {
-              productsUpdated = this.changes;
-              console.log(`Updated stage_5_product_ordered for ${productsUpdated} products`);
+              // Count how many we created by checking total
+              db.get('SELECT COUNT(*) as count FROM products', [], (err, row) => {
+                if (!err && row) {
+                  console.log(`[QPI] Products table now has ${row.count} total products`);
+                }
+              });
             }
-          }
-        );
+          });
+          
+          // Then update existing products to mark stage_5
+          const placeholders = asinList.map(() => '?').join(',');
+          db.run(
+            `UPDATE products 
+             SET stage_5_product_ordered = 1,
+                 updated_at = CURRENT_TIMESTAMP
+             WHERE asin IN (${placeholders})`,
+            asinList,
+            function(err) {
+              if (err) {
+                console.error('Error updating products stage_5:', err.message);
+                errors++;
+              } else {
+                productsUpdated = this.changes;
+                console.log(`[QPI] Updated stage_5_product_ordered for ${productsUpdated} products`);
+              }
+            }
+          );
+        });
         
         // Track which source files contain each ASIN
         const syncDate = new Date().toISOString().split('T')[0];
