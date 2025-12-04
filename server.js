@@ -1211,6 +1211,8 @@ app.get('/api/items', (req, res) => {
       onlineTotalSubquery = `1`;  // Only one marketplace selected
       
       // Add params for subqueries: marketplace name, country codes (2x for QPI), marketplace name again
+      console.log('[DEBUG] Marketplace filter:', { marketplaceName, marketplaceCountryCodes });
+      console.log('[DEBUG] Online count subquery:', onlineCountSubquery);
       queryParams.push(marketplaceName, ...marketplaceCountryCodes, ...marketplaceCountryCodes, marketplaceName);
     } else {
       // No marketplace filter - use all countries that exist in the data
@@ -1267,6 +1269,15 @@ app.get('/api/items', (req, res) => {
         if (err) {
           res.status(500).json({ error: err.message });
           return;
+        }
+        
+        // Debug: Log first row if Canada filter
+        if (country === 'Canada' && rows.length > 0) {
+          console.log('[DEBUG] First Canada result:', {
+            asin: rows[0].asin,
+            online_country_count: rows[0].online_country_count,
+            online_total_countries: rows[0].online_total_countries
+          });
         }
         
         // Parse SKU details and convert to old format
