@@ -517,18 +517,45 @@ function switchView(view) {
         }
     });
     
-    // Show/hide sections
-    document.getElementById('productsView').style.display = view === 'products' ? 'block' : 'none';
-    document.getElementById('pricingApprovalsView').style.display = view === 'pricing-approvals' ? 'block' : 'none';
-    document.getElementById('customerAdminView').style.display = view === 'customer-admin' ? 'block' : 'none';
-    document.getElementById('databaseView').style.display = view === 'database' ? 'block' : 'none';
+    // Show/hide sections with active class
+    const productsView = document.getElementById('productsView');
+    const pricingApprovalsView = document.getElementById('pricingApprovalsView');
+    const customerAdminView = document.getElementById('customerAdminView');
+    const databaseView = document.getElementById('databaseView');
     
-    console.log('[View] customerAdminView display:', document.getElementById('customerAdminView').style.display);
+    // Remove active from all
+    [productsView, pricingApprovalsView, customerAdminView, databaseView].forEach(v => {
+        if (v) {
+            v.classList.remove('active');
+            v.style.display = 'none';
+        }
+    });
+    
+    // Add active to current view
+    if (view === 'products' && productsView) {
+        productsView.classList.add('active');
+        productsView.style.display = 'block';
+    } else if (view === 'pricing-approvals' && pricingApprovalsView) {
+        pricingApprovalsView.classList.add('active');
+        pricingApprovalsView.style.display = 'block';
+    } else if (view === 'customer-admin' && customerAdminView) {
+        customerAdminView.classList.add('active');
+        customerAdminView.style.display = 'block';
+        console.log('[View] Customer Admin now active and visible');
+    } else if (view === 'database' && databaseView) {
+        databaseView.classList.add('active');
+        databaseView.style.display = 'block';
+    }
+    
+    console.log('[View] customerAdminView exists:', !!customerAdminView);
+    console.log('[View] customerAdminView display:', customerAdminView?.style.display);
+    console.log('[View] customerAdminView has active class:', customerAdminView?.classList.contains('active'));
     
     // Load data based on view
     if (view === 'pricing-approvals') {
         loadPricingApprovalsView();
     } else if (view === 'customer-admin') {
+        console.log('[View] Loading customer admin data...');
         loadVendorMappingFromMain();
     } else if (view === 'products' && items.length > 0) {
         renderItems(items);
