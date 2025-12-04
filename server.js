@@ -1669,12 +1669,19 @@ app.post('/api/sync/variations', (req, res) => {
     return;
   }
   
+  console.log('[VARIATIONS SYNC] Starting sync from:', variationsPath);
   const variationsData = [];
+  let rowCount = 0;
   
-  fs.createReadStream(variationsPath)
+  const stream = fs.createReadStream(variationsPath)
     .pipe(csv())
     .on('data', (data) => {
-      const asin = data['ASIN'];
+      rowCount++;
+      // Handle BOM in first column name
+      const keys = Object.keys(data);
+      const asinKey = keys.find(k => k.includes('ASIN')) || 'ASIN';
+      
+      const asin = data[asinKey];
       const brand = data['brand'];
       const title = data['title'];
       const bundle = data['Bundle_Name'];
@@ -1683,10 +1690,27 @@ app.post('/api/sync/variations', (req, res) => {
       if (asin) {
         variationsData.push({ asin, brand, title, bundle, ppg });
       }
+      
+      // Log first few rows for debugging
+      if (rowCount <= 3) {
+        console.log(`[VARIATIONS SYNC] Row ${rowCount}:`, { asin, brand: brand?.substring(0, 20), bundle: bundle?.substring(0, 20) });
+      }
     })
     .on('end', () => {
-      console.log(`Found ${variationsData.length} items in Variations Master`);
+      console.log(`[VARIATIONS SYNC] Stream ended. Total rows processed: ${rowCount}, Valid items: ${variationsData.length}`);
       
+      if (variationsData.length === 0) {
+        res.json({
+          message: 'Variations Master sync completed - no data found',
+          total: 0,
+          imported: 0,
+          updated: 0,
+          errors: 0
+        });
+        return;
+      }
+      
+      let completed = 0;
       let imported = 0;
       let updated = 0;
       let errors = 0;
@@ -1704,34 +1728,38 @@ app.post('/api/sync/variations', (req, res) => {
           updated_at = CURRENT_TIMESTAMP
       `);
       
-      variationsData.forEach(item => {
+      variationsData.forEach((item, index) => {
         stmt.run([item.asin, item.brand, item.title, item.bundle, item.ppg], function(err) {
+          completed++;
           if (err) {
             errors++;
             console.error('Error importing variation:', err.message);
           } else {
-            if (this.changes > 0) {
-              if (this.lastID) {
-                imported++;
-              } else {
-                updated++;
-              }
+            if (this.lastID) {
+              imported++;
+            } else {
+              updated++;
             }
           }
-        });
-      });
-      
-      stmt.finalize(() => {
-        res.json({
-          message: 'Variations Master sync completed',
-          total: variationsData.length,
-          imported: imported,
-          updated: updated,
-          errors: errors
+          
+          // Send response only after all rows are processed
+          if (completed === variationsData.length) {
+            stmt.finalize(() => {
+              console.log(`[VARIATIONS SYNC] Complete - Imported: ${imported}, Updated: ${updated}, Errors: ${errors}`);
+              res.json({
+                message: 'Variations Master sync completed',
+                total: variationsData.length,
+                imported: imported,
+                updated: updated,
+                errors: errors
+              });
+            });
+          }
         });
       });
     })
     .on('error', (err) => {
+      console.error('[VARIATIONS SYNC] Error reading CSV:', err.message);
       res.status(500).json({ error: 'Error reading Variations Master CSV: ' + err.message });
     });
 });
