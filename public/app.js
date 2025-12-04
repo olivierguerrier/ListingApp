@@ -6,6 +6,7 @@ let skus = [];
 let currentItem = null;
 let currentView = 'products'; // 'products', 'skus', or 'database'
 let currentTable = 'products';
+let currentUser = null;
 
 // Pagination state
 let productsPage = 1;
@@ -16,8 +17,86 @@ let skusPage = 1;
 let skusLimit = 50;
 let skusTotalPages = 1;
 
+// Check authentication
+function checkAuth() {
+    const token = localStorage.getItem('token');
+    const user = JSON.parse(localStorage.getItem('user') || '{}');
+    
+    if (!token || !user.role) {
+        window.location.href = '/login.html';
+        return false;
+    }
+    
+    currentUser = user;
+    setupUserUI();
+    return true;
+}
+
+// Setup user interface based on role
+function setupUserUI() {
+    // Show user info
+    const userInfoHTML = `
+        <div style="display: flex; align-items: center; gap: 10px; margin-left: auto;">
+            <span style="color: var(--text-secondary); font-size: 14px;">${currentUser.full_name || currentUser.username}</span>
+            <span style="background: var(--primary); color: white; padding: 4px 12px; border-radius: 12px; font-size: 12px; font-weight: 600;">
+                ${currentUser.role.toUpperCase()}
+            </span>
+            ${currentUser.role === 'admin' ? '<button class="btn btn-secondary btn-sm" onclick="window.location.href=\'/admin.html\'">Admin</button>' : ''}
+            <button class="btn btn-secondary btn-sm" onclick="logout()">Logout</button>
+        </div>
+    `;
+    
+    const header = document.querySelector('header .controls');
+    if (header) {
+        const userDiv = document.createElement('div');
+        userDiv.innerHTML = userInfoHTML;
+        header.appendChild(userDiv.firstElementChild);
+    }
+    
+    // Hide features based on role
+    if (currentUser.role === 'viewer') {
+        // Viewers can only view and export
+        hideElement('addItemBtn');
+        hideElement('syncPimBtn');
+        hideElement('importQpiBtn');
+        hideElement('syncQpiBtn');
+        hideElement('syncVcBtn');
+        hideElement('syncVariationsBtn');
+        hideElement('syncOnlineBtn');
+        disableEditing();
+    }
+}
+
+function hideElement(id) {
+    const element = document.getElementById(id);
+    if (element) element.style.display = 'none';
+}
+
+function disableEditing() {
+    // Disable delete and edit buttons for viewers
+    document.addEventListener('click', (e) => {
+        if (currentUser.role === 'viewer' && 
+            (e.target.classList.contains('btn-danger') || 
+             e.target.textContent.includes('Delete') ||
+             e.target.textContent.includes('Edit'))) {
+            e.preventDefault();
+            e.stopPropagation();
+            alert('You do not have permission to perform this action.');
+            return false;
+        }
+    }, true);
+}
+
+function logout() {
+    fetch(`${API_BASE}/auth/logout`, { method: 'POST' });
+    localStorage.clear();
+    window.location.href = '/login.html';
+}
+
 // Initialize app
 document.addEventListener('DOMContentLoaded', () => {
+    if (!checkAuth()) return;
+    
     loadItems();
     loadSkus();
     loadCountries();

@@ -7,16 +7,28 @@ const fs = require('fs');
 const csv = require('csv-parser');
 const duckdb = require('duckdb');
 const xlsx = require('xlsx');
+const bcrypt = require('bcryptjs');
+const jwt = require('jsonwebtoken');
+const session = require('express-session');
+const cookieParser = require('cookie-parser');
 const SyncScheduler = require('./syncScheduler');
 
 const app = express();
 const PORT = process.env.PORT || 7777;
+const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
 
 let syncScheduler; // Global sync scheduler instance
 
 // Middleware
 app.use(cors());
 app.use(bodyParser.json());
+app.use(cookieParser());
+app.use(session({
+  secret: JWT_SECRET,
+  resave: false,
+  saveUninitialized: false,
+  cookie: { secure: false, maxAge: 24 * 60 * 60 * 1000 } // 24 hours
+}));
 app.use(express.static('public'));
 
 // Database connection
@@ -28,6 +40,65 @@ const db = new sqlite3.Database('./database.db', (err) => {
     initializeDatabase();
   }
 });
+
+// Create default admin user if no users exist
+function createDefaultAdmin() {
+  db.get('SELECT COUNT(*) as count FROM users', [], async (err, row) => {
+    if (err) {
+      console.error('Error checking users:', err.message);
+      return;
+    }
+    
+    if (row.count === 0) {
+      const defaultPassword = 'admin123'; // Change this in production!
+      const passwordHash = await bcrypt.hash(defaultPassword, 10);
+      
+      db.run(`
+        INSERT INTO users (username, email, password_hash, full_name, role)
+        VALUES (?, ?, ?, ?, ?)
+      `, ['admin', 'admin@listingapp.com', passwordHash, 'System Administrator', 'admin'], (err) => {
+        if (err) {
+          console.error('Error creating default admin:', err.message);
+        } else {
+          console.log('[SETUP] Default admin created - username: admin, password: admin123');
+          console.log('[SECURITY] Please change the default admin password immediately!');
+        }
+      });
+    }
+  });
+}
+
+// Authentication middleware
+function authenticateToken(req, res, next) {
+  const token = req.session.token || req.headers['authorization']?.split(' ')[1];
+  
+  if (!token) {
+    return res.status(401).json({ error: 'Authentication required' });
+  }
+  
+  jwt.verify(token, JWT_SECRET, (err, user) => {
+    if (err) {
+      return res.status(403).json({ error: 'Invalid or expired token' });
+    }
+    req.user = user;
+    next();
+  });
+}
+
+// Role-based access control middleware
+function requireRole(...allowedRoles) {
+  return (req, res, next) => {
+    if (!req.user) {
+      return res.status(401).json({ error: 'Authentication required' });
+    }
+    
+    if (!allowedRoles.includes(req.user.role)) {
+      return res.status(403).json({ error: 'Insufficient permissions' });
+    }
+    
+    next();
+  };
+}
 
 // Initialize database tables
 function initializeDatabase() {
@@ -397,6 +468,27 @@ function initializeDatabase() {
         console.error('Error creating keepa_file_tracking table:', err.message);
       } else {
         console.log('[SETUP] keepa_file_tracking table ready');
+      }
+    });
+    
+    // Users table for authentication
+    db.run(`CREATE TABLE IF NOT EXISTS users (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      username TEXT UNIQUE NOT NULL,
+      email TEXT UNIQUE NOT NULL,
+      password_hash TEXT NOT NULL,
+      full_name TEXT,
+      role TEXT NOT NULL CHECK(role IN ('viewer', 'approver', 'salesperson', 'admin')) DEFAULT 'viewer',
+      is_active BOOLEAN DEFAULT 1,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      last_login DATETIME
+    )`, (err) => {
+      if (err) {
+        console.error('Error creating users table:', err.message);
+      } else {
+        console.log('[SETUP] users table ready');
+        createDefaultAdmin();
       }
     });
 
@@ -3078,6 +3170,216 @@ app.get('/api/reports/:reportType/export', (req, res) => {
 });
 
 // Serve frontend
+// ============ AUTHENTICATION & USER MANAGEMENT ROUTES ============
+
+// Login endpoint
+app.post('/api/auth/login', async (req, res) => {
+  const { username, password } = req.body;
+  
+  if (!username || !password) {
+    return res.status(400).json({ error: 'Username and password required' });
+  }
+  
+  db.get('SELECT * FROM users WHERE username = ? AND is_active = 1', [username], async (err, user) => {
+    if (err) {
+      return res.status(500).json({ error: err.message });
+    }
+    
+    if (!user) {
+      return res.status(401).json({ error: 'Invalid credentials' });
+    }
+    
+    const validPassword = await bcrypt.compare(password, user.password_hash);
+    if (!validPassword) {
+      return res.status(401).json({ error: 'Invalid credentials' });
+    }
+    
+    // Update last login
+    db.run('UPDATE users SET last_login = CURRENT_TIMESTAMP WHERE id = ?', [user.id]);
+    
+    // Create JWT token
+    const token = jwt.sign(
+      { 
+        id: user.id, 
+        username: user.username, 
+        role: user.role,
+        email: user.email,
+        full_name: user.full_name
+      },
+      JWT_SECRET,
+      { expiresIn: '24h' }
+    );
+    
+    req.session.token = token;
+    req.session.user = {
+      id: user.id,
+      username: user.username,
+      role: user.role,
+      email: user.email,
+      full_name: user.full_name
+    };
+    
+    res.json({
+      token,
+      user: {
+        id: user.id,
+        username: user.username,
+        email: user.email,
+        full_name: user.full_name,
+        role: user.role
+      }
+    });
+  });
+});
+
+// Logout endpoint
+app.post('/api/auth/logout', (req, res) => {
+  req.session.destroy();
+  res.json({ message: 'Logged out successfully' });
+});
+
+// Get current user
+app.get('/api/auth/me', authenticateToken, (req, res) => {
+  db.get('SELECT id, username, email, full_name, role, last_login FROM users WHERE id = ?', 
+    [req.user.id], 
+    (err, user) => {
+      if (err) {
+        return res.status(500).json({ error: err.message });
+      }
+      if (!user) {
+        return res.status(404).json({ error: 'User not found' });
+      }
+      res.json(user);
+    }
+  );
+});
+
+// Get all users (Admin only)
+app.get('/api/users', authenticateToken, requireRole('admin'), (req, res) => {
+  db.all('SELECT id, username, email, full_name, role, is_active, created_at, last_login FROM users ORDER BY created_at DESC', 
+    [], 
+    (err, users) => {
+      if (err) {
+        return res.status(500).json({ error: err.message });
+      }
+      res.json(users);
+    }
+  );
+});
+
+// Create user (Admin only)
+app.post('/api/users', authenticateToken, requireRole('admin'), async (req, res) => {
+  const { username, email, password, full_name, role } = req.body;
+  
+  if (!username || !email || !password || !role) {
+    return res.status(400).json({ error: 'Username, email, password, and role are required' });
+  }
+  
+  const validRoles = ['viewer', 'approver', 'salesperson', 'admin'];
+  if (!validRoles.includes(role)) {
+    return res.status(400).json({ error: 'Invalid role' });
+  }
+  
+  try {
+    const passwordHash = await bcrypt.hash(password, 10);
+    
+    db.run(`
+      INSERT INTO users (username, email, password_hash, full_name, role)
+      VALUES (?, ?, ?, ?, ?)
+    `, [username, email, passwordHash, full_name, role], function(err) {
+      if (err) {
+        if (err.message.includes('UNIQUE')) {
+          return res.status(400).json({ error: 'Username or email already exists' });
+        }
+        return res.status(500).json({ error: err.message });
+      }
+      
+      res.json({
+        id: this.lastID,
+        username,
+        email,
+        full_name,
+        role,
+        message: 'User created successfully'
+      });
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Update user (Admin only)
+app.put('/api/users/:id', authenticateToken, requireRole('admin'), async (req, res) => {
+  const { id } = req.params;
+  const { email, full_name, role, is_active, password } = req.body;
+  
+  const updates = [];
+  const params = [];
+  
+  if (email !== undefined) {
+    updates.push('email = ?');
+    params.push(email);
+  }
+  if (full_name !== undefined) {
+    updates.push('full_name = ?');
+    params.push(full_name);
+  }
+  if (role !== undefined) {
+    const validRoles = ['viewer', 'approver', 'salesperson', 'admin'];
+    if (!validRoles.includes(role)) {
+      return res.status(400).json({ error: 'Invalid role' });
+    }
+    updates.push('role = ?');
+    params.push(role);
+  }
+  if (is_active !== undefined) {
+    updates.push('is_active = ?');
+    params.push(is_active ? 1 : 0);
+  }
+  if (password) {
+    const passwordHash = await bcrypt.hash(password, 10);
+    updates.push('password_hash = ?');
+    params.push(passwordHash);
+  }
+  
+  if (updates.length === 0) {
+    return res.status(400).json({ error: 'No fields to update' });
+  }
+  
+  updates.push('updated_at = CURRENT_TIMESTAMP');
+  params.push(id);
+  
+  db.run(`UPDATE users SET ${updates.join(', ')} WHERE id = ?`, params, function(err) {
+    if (err) {
+      return res.status(500).json({ error: err.message });
+    }
+    if (this.changes === 0) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    res.json({ message: 'User updated successfully' });
+  });
+});
+
+// Delete user (Admin only)
+app.delete('/api/users/:id', authenticateToken, requireRole('admin'), (req, res) => {
+  const { id } = req.params;
+  
+  // Prevent deleting own account
+  if (parseInt(id) === req.user.id) {
+    return res.status(400).json({ error: 'Cannot delete your own account' });
+  }
+  
+  db.run('DELETE FROM users WHERE id = ?', [id], function(err) {
+    if (err) {
+      return res.status(500).json({ error: err.message });
+    }
+    if (this.changes === 0) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    res.json({ message: 'User deleted successfully' });
+  });
+});
+
 app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
