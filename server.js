@@ -2001,14 +2001,32 @@ app.post('/api/sync/online', (req, res) => {
       
       function processFiles(filesToProcess, index) {
         if (index >= filesToProcess.length) {
-          // All done
-          res.json({
-            message: 'Keepa sync completed',
-            total_files: files.length,
-            files_processed: filesProcessed,
-            files_skipped: filesSkipped,
-            asins_found: totalAsinsFound,
-            asins_online: totalAsinsOnline
+          // All done - now update stage_6_product_online for all ASINs that are online
+          db.run(`
+            UPDATE products 
+            SET stage_6_product_online = 1,
+                updated_at = CURRENT_TIMESTAMP
+            WHERE asin IN (
+              SELECT DISTINCT asin FROM asin_online_status
+            )
+          `, function(err) {
+            const productsMarkedOnline = err ? 0 : this.changes;
+            
+            if (err) {
+              console.error('[KEEPA SYNC] Error updating stage_6_product_online:', err.message);
+            } else {
+              console.log(`[KEEPA SYNC] Updated stage_6_product_online for ${productsMarkedOnline} products`);
+            }
+            
+            res.json({
+              message: 'Keepa sync completed',
+              total_files: files.length,
+              files_processed: filesProcessed,
+              files_skipped: filesSkipped,
+              asins_found: totalAsinsFound,
+              asins_online: totalAsinsOnline,
+              products_marked_online: productsMarkedOnline
+            });
           });
           return;
         }
