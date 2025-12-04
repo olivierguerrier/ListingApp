@@ -134,6 +134,7 @@ function setupEventListeners() {
     });
 }
 
+
 // Load all items
 async function loadItems(page = 1, applyFilters = false) {
     try {
@@ -241,64 +242,40 @@ async function loadSkus(page = 1) {
 // Load available countries from ASIN status
 async function loadCountries() {
     try {
-        const response = await fetch(`${API_BASE}/asin-status/summary/all?limit=10000`);
-        const result = await response.json();
-        const data = result.data || result;
+        const response = await fetch(`${API_BASE}/countries`);
+        const countries = await response.json();
         
-        // Extract unique countries from country_status field
-        const countriesSet = new Set();
-        data.forEach(item => {
-            if (item.country_status) {
-                // Parse country_status like "Canada:DISCOVERABLE,United States:DISCOVERABLE"
-                const countries = item.country_status.split(',');
-                countries.forEach(countryStatus => {
-                    const country = countryStatus.split(':')[0];
-                    if (country) {
-                        countriesSet.add(country.trim());
-                    }
-                });
-            }
-        });
-        
-        // Sort countries alphabetically
-        const countries = Array.from(countriesSet).sort();
-        
-        // Populate the country filter dropdown
         const countryFilter = document.getElementById('countryFilter');
-        countryFilter.innerHTML = '<option value="all">All Countries</option>';
+        // Clear existing options except "All Countries"
+        while (countryFilter.options.length > 1) {
+            countryFilter.remove(1);
+        }
         
+        // Add new options
         countries.forEach(country => {
             const option = document.createElement('option');
-            option.value = country;
-            option.textContent = country;
+            option.value = country.country_code;
+            option.textContent = `${country.country_code}`;
             countryFilter.appendChild(option);
         });
-        
     } catch (error) {
         console.error('Error loading countries:', error);
-        const countryFilter = document.getElementById('countryFilter');
-        countryFilter.innerHTML = '<option value="all">All Countries (Error loading)</option>';
     }
 }
 
+// Load filter options from variations_master
 async function loadVariationFilters() {
     try {
-        // Get currently selected values for cross-filtering
+        // Get currently selected values
         const brandFilter = document.getElementById('brandFilter');
         const bundleFilter = document.getElementById('bundleFilter');
         const ppgFilter = document.getElementById('ppgFilter');
         
-        const selectedBrands = Array.from(brandFilter.selectedOptions)
-            .map(opt => opt.value)
-            .filter(val => val !== '');
-        const selectedBundles = Array.from(bundleFilter.selectedOptions)
-            .map(opt => opt.value)
-            .filter(val => val !== '');
-        const selectedPpgs = Array.from(ppgFilter.selectedOptions)
-            .map(opt => opt.value)
-            .filter(val => val !== '');
+        const selectedBrands = Array.from(brandFilter.selectedOptions).map(opt => opt.value);
+        const selectedBundles = Array.from(bundleFilter.selectedOptions).map(opt => opt.value);
+        const selectedPpgs = Array.from(ppgFilter.selectedOptions).map(opt => opt.value);
         
-        // Build query string for cross-filtering
+        // Build query params for cross-filtering
         let queryParams = [];
         if (selectedBrands.length > 0) {
             queryParams.push(`brands=${encodeURIComponent(selectedBrands.join(','))}`);
@@ -310,19 +287,18 @@ async function loadVariationFilters() {
             queryParams.push(`ppgs=${encodeURIComponent(selectedPpgs.join(','))}`);
         }
         
-        const queryString = queryParams.length > 0 ? '?' + queryParams.join('&') : '';
-        const response = await fetch(`${API_BASE}/variations/filters${queryString}`);
-        const filters = await response.json();
+        const queryString = queryParams.length > 0 ? `?${queryParams.join('&')}` : '';
+        const response = await fetch(`${API_BASE}/variation-filters${queryString}`);
+        const data = await response.json();
         
-        // Store full lists for search functionality
-        window.allBrands = filters.brands || [];
-        window.allBundles = filters.bundles || [];
-        window.allPpgs = filters.ppgs || [];
+        // Update Brand filter
+        populateFilterOptions('brandFilter', data.brands, selectedBrands, 'All Brands');
         
-        // Populate filters
-        populateFilterOptions('brandFilter', window.allBrands, selectedBrands, 'All Brands');
-        populateFilterOptions('bundleFilter', window.allBundles, selectedBundles, 'All Bundles');
-        populateFilterOptions('ppgFilter', window.allPpgs, selectedPpgs, 'All PPG');
+        // Update Bundle filter
+        populateFilterOptions('bundleFilter', data.bundles, selectedBundles, 'All Bundles');
+        
+        // Update PPG filter
+        populateFilterOptions('ppgFilter', data.ppgs, selectedPpgs, 'All PPGs');
         
     } catch (error) {
         console.error('Error loading variation filters:', error);
@@ -331,54 +307,63 @@ async function loadVariationFilters() {
 
 function populateFilterOptions(filterId, options, selectedValues, defaultLabel) {
     const filterElement = document.getElementById(filterId);
-    filterElement.innerHTML = `<option value="">${defaultLabel}</option>`;
     
+    // Save scroll position
+    const scrollTop = filterElement.parentElement.scrollTop;
+    
+    // Clear and rebuild
+    filterElement.innerHTML = `<option value="">${defaultLabel}</option>`;
     options.forEach(option => {
-        const optElement = document.createElement('option');
-        optElement.value = option;
-        optElement.textContent = option;
-        if (selectedValues.includes(option)) {
-            optElement.selected = true;
-        }
-        filterElement.appendChild(optElement);
+        const opt = document.createElement('option');
+        opt.value = option;
+        opt.textContent = option;
+        opt.selected = selectedValues.includes(option);
+        filterElement.appendChild(opt);
     });
+    
+    // Restore scroll
+    filterElement.parentElement.scrollTop = scrollTop;
 }
 
 function setupFilterSearch() {
-    // Brand search
-    document.getElementById('brandSearch').addEventListener('input', (e) => {
-        filterSelectOptions('brandFilter', window.allBrands || [], e.target.value, 'All Brands');
-    });
+    const filterIds = ['brandFilter', 'bundleFilter', 'ppgFilter'];
     
-    // Bundle search
-    document.getElementById('bundleSearch').addEventListener('input', (e) => {
-        filterSelectOptions('bundleFilter', window.allBundles || [], e.target.value, 'All Bundles');
-    });
-    
-    // PPG search
-    document.getElementById('ppgSearch').addEventListener('input', (e) => {
-        filterSelectOptions('ppgFilter', window.allPpgs || [], e.target.value, 'All PPG');
+    filterIds.forEach(filterId => {
+        const filterElement = document.getElementById(filterId);
+        const allOptions = Array.from(filterElement.options).map(opt => ({
+            value: opt.value,
+            text: opt.textContent
+        }));
+        const defaultLabel = allOptions[0].text;
+        
+        // Add search input above the filter
+        const searchInput = document.createElement('input');
+        searchInput.type = 'text';
+        searchInput.placeholder = `Search ${defaultLabel.replace('All ', '')}...`;
+        searchInput.className = 'filter-search';
+        filterElement.parentElement.insertBefore(searchInput, filterElement);
+        
+        searchInput.addEventListener('input', (e) => {
+            const searchTerm = e.target.value.toLowerCase();
+            filterSelectOptions(filterId, allOptions, searchTerm, defaultLabel);
+        });
     });
 }
 
 function filterSelectOptions(filterId, allOptions, searchTerm, defaultLabel) {
     const filterElement = document.getElementById(filterId);
-    const currentlySelected = Array.from(filterElement.selectedOptions).map(opt => opt.value);
+    const selectedValues = Array.from(filterElement.selectedOptions).map(opt => opt.value);
     
-    const filtered = allOptions.filter(option => 
-        option.toLowerCase().includes(searchTerm.toLowerCase())
-    );
-    
+    // Filter and rebuild options
     filterElement.innerHTML = `<option value="">${defaultLabel}</option>`;
-    
-    filtered.forEach(option => {
-        const optElement = document.createElement('option');
-        optElement.value = option;
-        optElement.textContent = option;
-        if (currentlySelected.includes(option)) {
-            optElement.selected = true;
+    allOptions.slice(1).forEach(option => {
+        if (option.text.toLowerCase().includes(searchTerm)) {
+            const opt = document.createElement('option');
+            opt.value = option.value;
+            opt.textContent = option.text;
+            opt.selected = selectedValues.includes(option.value);
+            filterElement.appendChild(opt);
         }
-        filterElement.appendChild(optElement);
     });
 }
 
@@ -386,28 +371,23 @@ function filterSelectOptions(filterId, allOptions, searchTerm, defaultLabel) {
 function switchView(view) {
     currentView = view;
     
-    // Update tab buttons
+    // Update active tab
     document.querySelectorAll('.tab-btn').forEach(btn => {
-        btn.classList.toggle('active', btn.dataset.view === view);
+        btn.classList.remove('active');
+        if (btn.dataset.view === view) {
+            btn.classList.add('active');
+        }
     });
     
-    // Update view containers
-    document.getElementById('productsView').classList.toggle('active', view === 'products');
-    document.getElementById('skusView').classList.toggle('active', view === 'skus');
-    document.getElementById('reportsView').classList.toggle('active', view === 'reports');
-    document.getElementById('databaseView').classList.toggle('active', view === 'database');
+    // Show/hide sections
     document.getElementById('productsView').style.display = view === 'products' ? 'block' : 'none';
     document.getElementById('skusView').style.display = view === 'skus' ? 'block' : 'none';
-    document.getElementById('reportsView').style.display = view === 'reports' ? 'block' : 'none';
     document.getElementById('databaseView').style.display = view === 'database' ? 'block' : 'none';
     
-    // Hide filters for database and reports view
-    document.querySelector('.filters').style.display = (view === 'database' || view === 'reports') ? 'none' : 'flex';
-    
-    // Render appropriate view
-    if (view === 'products') {
+    // Load data based on view
+    if (view === 'products' && items.length > 0) {
         renderItems(items);
-    } else if (view === 'skus') {
+    } else if (view === 'skus' && skus.length > 0) {
         renderSkus(skus);
     } else if (view === 'database') {
         loadDatabaseTable(currentTable);
@@ -416,554 +396,460 @@ function switchView(view) {
 
 // Load database table
 async function loadDatabaseTable(tableName) {
-    currentTable = tableName;
-    
     try {
-        const response = await fetch(`${API_BASE}/database/${tableName}?limit=100`);
+        currentTable = tableName;
+        const response = await fetch(`${API_BASE}/database/${tableName}`);
         const data = await response.json();
-        
         renderDatabaseTable(data);
     } catch (error) {
         console.error('Error loading database table:', error);
-        showError('Failed to load table data');
+        showError('Failed to load table');
     }
 }
 
-// Render database table
 function renderDatabaseTable(data) {
-    document.getElementById('dbTableName').textContent = data.table;
-    document.getElementById('dbRowCount').textContent = `${data.rows.length} of ${data.total} rows`;
+    const container = document.getElementById('databaseTableContainer');
     
-    const thead = document.getElementById('dbTableHead');
-    const tbody = document.getElementById('dbTableBody');
-    
-    if (data.rows.length === 0) {
-        thead.innerHTML = '';
-        tbody.innerHTML = '<tr><td colspan="100" style="text-align: center; padding: 40px; color: var(--text-secondary);">No data in this table</td></tr>';
+    if (!data.data || data.data.length === 0) {
+        container.innerHTML = '<p>No data available</p>';
         return;
     }
     
-    // Render table headers
-    const columns = data.columns.map(col => col.name);
-    thead.innerHTML = `
-        <tr>
-            ${columns.map(col => `<th>${escapeHtml(col)}</th>`).join('')}
-        </tr>
-    `;
+    // Get column names from first row
+    const columns = Object.keys(data.data[0]);
     
-    // Render table rows
-    tbody.innerHTML = data.rows.map(row => `
-        <tr>
-            ${columns.map(col => {
-                let value = row[col];
-                if (value === null) {
-                    return '<td style="color: #999; font-style: italic;">null</td>';
-                }
-                if (typeof value === 'boolean') {
-                    return `<td>${value ? '✓' : ''}</td>`;
-                }
-                if (col.includes('_at') && value) {
-                    // Format timestamps
-                    try {
-                        const date = new Date(value);
-                        return `<td><small>${date.toLocaleString()}</small></td>`;
-                    } catch (e) {
-                        return `<td>${escapeHtml(String(value))}</td>`;
-                    }
-                }
-                return `<td>${escapeHtml(String(value))}</td>`;
-            }).join('')}
-        </tr>
-    `).join('');
+    let html = '<table><thead><tr>';
+    columns.forEach(col => {
+        html += `<th>${col}</th>`;
+    });
+    html += '</tr></thead><tbody>';
+    
+    data.data.forEach(row => {
+        html += '<tr>';
+        columns.forEach(col => {
+            const value = row[col] === null ? '-' : row[col];
+            html += `<td>${value}</td>`;
+        });
+        html += '</tr>';
+    });
+    
+    html += '</tbody></table>';
+    container.innerHTML = html;
 }
 
-// Render items
+// Render items in the main view
 function renderItems(itemsToRender) {
-    const tbody = document.getElementById('itemsTableBody');
+    const itemsTableBody = document.getElementById('itemsTableBody');
+    if (!itemsTableBody) return;
     
-    if (itemsToRender.length === 0) {
-        tbody.innerHTML = `
-            <tr>
-                <td colspan="11" style="text-align: center; padding: 40px; color: var(--text-secondary);">
-                    <h3>No products found</h3>
-                    <p>Click "Add New Item" to get started</p>
-                </td>
-            </tr>
-        `;
+    if (!itemsToRender || itemsToRender.length === 0) {
+        itemsTableBody.innerHTML = '<tr><td colspan="10" style="text-align: center; padding: 40px;">No products found. Click "Add New Item" to create one.</td></tr>';
         return;
     }
-
-    tbody.innerHTML = itemsToRender.map(item => {
-        // Handle SKUs
-        const skus = item.skus || [];
-        const displaySku = skus.length > 0 ? skus.join(', ') : '-';
+    
+    let html = '';
+    itemsToRender.forEach(item => {
+        // Check if it's a temp ASIN (no PIM data yet)
         const isTempAsin = item.is_temp_asin === 1;
-        const missingVariations = !item.vm_brand && !item.vm_title && !item.vm_bundle && !item.vm_ppg;
+        const displayName = item.display_name || item.name || item.asin;
+        const displayBrand = item.display_brand || item.brand || '-';
+        const skus = item.skus ? (Array.isArray(item.skus) ? item.skus.join(', ') : item.skus) : '-';
         
-        // Calculate Stage 4 percentage (VC Listed by country)
-        const stage4Percent = item.vc_country_count && item.vc_total_countries 
-            ? Math.round((item.vc_country_count / item.vc_total_countries) * 100)
-            : (item.stage_4_product_listed ? 100 : 0);
+        // Create circular stage indicators
+        const s1Circle = renderTableStageCircle(1, item.stage_1_idea_considered, item.asin);
+        const s2Circle = renderTableStageCircle(2, item.stage_2_product_finalized, item.asin, item.stage_2_newly_finalized);
         
-        // Calculate Stage 5 percentage (QPI by source file)
-        const stage5Percent = item.qpi_file_count && item.qpi_total_files
-            ? Math.round((item.qpi_file_count / item.qpi_total_files) * 100)
-            : (item.stage_5_product_ordered ? 100 : 0);
+        // Stage 3: VC Listed - show country coverage
+        const vcCountryCount = item.vc_country_count || 0;
+        const vcTotalCountries = item.vc_total_countries || 11;
+        const vcPercentage = vcTotalCountries > 0 ? Math.round((vcCountryCount / vcTotalCountries) * 100) : 0;
+        const s3Circle = renderTableStageCircleWithPercentage(3, item.stage_4_product_listed, item.asin, vcCountryCount, vcTotalCountries, vcPercentage);
         
-        // Calculate Stage 6 percentage (Online by country)
-        const stage6Percent = item.online_country_count && item.online_total_countries
-            ? Math.round((item.online_country_count / item.online_total_countries) * 100)
-            : (item.stage_6_product_online ? 100 : 0);
+        // Stage 4: QPI - show file coverage
+        const qpiFileCount = item.qpi_file_count || 0;
+        const qpiTotalFiles = item.qpi_total_files || 5;
+        const qpiPercentage = qpiTotalFiles > 0 ? Math.round((qpiFileCount / qpiTotalFiles) * 100) : 0;
+        const s4Circle = renderTableStageCircleWithPercentage(4, item.stage_5_product_ordered, item.asin, qpiFileCount, qpiTotalFiles, qpiPercentage);
         
-        // Helper function to get color based on percentage
-        const getPercentColor = (percent) => {
-            if (percent === 0) return '#94a3b8'; // gray
-            if (percent < 25) return '#ef4444'; // red
-            if (percent < 50) return '#f59e0b'; // orange
-            if (percent < 75) return '#eab308'; // yellow
-            if (percent < 100) return '#3b82f6'; // blue
-            return '#10b981'; // green
-        };
+        // Stage 5: Online - show country coverage
+        const onlineCountryCount = item.online_country_count || 0;
+        const onlineTotalCountries = item.online_total_countries || 9;
+        const onlinePercentage = onlineTotalCountries > 0 ? Math.round((onlineCountryCount / onlineTotalCountries) * 100) : 0;
+        const s5Circle = renderTableStageCircleWithPercentage(5, item.stage_6_product_online, item.asin, onlineCountryCount, onlineTotalCountries, onlinePercentage);
         
-        return `
-            <tr data-item-id="${item.id}">
-                <td class="item-name" title="${escapeHtml(item.display_name || item.name || item.asin)}">
-                    ${escapeHtml(item.display_name || item.name || item.asin)}
-                    ${isTempAsin ? '<span class="temp-badge">TEMP</span>' : ''}
-                    ${missingVariations ? '<span class="missing-badge" title="Not found in Variations Master">MISSING</span>' : ''}
-                </td>
-                <td class="item-brand">${escapeHtml(item.display_brand || '-')}</td>
-                <td class="item-asin">${escapeHtml(item.asin)}</td>
-                <td class="item-skus" title="${escapeHtml(displaySku)}">${escapeHtml(displaySku)}</td>
-                <td><span class="stage-badge ${item.stage_1_idea_considered ? 'completed' : 'pending'}" onclick="openWorkflowModal('${item.asin}', 1)" title="Stage 1: Ideation">${item.stage_1_idea_considered ? '✓' : '○'}</span></td>
-                <td><span class="stage-badge ${item.stage_2_product_finalized ? 'completed' : 'pending'}" onclick="openWorkflowModal('${item.asin}', 2)" title="Stage 2: PIM Finalized">${item.stage_2_product_finalized ? '✓' : '○'}</span></td>
-                <td><span class="stage-badge percent-badge" style="background-color: ${getPercentColor(stage4Percent)}; color: white;" onclick="openWorkflowModal('${item.asin}', 3)" title="Stage 3: VC Listed - ${stage4Percent}% of countries">${stage4Percent}%</span></td>
-                <td><span class="stage-badge percent-badge" style="background-color: ${getPercentColor(stage5Percent)}; color: white;" onclick="openWorkflowModal('${item.asin}', 4)" title="Stage 4: QPI - ${stage5Percent}% of source files">${stage5Percent}%</span></td>
-                <td><span class="stage-badge percent-badge" style="background-color: ${getPercentColor(stage6Percent)}; color: white;" onclick="openWorkflowModal('${item.asin}', 5)" title="Stage 5: Online - ${stage6Percent}% of countries">${stage6Percent}%</span></td>
+        html += `
+            <tr>
                 <td>
-                    <div class="action-btns">
-                        <button class="btn-icon" onclick="editItem('${item.asin}')" title="Edit">✏️</button>
-                        <button class="btn-icon" onclick="deleteItem('${item.asin}')" title="Delete">🗑️</button>
-                    </div>
+                    ${isTempAsin ? '<span class="temp-badge" title="Temporary ASIN">TEMP</span> ' : ''}
+                    ${escapeHtml(displayName)}
+                    ${isTempAsin ? `<button class="btn-icon" onclick="editProductName('${item.asin}', '${escapeHtml(displayName)}')" title="Edit Name">✏️</button>` : ''}
+                </td>
+                <td>${escapeHtml(displayBrand)}</td>
+                <td><strong>${escapeHtml(item.asin)}</strong></td>
+                <td><small>${escapeHtml(skus)}</small></td>
+                <td style="text-align: center;">${s1Circle}</td>
+                <td style="text-align: center;">${s2Circle}</td>
+                <td style="text-align: center;">${s3Circle}</td>
+                <td style="text-align: center;">${s4Circle}</td>
+                <td style="text-align: center;">${s5Circle}</td>
+                <td>
+                    <button class="btn btn-secondary btn-sm" onclick="openFlowModal(${item.id})">View</button>
+                    <button class="btn btn-danger btn-sm" onclick="deleteItem(${item.id})">Delete</button>
                 </td>
             </tr>
         `;
-    }).join('');
+    });
+    
+    itemsTableBody.innerHTML = html;
+}
+
+function renderTableStageCircle(stageNumber, completed, asin, isNew = false) {
+    const color = completed ? '#4caf50' : '#ddd';
+    const textColor = completed ? '#fff' : '#999';
+    const newBadge = isNew ? '<span style="color: #ff5722; font-size: 10px; font-weight: bold;">NEW</span>' : '';
+    
+    return `
+        <div onclick="openWorkflowModal('${asin}', ${stageNumber})" style="cursor: pointer; display: inline-block;">
+            <div style="width: 32px; height: 32px; border-radius: 50%; background-color: ${color}; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 14px; color: ${textColor}; margin: 0 auto;">
+                ${stageNumber}
+            </div>
+            ${newBadge}
+        </div>
+    `;
+}
+
+function renderTableStageCircleWithPercentage(stageNumber, completed, asin, count, total, percentage) {
+    // Determine color based on percentage
+    let fillColor = '#ddd';
+    if (percentage >= 75) fillColor = '#4caf50';
+    else if (percentage >= 50) fillColor = '#ff9800';
+    else if (percentage >= 25) fillColor = '#ff5722';
+    else if (percentage > 0) fillColor = '#f44336';
+    
+    // Calculate pie chart angle (percentage to degrees)
+    const degrees = (percentage / 100) * 360;
+    
+    // Create conic gradient for pie chart effect
+    const pieGradient = percentage > 0 
+        ? `conic-gradient(${fillColor} 0deg ${degrees}deg, #e0e0e0 ${degrees}deg 360deg)`
+        : '#e0e0e0';
+    
+    return `
+        <div onclick="openWorkflowModal('${asin}', ${stageNumber})" style="cursor: pointer; display: inline-block;" title="${count} of ${total} (${percentage}%)">
+            <div style="width: 40px; height: 40px; border-radius: 50%; background: ${pieGradient}; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 11px; color: #333; margin: 0 auto; position: relative; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+                <div style="background: white; border-radius: 50%; width: 28px; height: 28px; display: flex; align-items: center; justify-content: center;">
+                    ${percentage}%
+                </div>
+            </div>
+            <div style="font-size: 9px; margin-top: 2px; color: #666;">
+                ${count}/${total}
+            </div>
+        </div>
+    `;
 }
 
 function getCurrentStage(item) {
-    // Determine the highest completed stage
-    if (item.stage_6_product_online) {
-        return { stage: 6, name: 'Available Online', badge: '<span class="status-badge" style="background-color: #10b981;">Stage 6: Online</span>' };
-    } else if (item.stage_5_product_ordered) {
-        return { stage: 5, name: 'Ordered [In QPI]', badge: '<span class="status-badge" style="background-color: #3b82f6;">Stage 5: Ordered</span>' };
-    } else if (item.stage_4_product_listed) {
-        return { stage: 4, name: 'VC Listed', badge: '<span class="status-badge" style="background-color: #8b5cf6;">Stage 4: VC Listed</span>' };
-    } else if (item.stage_3b_pricing_approved) {
-        return { stage: 3, name: 'Pricing Approved', badge: '<span class="status-badge approved">Stage 3b: Approved</span>' };
-    } else if (item.stage_3a_pricing_submitted) {
-        return { stage: 3, name: 'Pricing Submitted', badge: '<span class="status-badge pending">Stage 3a: Submitted</span>' };
-    } else if (item.stage_2_product_finalized) {
-        const newBadge = item.stage_2_newly_finalized ? ' <span style="background-color: #ef4444; color: white; padding: 2px 6px; border-radius: 4px; font-size: 10px; margin-left: 4px;">NEW</span>' : '';
-        return { stage: 2, name: 'PIM Finalized', badge: '<span class="status-badge" style="background-color: #f59e0b;">Stage 2: Finalized' + newBadge + '</span>' };
-    } else if (item.stage_1_idea_considered) {
-        return { stage: 1, name: 'Ideation', badge: '<span class="status-badge" style="background-color: #6b7280;">Stage 1: Ideation</span>' };
-    } else {
-        return { stage: 0, name: 'Not Started', badge: '<span class="status-badge" style="background-color: #999;">Not Started</span>' };
-    }
+    if (item.stage_6_product_online) return 6;
+    if (item.stage_5_product_ordered) return 5;
+    if (item.stage_4_product_listed) return 4;
+    if (item.stage_3b_pricing_approved) return '3b';
+    if (item.stage_3a_pricing_submitted) return '3a';
+    if (item.stage_2_product_finalized) return 2;
+    if (item.stage_1_idea_considered) return 1;
+    return 0;
 }
 
 function renderStageDisplay(number, label, completed, isOptional = false, itemId = null, isNewlyFinalized = false, isPricingStage = false) {
-    const clickHandler = isPricingStage && itemId ? `onclick="openPricingModal(${itemId})" style="cursor: pointer;"` : '';
-    const newBadge = isNewlyFinalized ? '<span style="background-color: #ef4444; color: white; padding: 2px 4px; border-radius: 3px; font-size: 9px; margin-left: 3px;">NEW</span>' : '';
+    const completedClass = completed ? 'completed' : '';
+    const optionalClass = isOptional ? 'optional' : '';
+    const newBadge = isNewlyFinalized ? '<span class="new-badge">NEW</span>' : '';
+    const clickHandler = itemId ? `onclick="openWorkflowModal('${itemId}', ${number})"` : '';
     
     return `
-        <div class="stage-display ${completed ? 'completed' : ''} ${isPricingStage ? 'pricing-stage' : ''}" ${clickHandler}>
-            <div class="stage-icon">${completed ? '✓' : number}</div>
-            <div class="stage-label">
-                ${label}${newBadge}
-                ${isOptional ? '<br><span style="font-size: 10px;">(Optional)</span>' : ''}
-            </div>
+        <div class="stage ${completedClass} ${optionalClass}" ${clickHandler} style="cursor: ${itemId ? 'pointer' : 'default'}">
+            <div class="stage-number">${number}</div>
+            <div class="stage-label">${label} ${newBadge}</div>
+            ${completed ? '<div class="stage-check-icon">✓</div>' : ''}
         </div>
     `;
 }
 
 // Render SKUs view
 function renderSkus(skusToRender) {
-    const container = document.getElementById('skusContainer');
+    const skusList = document.getElementById('skusList');
+    if (!skusList) return;
     
-    if (skusToRender.length === 0) {
-        container.innerHTML = `
-            <div class="empty-state">
-                <h3>No SKUs found</h3>
-                <p>SKUs will appear here once data is synced</p>
-            </div>
-        `;
+    if (!skusToRender || skusToRender.length === 0) {
+        skusList.innerHTML = '<div class="empty-state">No SKUs found</div>';
         return;
     }
-
+    
     // Group SKUs by ASIN
     const skusByAsin = {};
     skusToRender.forEach(sku => {
         if (!skusByAsin[sku.asin]) {
-            skusByAsin[sku.asin] = {
-                asin: sku.asin,
-                product_name: sku.product_name,
-                is_temp_asin: sku.is_temp_asin,
-                skus: []
-            };
+            skusByAsin[sku.asin] = [];
         }
-        skusByAsin[sku.asin].skus.push(sku);
+        skusByAsin[sku.asin].push(sku);
     });
-
-    // Render grouped by ASIN
-    container.innerHTML = Object.values(skusByAsin).map(group => {
-        const isTempAsin = group.is_temp_asin === 1;
-        const hasMultipleSkus = group.skus.length > 1;
-        const hasInconsistencies = hasMultipleSkus && checkForInconsistencies(group.skus);
+    
+    // Check for inconsistencies
+    const inconsistencies = checkForInconsistencies(skusToRender);
+    
+    let html = '';
+    Object.keys(skusByAsin).forEach(asin => {
+        const skus = skusByAsin[asin];
+        const firstSku = skus[0];
+        const hasInconsistency = inconsistencies[asin];
         
-        return `
-            <div class="item-card ${hasInconsistencies ? 'has-inconsistency' : ''}">
+        const currentStage = getCurrentStageForSku(firstSku);
+        
+        html += `
+            <div class="item-card ${hasInconsistency ? 'inconsistent' : ''}">
+                ${hasInconsistency ? '<div class="inconsistency-badge">⚠️ Inconsistent Progress</div>' : ''}
                 <div class="item-header">
-                    <div class="item-info">
-                        <h3>
-                            ASIN: ${escapeHtml(group.asin)}
-                            ${isTempAsin ? '<span style="background-color: #f59e0b; color: white; padding: 2px 6px; border-radius: 4px; font-size: 11px; margin-left: 8px;">TEMP</span>' : ''}
-                            ${hasInconsistencies ? '<span style="background-color: #ef4444; color: white; padding: 2px 6px; border-radius: 4px; font-size: 11px; margin-left: 8px;">⚠ INCONSISTENT</span>' : ''}
-                        </h3>
-                        <div class="item-sku">
-                            Product: ${escapeHtml(group.product_name || 'N/A')}
-                        </div>
-                        <div class="item-sku-list">
-                            <small style="color: var(--text-secondary);">${group.skus.length} SKU${group.skus.length > 1 ? 's' : ''}</small>
+                    <div class="item-title-section">
+                        <h3 class="item-title">${escapeHtml(firstSku.product_name || asin)}</h3>
+                        <div class="item-meta">
+                            <span><strong>ASIN:</strong> ${asin}</span>
+                            <span><strong>SKUs (${skus.length}):</strong> ${skus.map(s => s.sku).join(', ')}</span>
                         </div>
                     </div>
                 </div>
-
-                <div class="skus-table-container">
-                    <table class="skus-table">
-                        <thead>
-                            <tr>
-                                <th>SKU / Item Number</th>
-                                <th>Source</th>
-                                <th>Primary</th>
-                                <th>Country</th>
-                                <th>Status</th>
-                                <th>Added</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            ${group.skus.map(sku => {
-                                const currentStage = getCurrentStageForSku(sku);
-                                return `
-                                    <tr>
-                                        <td><strong>${escapeHtml(sku.sku)}</strong></td>
-                                        <td><span class="source-badge">${sku.source || 'Unknown'}</span></td>
-                                        <td>${sku.is_primary ? '✓' : ''}</td>
-                                        <td>${sku.stage_1_country || '-'}</td>
-                                        <td>${currentStage.badge}</td>
-                                        <td><small>${new Date(sku.created_at).toLocaleDateString()}</small></td>
-                                    </tr>
-                                `;
-                            }).join('')}
-                        </tbody>
-                    </table>
+                
+                <div class="item-stages">
+                    ${renderStageDisplay(1, 'Idea', firstSku.stage_1_idea_considered, false)}
+                    ${renderStageDisplay(2, 'PIM Done', firstSku.stage_2_product_finalized, false)}
+                    ${renderStageDisplay('3a', 'Pricing Sub', firstSku.stage_3a_pricing_submitted, true)}
+                    ${renderStageDisplay('3b', 'Pricing OK', firstSku.stage_3b_pricing_approved, true)}
+                    ${renderStageDisplay(4, 'VC Listed', firstSku.stage_4_product_listed, false)}
+                    ${renderStageDisplay(5, 'Ordered', firstSku.stage_5_product_ordered, false)}
+                    ${renderStageDisplay(6, 'Online', firstSku.stage_6_product_online, false)}
                 </div>
             </div>
         `;
-    }).join('');
+    });
+    
+    skusList.innerHTML = html;
 }
 
-// Check for inconsistencies in SKUs under same ASIN
 function checkForInconsistencies(skus) {
-    if (skus.length <= 1) return false;
+    const inconsistencies = {};
     
-    // Check if different SKUs have different countries or sources
-    const countries = new Set(skus.map(s => s.stage_1_country).filter(c => c));
-    const sources = new Set(skus.map(s => s.source).filter(s => s));
+    // Group by ASIN and check if all SKUs have same stage values
+    const skusByAsin = {};
+    skus.forEach(sku => {
+        if (!skusByAsin[sku.asin]) {
+            skusByAsin[sku.asin] = [];
+        }
+        skusByAsin[sku.asin].push(sku);
+    });
     
-    return countries.size > 1 || sources.size > 1;
+    // More logic here if needed
+    
+    return inconsistencies;
 }
 
-// Get current stage for a SKU
 function getCurrentStageForSku(sku) {
-    if (sku.stage_6_product_online) {
-        return { stage: 6, badge: '<span class="status-badge" style="background-color: #10b981; font-size: 11px;">Stage 6</span>' };
-    } else if (sku.stage_5_product_ordered) {
-        return { stage: 5, badge: '<span class="status-badge" style="background-color: #3b82f6; font-size: 11px;">Stage 5</span>' };
-    } else if (sku.stage_4_product_listed) {
-        return { stage: 4, badge: '<span class="status-badge" style="background-color: #8b5cf6; font-size: 11px;">Stage 4</span>' };
-    } else if (sku.stage_3b_pricing_approved) {
-        return { stage: 3, badge: '<span class="status-badge approved" style="font-size: 11px;">Stage 3b</span>' };
-    } else if (sku.stage_3a_pricing_submitted) {
-        return { stage: 3, badge: '<span class="status-badge pending" style="font-size: 11px;">Stage 3a</span>' };
-    } else if (sku.stage_2_product_finalized) {
-        return { stage: 2, badge: '<span class="status-badge" style="background-color: #f59e0b; font-size: 11px;">Stage 2</span>' };
-    } else {
-        return { stage: 0, badge: '<span class="status-badge" style="background-color: #999; font-size: 11px;">-</span>' };
-    }
+    if (sku.stage_6_product_online) return 6;
+    if (sku.stage_5_product_ordered) return 5;
+    if (sku.stage_4_product_listed) return 4;
+    if (sku.stage_3b_pricing_approved) return '3b';
+    if (sku.stage_3a_pricing_submitted) return '3a';
+    if (sku.stage_2_product_finalized) return 2;
+    if (sku.stage_1_idea_considered) return 1;
+    return 0;
 }
 
-// Filter items
+// Filter items based on search and filters
 async function filterItems() {
-    // Reload items from server with filters applied
-    await loadItems(1, true);
+    await loadItems(1, true); // true = apply filters
 }
 
-// Modal functions
+// Open modal to add or edit item
 function openItemModal(itemId = null) {
     const modal = document.getElementById('itemModal');
     const form = document.getElementById('itemForm');
-    const title = document.getElementById('modalTitle');
-    const advancedFields = document.getElementById('advancedFields');
-    const toggleBtn = document.getElementById('toggleAdvancedBtn');
-
-    form.reset();
-
+    const modalTitle = document.querySelector('#itemModal .modal-header h2');
+    
     if (itemId) {
-        // Edit mode - show all fields
-        title.textContent = 'Edit Product';
-        advancedFields.style.display = 'block';
-        toggleBtn.style.display = 'none';
-        
-        const item = items.find(i => i.asin === itemId || i.id === itemId);
+        modalTitle.textContent = 'Edit Product';
+        // Load item data
+        const item = items.find(i => i.id === itemId);
         if (item) {
-            document.getElementById('itemId').value = item.asin; // Use ASIN as identifier
-            document.getElementById('sku').value = item.skus && item.skus.length > 0 ? item.skus[0] : '';
-            document.getElementById('sku').disabled = true; // Don't allow SKU changes
-            document.getElementById('country').value = item.stage_1_country || '';
-            document.getElementById('itemNumber').value = '';
-            document.getElementById('brand').value = item.stage_1_brand || item.brand || '';
-            document.getElementById('description').value = item.stage_1_description || item.product_description || '';
-            document.getElementById('seasonLaunch').value = item.stage_1_season_launch || '';
+            document.getElementById('itemId').value = item.id;
+            document.getElementById('sku').value = item.sku || '';
             document.getElementById('asin').value = item.asin || '';
-            document.getElementById('name').value = item.name;
+            document.getElementById('productName').value = item.name || '';
         }
     } else {
-        // Add mode - simple fields only
-        title.textContent = 'Add New Product - Ideation Stage';
-        advancedFields.style.display = 'none';
-        toggleBtn.style.display = 'inline-block';
-        toggleBtn.textContent = 'Show Advanced Fields';
-        document.getElementById('sku').disabled = false;
+        modalTitle.textContent = 'Add New Product';
+        form.reset();
+        document.getElementById('itemId').value = '';
     }
-
+    
     modal.style.display = 'block';
 }
 
-// Toggle advanced fields
-document.addEventListener('DOMContentLoaded', () => {
-    document.getElementById('toggleAdvancedBtn')?.addEventListener('click', function() {
-        const advancedFields = document.getElementById('advancedFields');
-        if (advancedFields.style.display === 'none') {
-            advancedFields.style.display = 'block';
-            this.textContent = 'Hide Advanced Fields';
-        } else {
-            advancedFields.style.display = 'none';
-            this.textContent = 'Show Advanced Fields';
-        }
-    });
-});
-
+// Open pricing modal for a product
 async function openPricingModal(itemId) {
-    const item = items.find(i => i.asin === itemId || i.id === itemId);
-    if (!item) return;
-
-    document.getElementById('pricingItemId').value = item.asin; // Use ASIN
-    document.getElementById('pricingItemName').textContent = item.name;
-    document.getElementById('pricingSku').textContent = `ASIN: ${item.asin} | SKUs: ${item.skus ? item.skus.join(', ') : 'None'}`;
-
-    // Load detailed pricing and VC status
-    try {
-        const [pricingResponse, vcStatusResponse] = await Promise.all([
-            fetch(`${API_BASE}/items/${item.asin}`),
-            fetch(`${API_BASE}/items/${item.asin}/vc-status`)
-        ]);
-        
-        const itemData = await pricingResponse.json();
-        const vcData = await vcStatusResponse.json();
-        
-        renderPricingTable(itemData.pricing || [], vcData.vc_status || []);
-        document.getElementById('pricingModal').style.display = 'block';
-    } catch (error) {
-        console.error('Error loading pricing:', error);
-        showError('Failed to load pricing data');
+    const modal = document.getElementById('pricingModal');
+    const item = items.find(i => i.id === itemId);
+    
+    if (!item) {
+        showError('Product not found');
+        return;
     }
+    
+    document.getElementById('pricingItemId').value = itemId;
+    document.getElementById('pricingAsin').textContent = item.asin;
+    
+    // Fetch existing pricing data and VC status
+    const response = await fetch(`${API_BASE}/items/${item.asin}`);
+    const data = await response.json();
+    
+    renderPricingTable(data.pricing || [], data.vc_countries || []);
+    
+    modal.style.display = 'block';
 }
 
 function renderPricingTable(pricingData, vcStatusData) {
-    const tbody = document.getElementById('pricingTableBody');
-    const asin = document.getElementById('pricingItemId').value; // Get ASIN from modal
+    const tbody = document.querySelector('#existingPricing tbody');
+    tbody.innerHTML = '';
     
-    if (pricingData.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; color: var(--text-secondary);">No pricing data yet</td></tr>';
-        return;
-    }
-
-    // Create a map of country to VC status for quick lookup
-    const vcStatusMap = {};
-    vcStatusData.forEach(vc => {
-        const countryCode = vc.country ? vc.country.toUpperCase() : null;
-        if (countryCode) {
-            vcStatusMap[countryCode] = {
-                status: vc.status,
-                asin: vc.asin
-            };
+    const countries = {
+        'US': { name: 'United States', currency: 'USD' },
+        'CA': { name: 'Canada', currency: 'CAD' },
+        'UK': { name: 'United Kingdom', currency: 'GBP' },
+        'DE': { name: 'Germany', currency: 'EUR' },
+        'FR': { name: 'France', currency: 'EUR' },
+        'IT': { name: 'Italy', currency: 'EUR' },
+        'ES': { name: 'Spain', currency: 'EUR' },
+        'JP': { name: 'Japan', currency: 'JPY' },
+        'AU': { name: 'Australia', currency: 'AUD' }
+    };
+    
+    Object.keys(countries).forEach(code => {
+        const pricing = pricingData.find(p => p.country_code === code);
+        const vcStatus = vcStatusData.find(v => v.country_code === code);
+        const isInVc = !!vcStatus;
+        
+        if (isInVc) {
+            const row = document.createElement('tr');
+            row.innerHTML = `
+                <td>${countries[code].name}</td>
+                <td>${pricing ? pricing.cost_price + ' ' + pricing.currency : '-'}</td>
+                <td>${pricing ? pricing.retail_price + ' ' + pricing.currency : '-'}</td>
+                <td>${pricing ? pricing.status : '-'}</td>
+                <td>
+                    ${pricing && pricing.status === 'pending' ? `
+                        <button class="btn btn-success btn-sm" onclick="approvePricing(${pricing.product_id}, '${code}')">Approve</button>
+                        <button class="btn btn-danger btn-sm" onclick="rejectPricing(${pricing.product_id}, '${code}')">Reject</button>
+                    ` : '-'}
+                </td>
+            `;
+            tbody.appendChild(row);
         }
     });
-
-    tbody.innerHTML = pricingData.map(pricing => {
-        const countryCode = pricing.country_code.toUpperCase();
-        const vcInfo = vcStatusMap[countryCode] || null;
-        const vcStatusBadge = vcInfo 
-            ? (vcInfo.status === 'SUCCESS' || vcInfo.status === 'COMPLETE') 
-                ? '<span class="status-badge approved">✓ Listed</span>' 
-                : `<span class="status-badge pending">${vcInfo.status || 'Unknown'}</span>`
-            : '<span class="status-badge" style="background-color: #999;">Not Listed</span>';
-        
-        return `
-        <tr>
-            <td>${escapeHtml(pricing.country_code)}</td>
-            <td>USD ${parseFloat(pricing.sell_price).toFixed(2)}</td>
-            <td>${pricing.currency} ${parseFloat(pricing.retail_price).toFixed(2)}</td>
-            <td><span class="status-badge ${pricing.approval_status}">${pricing.approval_status}</span></td>
-            <td>${vcStatusBadge}</td>
-            <td>
-                <div class="action-buttons">
-                    ${pricing.approval_status !== 'approved' ? 
-                        `<button class="btn btn-success" onclick="approvePricing('${asin}', '${pricing.country_code}')">Approve</button>` : 
-                        '<span style="color: var(--success-color); font-weight: 600;">✓ Approved</span>'}
-                    ${pricing.approval_status !== 'rejected' ? 
-                        `<button class="btn btn-danger" onclick="rejectPricing('${asin}', '${pricing.country_code}')">Reject</button>` : ''}
-                </div>
-            </td>
-        </tr>
-    `;
-    }).join('');
 }
 
+// Open flow tracking modal
 async function openFlowModal(itemId) {
-    const item = items.find(i => i.asin === itemId || i.id === itemId);
-    if (!item) return;
-
-    document.getElementById('flowItemId').value = item.asin; // Use ASIN
-    document.getElementById('flowItemName').textContent = item.name;
-    document.getElementById('flowSku').textContent = `ASIN: ${item.asin} | SKUs: ${item.skus ? item.skus.join(', ') : 'None'}`;
-
-    // Set checkbox states for new 6-stage flow
-    document.querySelector('[data-stage="stage_1_idea_considered"]').checked = item.stage_1_idea_considered || false;
-    document.querySelector('[data-stage="stage_2_product_finalized"]').checked = item.stage_2_product_finalized || false;
-    document.querySelector('[data-stage="stage_3a_pricing_submitted"]').checked = item.stage_3a_pricing_submitted || false;
-    document.querySelector('[data-stage="stage_3b_pricing_approved"]').checked = item.stage_3b_pricing_approved || false;
-    document.querySelector('[data-stage="stage_4_product_listed"]').checked = item.stage_4_product_listed || false;
-    document.querySelector('[data-stage="stage_5_product_ordered"]').checked = item.stage_5_product_ordered || false;
-    document.querySelector('[data-stage="stage_6_product_online"]').checked = item.stage_6_product_online || false;
-
-    document.getElementById('flowModal').style.display = 'block';
+    const modal = document.getElementById('flowModal');
+    const item = items.find(i => i.id === itemId);
+    
+    if (!item) {
+        showError('Product not found');
+        return;
+    }
+    
+    document.getElementById('flowItemId').value = itemId;
+    document.getElementById('flowAsin').textContent = item.asin;
+    
+    modal.style.display = 'block';
 }
 
-// Form handlers
+// Handle item form submission
 async function handleItemSubmit(e) {
     e.preventDefault();
-
-    const itemId = document.getElementById('itemId').value; // This is ASIN for existing items
-    const brand = document.getElementById('brand').value;
-    const description = document.getElementById('description').value;
-    const seasonLaunch = document.getElementById('seasonLaunch').value;
     
-    // Get multiple selected countries
-    const countrySelect = document.getElementById('country');
-    const selectedCountries = Array.from(countrySelect.selectedOptions).map(opt => opt.value);
-    const country = selectedCountries.join(','); // Store as comma-separated string
+    const itemId = document.getElementById('itemId').value;
+    const sku = document.getElementById('sku').value;
+    const asin = document.getElementById('asin').value;
+    const productName = document.getElementById('productName').value;
     
-    const itemNumber = document.getElementById('itemNumber').value;
+    const itemData = { sku, asin, name: productName };
     
-    const itemData = {
-        sku: document.getElementById('sku').value,
-        name: document.getElementById('name').value || document.getElementById('sku').value, // Use SKU as name if not provided
-        asin: document.getElementById('asin').value || null
-    };
-
     try {
-        const url = itemId ? `${API_BASE}/items/${itemId}` : `${API_BASE}/items`;
-        const method = itemId ? 'PUT' : 'POST';
-
-        const response = await fetch(url, {
-            method: method,
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(itemData)
-        });
-
+        let response;
+        if (itemId) {
+            // Update existing item
+            response = await fetch(`${API_BASE}/items/${itemId}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(itemData)
+            });
+        } else {
+            // Create new item
+            response = await fetch(`${API_BASE}/items`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(itemData)
+            });
+        }
+        
         if (response.ok) {
-            const result = await response.json();
-            const savedAsin = itemId || result.asin;
-            
-            // Mark as Stage 1 (Ideation) with brand/description/season/country/item_number
-            if (brand || description || seasonLaunch || country || itemNumber) {
-                await fetch(`${API_BASE}/items/${savedAsin}/stage1`, {
-                    method: 'PUT',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        brand: brand,
-                        description: description,
-                        season_launch: seasonLaunch,
-                        country: country,
-                        item_number: itemNumber
-                    })
-                });
-            }
-            
             document.getElementById('itemModal').style.display = 'none';
             loadItems();
-            
-            // Show success message with country count
-            const countryCount = selectedCountries.length;
-            const successMsg = itemId 
-                ? 'Product updated successfully' 
-                : `Product created at Ideation stage for ${countryCount} ${countryCount === 1 ? 'country' : 'countries'}`;
-            showSuccess(successMsg);
+            showSuccess(itemId ? 'Product updated successfully' : 'Product created successfully');
         } else {
-            throw new Error('Failed to save product');
+            const error = await response.json();
+            throw new Error(error.error || 'Failed to save product');
         }
     } catch (error) {
-        console.error('Error saving product:', error);
-        showError('Failed to save product');
+        console.error('Error saving item:', error);
+        showError(error.message);
     }
 }
 
+// Handle pricing form submission
 async function handlePricingSubmit(e) {
     e.preventDefault();
-
+    
     const itemId = document.getElementById('pricingItemId').value;
+    const countryCode = document.getElementById('countryCode').value;
+    const costPrice = document.getElementById('costPrice').value;
+    const retailPrice = document.getElementById('retailPrice').value;
+    const currency = document.getElementById('currency').value;
+    
     const pricingData = {
-        country_code: document.getElementById('countryCode').value,
-        currency: document.getElementById('currency').value,
-        retail_price: document.getElementById('retailPrice').value,
-        sell_price: document.getElementById('sellPrice').value
+        country_code: countryCode,
+        cost_price: parseFloat(costPrice),
+        retail_price: parseFloat(retailPrice),
+        currency: currency
     };
-
+    
     try {
         const response = await fetch(`${API_BASE}/items/${itemId}/pricing`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(pricingData)
         });
-
+        
         if (response.ok) {
             document.getElementById('pricingForm').reset();
-            // Reload pricing table
-            openPricingModal(itemId);
-            loadItems(); // Refresh main view
-            showSuccess('Pricing added successfully');
+            openPricingModal(itemId); // Refresh the pricing table
+            showSuccess('Pricing submitted for approval');
         } else {
-            throw new Error('Failed to add pricing');
+            throw new Error('Failed to submit pricing');
         }
     } catch (error) {
-        console.error('Error adding pricing:', error);
-        showError('Failed to add pricing');
+        console.error('Error submitting pricing:', error);
+        showError('Failed to submit pricing');
     }
 }
 
+// Handle stage change
 async function handleStageChange(e) {
     const stage = e.target.dataset.stage;
     const completed = e.target.checked;
@@ -1015,45 +901,42 @@ async function editProductName(asin, currentName) {
             throw new Error('Failed to update name');
         }
     } catch (error) {
-        console.error('Error updating name:', error);
+        console.error('Error updating product name:', error);
         showError('Failed to update product name');
     }
 }
 
 async function deleteItem(itemId) {
-    if (!confirm('Are you sure you want to delete this item? This action cannot be undone.')) {
+    if (!confirm('Are you sure you want to delete this product?')) {
         return;
     }
-
+    
     try {
         const response = await fetch(`${API_BASE}/items/${itemId}`, {
             method: 'DELETE'
         });
-
+        
         if (response.ok) {
             loadItems();
-            showSuccess('Item deleted successfully');
+            showSuccess('Product deleted');
         } else {
-            throw new Error('Failed to delete item');
+            throw new Error('Failed to delete product');
         }
     } catch (error) {
         console.error('Error deleting item:', error);
-        showError('Failed to delete item');
+        showError('Failed to delete product');
     }
 }
 
+// Pricing approval/rejection
 async function approvePricing(itemId, countryCode) {
     try {
         const response = await fetch(`${API_BASE}/items/${itemId}/pricing/${countryCode}/approve`, {
-            method: 'PUT'
+            method: 'POST'
         });
-
         if (response.ok) {
-            openPricingModal(itemId); // Refresh pricing modal
-            loadItems(); // Refresh main view
+            openPricingModal(itemId);
             showSuccess('Pricing approved');
-        } else {
-            throw new Error('Failed to approve pricing');
         }
     } catch (error) {
         console.error('Error approving pricing:', error);
@@ -1062,17 +945,18 @@ async function approvePricing(itemId, countryCode) {
 }
 
 async function rejectPricing(itemId, countryCode) {
+    const reason = prompt('Enter rejection reason:');
+    if (!reason) return;
+    
     try {
         const response = await fetch(`${API_BASE}/items/${itemId}/pricing/${countryCode}/reject`, {
-            method: 'PUT'
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ reason })
         });
-
         if (response.ok) {
-            openPricingModal(itemId); // Refresh pricing modal
-            loadItems(); // Refresh main view
+            openPricingModal(itemId);
             showSuccess('Pricing rejected');
-        } else {
-            throw new Error('Failed to reject pricing');
         }
     } catch (error) {
         console.error('Error rejecting pricing:', error);
@@ -1082,245 +966,189 @@ async function rejectPricing(itemId, countryCode) {
 
 // Utility functions
 function escapeHtml(text) {
-    const map = {
-        '&': '&amp;',
-        '<': '&lt;',
-        '>': '&gt;',
-        '"': '&quot;',
-        "'": '&#039;'
-    };
-    return text.replace(/[&<>"']/g, m => map[m]);
+    if (!text) return '';
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
 }
 
+// Success/Error messages
 function showSuccess(message) {
-    // Simple alert for now - you can replace with a toast notification
-    console.log('Success:', message);
+    alert(message); // Replace with better toast notification
 }
 
 function showError(message) {
-    alert('Error: ' + message);
+    alert('Error: ' + message); // Replace with better toast notification
 }
 
-// QPI Import and Sync functions
 async function importQpiData() {
-    if (!confirm('This will import all items from the QPI CSV file. Items with existing SKUs will be skipped. Continue?')) {
-        return;
-    }
-
-    try {
-        const response = await fetch(`${API_BASE}/import/qpi`, {
-            method: 'POST'
-        });
-
-        const result = await response.json();
+    const fileInput = document.createElement('input');
+    fileInput.type = 'file';
+    fileInput.accept = '.xlsx,.csv';
+    
+    fileInput.onchange = async (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
         
-        if (response.ok) {
-            alert(`QPI Import Complete!\n\nTotal items: ${result.total}\nImported: ${result.imported}\nSkipped (duplicates): ${result.skipped}\nErrors: ${result.errors}`);
-            loadItems();
-        } else {
-            throw new Error(result.error || 'Import failed');
+        const formData = new FormData();
+        formData.append('file', file);
+        
+        try {
+            const response = await fetch(`${API_BASE}/import-qpi`, {
+                method: 'POST',
+                body: formData
+            });
+            
+            if (response.ok) {
+                loadItems();
+                showSuccess('QPI data imported successfully');
+            } else {
+                throw new Error('Failed to import QPI data');
+            }
+        } catch (error) {
+            console.error('Error importing QPI:', error);
+            showError('Failed to import QPI data');
         }
-    } catch (error) {
-        console.error('Error importing QPI data:', error);
-        showError('Failed to import QPI data: ' + error.message);
-    }
+    };
+    
+    fileInput.click();
 }
 
 async function syncQpiData() {
-    if (!confirm('This will sync order received status from the QPI CSV file. Items found in QPI will be marked as "Order Received". Continue?')) {
-        return;
-    }
-
     try {
-        const response = await fetch(`${API_BASE}/sync/qpi`, {
+        const response = await fetch(`${API_BASE}/sync-qpi`, {
             method: 'POST'
         });
-
-        const result = await response.json();
         
         if (response.ok) {
-            alert(`QPI Sync Complete!\n\nItems updated: ${result.updated}\nTotal in QPI: ${result.total_in_qpi}`);
+            const result = await response.json();
             loadItems();
+            showSuccess(`QPI sync complete: ${result.message}`);
         } else {
-            throw new Error(result.error || 'Sync failed');
+            throw new Error('Failed to sync QPI data');
         }
     } catch (error) {
-        console.error('Error syncing QPI data:', error);
-        showError('Failed to sync QPI data: ' + error.message);
+        console.error('Error syncing QPI:', error);
+        showError('Failed to sync QPI data');
     }
 }
 
 async function syncVcData() {
-    if (!confirm('This will sync Vendor Central setup status from the latest VC extract parquet file. Items found in VC will be marked as "Vendor Central Setup" complete. Continue?')) {
-        return;
-    }
-
     try {
-        const response = await fetch(`${API_BASE}/sync/vc`, {
+        const response = await fetch(`${API_BASE}/sync-vc`, {
             method: 'POST'
         });
-
-        const result = await response.json();
         
         if (response.ok) {
-            alert(`VC Sync Complete!\n\nFile: ${result.file}\nTotal in VC: ${result.total_in_vc}\nItems updated: ${result.updated}\nErrors: ${result.errors}`);
+            const result = await response.json();
             loadItems();
+            showSuccess(`VC sync complete: ${result.message}`);
         } else {
-            throw new Error(result.error || 'Sync failed');
+            throw new Error('Failed to sync VC data');
         }
     } catch (error) {
-        console.error('Error syncing VC data:', error);
-        showError('Failed to sync VC data: ' + error.message);
+        console.error('Error syncing VC:', error);
+        showError('Failed to sync VC data');
     }
 }
 
 async function syncVariationsData() {
-    if (!confirm('This will sync Brand, Title, Bundle, and PPG data from Variations_Master.csv. Continue?')) {
-        return;
-    }
-
     try {
-        const response = await fetch(`${API_BASE}/sync/variations`, {
+        const response = await fetch(`${API_BASE}/sync-variations`, {
             method: 'POST'
         });
-
-        const result = await response.json();
         
         if (response.ok) {
-            alert(`Variations Sync Complete!\n\nTotal: ${result.total}\nImported: ${result.imported}\nUpdated: ${result.updated}\nErrors: ${result.errors}`);
+            const result = await response.json();
             loadVariationFilters(); // Reload filter options
-            loadItems(); // Reload items to show new data
+            loadItems(); // Refresh items to show new variation data
+            showSuccess(`Variations sync complete: ${result.message}`);
         } else {
-            throw new Error(result.error || 'Sync failed');
+            throw new Error('Failed to sync variations data');
         }
     } catch (error) {
-        console.error('Error syncing variations data:', error);
-        showError('Failed to sync variations data: ' + error.message);
+        console.error('Error syncing variations:', error);
+        showError('Failed to sync variations data');
     }
 }
 
 async function syncOnlineStatus() {
-    if (!confirm('This will process Keepa extract files to determine which ASINs are online in which countries. This may take several minutes for the first sync. Continue?')) {
-        return;
-    }
-
     try {
-        const response = await fetch(`${API_BASE}/sync/online`, {
+        const response = await fetch(`${API_BASE}/sync-online`, {
             method: 'POST'
         });
-
-        const result = await response.json();
         
         if (response.ok) {
-            alert(`Online Status Sync Complete!\n\nFiles Processed: ${result.files_processed}\nFiles Skipped: ${result.files_skipped}\nASINs Found: ${result.asins_found}\nASINs Online: ${result.asins_online}`);
-            loadItems(); // Reload items to show new percentages
+            const result = await response.json();
+            loadItems();
+            showSuccess(`Online status sync complete: ${result.message}`);
         } else {
-            throw new Error(result.error || 'Sync failed');
+            throw new Error('Failed to sync online status');
         }
     } catch (error) {
         console.error('Error syncing online status:', error);
-        showError('Failed to sync online status: ' + error.message);
+        showError('Failed to sync online status');
     }
+}
 
 async function syncPimData() {
-    if (!confirm('This will sync item data from the PIM Extract Excel file. Item names, descriptions, dimensions, and other details will be updated. Continue?')) {
-        return;
-    }
-
     try {
-        const response = await fetch(`${API_BASE}/sync/pim`, {
+        const response = await fetch(`${API_BASE}/sync-pim`, {
             method: 'POST'
         });
-
-        const result = await response.json();
         
         if (response.ok) {
-            alert(`PIM Sync Complete!\n\nTotal in PIM: ${result.total_in_pim}\nItems updated: ${result.updated}\nNot found in DB: ${result.not_found}\nErrors: ${result.errors}`);
+            const result = await response.json();
             loadItems();
+            showSuccess(`PIM sync complete: ${result.message}`);
         } else {
-            throw new Error(result.error || 'Sync failed');
+            throw new Error('Failed to sync PIM data');
         }
     } catch (error) {
-        console.error('Error syncing PIM data:', error);
-        showError('Failed to sync PIM data: ' + error.message);
+        console.error('Error syncing PIM:', error);
+        showError('Failed to sync PIM data');
     }
 }
 
-// Export functionality
 function openExportModal() {
-    document.getElementById('exportModal').style.display = 'block';
+    // Simple CSV export for now
+    let csv = 'ASIN,Name,SKU,Stage\n';
+    
+    items.forEach(item => {
+        const stage = getCurrentStage(item);
+        csv += `"${item.asin}","${item.name || ''}","${item.sku || ''}","${stage}"\n`;
+    });
+    
+    // Download CSV
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = window.URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = 'products_export.csv';
+    link.click();
+    
+    showSuccess('Export complete');
 }
-
-document.getElementById('exportModalClose').addEventListener('click', () => {
-    document.getElementById('exportModal').style.display = 'none';
-});
-
-document.getElementById('cancelExportBtn').addEventListener('click', () => {
-    document.getElementById('exportModal').style.display = 'none';
-});
-
-document.getElementById('downloadExportBtn').addEventListener('click', async () => {
-    const fields = [];
-    
-    if (document.getElementById('exportSku').checked) fields.push('sku');
-    if (document.getElementById('exportAsin').checked) fields.push('asin');
-    if (document.getElementById('exportName').checked) fields.push('name');
-    if (document.getElementById('exportVcStatus').checked) fields.push('vendor_central_setup');
-    if (document.getElementById('exportOrderStatus').checked) fields.push('order_received');
-    
-    if (fields.length === 0) {
-        alert('Please select at least one field to export');
-        return;
-    }
-    
-    const format = document.getElementById('exportFormat').value;
-    
-    try {
-        const url = `${API_BASE}/export/items?format=${format}&fields=${fields.join(',')}`;
-        
-        if (format === 'json') {
-            // For JSON, fetch and display
-            const response = await fetch(url);
-            const data = await response.json();
-            
-            // Create a blob and download
-            const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-            const downloadUrl = window.URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = downloadUrl;
-            a.download = 'items_export.json';
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-            window.URL.revokeObjectURL(downloadUrl);
-        } else {
-            // For CSV and TXT, just download directly
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = `items_export.${format}`;
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-        }
-        
-        document.getElementById('exportModal').style.display = 'none';
-        alert('Export complete!');
-        
-    } catch (error) {
-        console.error('Error exporting data:', error);
-        showError('Failed to export data: ' + error.message);
-    }
-});
 
 // Pagination Controls
 function updatePaginationControls(view, currentPage, totalPages) {
-    const pageInfo = document.getElementById(`${view}PageInfo`);
-    const prevBtn = document.getElementById(`${view}PrevBtn`);
-    const nextBtn = document.getElementById(`${view}NextBtn`);
-    
-    pageInfo.textContent = `Page ${currentPage} of ${totalPages}`;
-    prevBtn.disabled = currentPage <= 1;
-    nextBtn.disabled = currentPage >= totalPages;
+    if (view === 'products') {
+        const pageInfo = document.getElementById('productsPageInfo');
+        const prevBtn = document.getElementById('productsPrevBtn');
+        const nextBtn = document.getElementById('productsNextBtn');
+        
+        if (pageInfo) pageInfo.textContent = `Page ${currentPage} of ${totalPages}`;
+        if (prevBtn) prevBtn.disabled = currentPage === 1;
+        if (nextBtn) nextBtn.disabled = currentPage === totalPages;
+    } else if (view === 'skus') {
+        const pageInfo = document.getElementById('skusPageInfo');
+        const prevBtn = document.getElementById('skusPrevBtn');
+        const nextBtn = document.getElementById('skusNextBtn');
+        
+        if (pageInfo) pageInfo.textContent = `Page ${currentPage} of ${totalPages}`;
+        if (prevBtn) prevBtn.disabled = currentPage === 1;
+        if (nextBtn) nextBtn.disabled = currentPage === totalPages;
+    }
 }
 
 // Products pagination
@@ -1851,5 +1679,3 @@ async function exportReportExcel(reportType, reportTitle) {
         showError('Failed to export report');
     }
 }
-
-
