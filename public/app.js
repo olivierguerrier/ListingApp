@@ -1050,10 +1050,10 @@ async function loadFxRatesForPricing() {
 
 function renderCountryPricingTable() {
     const tbody = document.getElementById('countryPricingTableBody');
-    const sellPrice = parseFloat(document.getElementById('pricingSellPrice').value) || 0;
+    const productCost = parseFloat(document.getElementById('pricingProductCost').value) || 0;
     
     if (fxRates.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="7" style="text-align: center; padding: 20px;">No countries available</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="8" style="text-align: center; padding: 20px;">No countries available</td></tr>';
         return;
     }
     
@@ -1062,16 +1062,34 @@ function renderCountryPricingTable() {
             <td><strong>${rate.country}</strong></td>
             <td>${rate.currency}</td>
             <td>${parseFloat(rate.rate_to_usd).toFixed(4)}</td>
-            <td>$${sellPrice.toFixed(2)}</td>
             <td>
                 <input 
                     type="number" 
                     step="0.01" 
                     min="0"
                     data-country="${rate.country}"
+                    data-type="sell"
                     data-currency="${rate.currency}"
                     data-fx-rate="${rate.rate_to_usd}"
-                    oninput="calculateCountryMargin(this)"
+                    oninput="calculateCountryMargins(this)"
+                    placeholder="0.00"
+                    style="width: 100px; padding: 6px; border: 1px solid var(--border-color); border-radius: 4px;"
+                    required
+                />
+            </td>
+            <td>
+                <span data-company-margin="${rate.country}" style="font-weight: 600;">-</span>
+            </td>
+            <td>
+                <input 
+                    type="number" 
+                    step="0.01" 
+                    min="0"
+                    data-country="${rate.country}"
+                    data-type="retail"
+                    data-currency="${rate.currency}"
+                    data-fx-rate="${rate.rate_to_usd}"
+                    oninput="calculateCountryMargins(this)"
                     placeholder="0.00"
                     style="width: 120px; padding: 6px; border: 1px solid var(--border-color); border-radius: 4px;"
                     required
@@ -1081,79 +1099,69 @@ function renderCountryPricingTable() {
                 <span data-usd-price="${rate.country}">-</span>
             </td>
             <td>
-                <span data-margin="${rate.country}" style="font-weight: 600;">-</span>
+                <span data-customer-margin="${rate.country}" style="font-weight: 600;">-</span>
             </td>
         </tr>
     `).join('');
 }
 
-function calculateMultiCountryPricing() {
+function calculateCountryMargins(input) {
     const productCost = parseFloat(document.getElementById('pricingProductCost').value) || 0;
-    const sellPrice = parseFloat(document.getElementById('pricingSellPrice').value) || 0;
-    const companyMargin = document.getElementById('pricingCompanyMargin');
+    const country = input.dataset.country;
+    const fxRate = parseFloat(input.dataset.fxRate) || 1;
     
-    // Calculate Company Margin
-    if (productCost > 0 && sellPrice > 0) {
-        const cMargin = ((sellPrice - productCost) / sellPrice * 100).toFixed(2);
-        companyMargin.value = `${cMargin}% ($${(sellPrice - productCost).toFixed(2)} profit)`;
+    // Get both sell and retail inputs for this country
+    const sellInput = document.querySelector(`input[data-country="${country}"][data-type="sell"]`);
+    const retailInput = document.querySelector(`input[data-country="${country}"][data-type="retail"]`);
+    
+    const sellPriceUSD = parseFloat(sellInput?.value) || 0;
+    const retailPriceLocal = parseFloat(retailInput?.value) || 0;
+    
+    // Calculate Company Margin (if sell price entered)
+    if (sellPriceUSD > 0 && productCost > 0) {
+        const companyMargin = ((sellPriceUSD - productCost) / sellPriceUSD * 100).toFixed(2);
+        const companyMarginSpan = document.querySelector(`span[data-company-margin="${country}"]`);
         
-        // Color code based on margin
-        if (cMargin < 20) {
-            companyMargin.style.color = '#c40000';
-        } else if (cMargin < 35) {
-            companyMargin.style.color = '#f69931';
-        } else {
-            companyMargin.style.color = '#067d62';
+        if (companyMarginSpan) {
+            companyMarginSpan.textContent = `${companyMargin}%`;
+            
+            // Color code based on margin
+            if (companyMargin < 20) {
+                companyMarginSpan.style.color = '#c40000';
+            } else if (companyMargin < 35) {
+                companyMarginSpan.style.color = '#f69931';
+            } else {
+                companyMarginSpan.style.color = '#067d62';
+            }
         }
-    } else {
-        companyMargin.value = '';
     }
     
-    // Update sell price USD column in table
-    const sellPriceUSD = sellPrice.toFixed(2);
-    document.querySelectorAll('#countryPricingTable tbody td:nth-child(4)').forEach(cell => {
-        cell.textContent = `$${sellPriceUSD}`;
-    });
-    
-    // Recalculate all country margins
-    document.querySelectorAll('input[data-country]').forEach(input => {
-        if (input.value) {
-            calculateCountryMargin(input);
-        }
-    });
-}
-
-function calculateCountryMargin(input) {
-    const sellPrice = parseFloat(document.getElementById('pricingSellPrice').value) || 0;
-    const retailPriceLocal = parseFloat(input.value) || 0;
-    const fxRate = parseFloat(input.dataset.fxRate) || 1;
-    const country = input.dataset.country;
-    
-    if (retailPriceLocal > 0 && sellPrice > 0) {
+    // Calculate Customer Margin (if both prices entered)
+    if (sellPriceUSD > 0 && retailPriceLocal > 0) {
         // Convert retail price to USD
         const retailPriceUSD = retailPriceLocal / fxRate;
         
         // Calculate customer margin
-        const custMargin = ((retailPriceUSD - sellPrice) / retailPriceUSD * 100).toFixed(2);
+        const customerMargin = ((retailPriceUSD - sellPriceUSD) / retailPriceUSD * 100).toFixed(2);
         
         // Update display
         const usdSpan = document.querySelector(`span[data-usd-price="${country}"]`);
-        const marginSpan = document.querySelector(`span[data-margin="${country}"]`);
+        const customerMarginSpan = document.querySelector(`span[data-customer-margin="${country}"]`);
         
         if (usdSpan) {
             usdSpan.textContent = `$${retailPriceUSD.toFixed(2)}`;
         }
         
-        if (marginSpan) {
-            marginSpan.textContent = `${custMargin}%`;
+        if (customerMarginSpan) {
+            customerMarginSpan.textContent = `${customerMargin}%`;
             
             // Color code based on margin
-            if (custMargin < 25) {
-                marginSpan.style.color = '#c40000';
-            } else if (custMargin < 40) {
-                marginSpan.style.color = '#f69931';
+            if (customerMargin < 25) {
+                customerMarginSpan.style.color = '#c40000';
+            } else if (customerMargin < 40) {
+                customerMarginSpan.style.color = '#f69931';
             } else {
-                marginSpan.style.color = '#067d62';
+                customerMarginSpan.style.color = '#067d62';
             }
         }
     }
@@ -1167,51 +1175,63 @@ async function handlePricingSubmissionSubmit(e) {
     e.preventDefault();
     
     const productCost = parseFloat(document.getElementById('pricingProductCost').value);
-    const sellPrice = parseFloat(document.getElementById('pricingSellPrice').value);
     
-    // Validate USD pricing
+    // Validate product cost
     if (isNaN(productCost) || productCost <= 0) {
         showError('Please enter a valid Product Cost');
-        return;
-    }
-    if (isNaN(sellPrice) || sellPrice <= 0) {
-        showError('Please enter a valid Sell Price');
         return;
     }
     
     // Collect country pricing data
     const countries = [];
-    const countryInputs = document.querySelectorAll('input[data-country]');
+    const countriesProcessed = new Set();
     
-    countryInputs.forEach(input => {
-        const retailPriceLocal = parseFloat(input.value);
-        if (retailPriceLocal && retailPriceLocal > 0) {
-            const fxRate = parseFloat(input.dataset.fxRate);
-            const retailPriceUSD = retailPriceLocal / fxRate;
-            const customerMargin = ((retailPriceUSD - sellPrice) / retailPriceUSD * 100).toFixed(2);
+    // Get all sell price inputs
+    const sellInputs = document.querySelectorAll('input[data-type="sell"]');
+    
+    sellInputs.forEach(sellInput => {
+        const country = sellInput.dataset.country;
+        const sellPriceUSD = parseFloat(sellInput.value);
+        
+        if (sellPriceUSD && sellPriceUSD > 0) {
+            const retailInput = document.querySelector(`input[data-country="${country}"][data-type="retail"]`);
+            const retailPriceLocal = parseFloat(retailInput?.value);
             
-            countries.push({
-                country: input.dataset.country,
-                currency: input.dataset.currency,
-                fx_rate: fxRate,
-                retail_price_local: retailPriceLocal,
-                retail_price_usd: retailPriceUSD,
-                customer_margin: customerMargin
-            });
+            if (retailPriceLocal && retailPriceLocal > 0) {
+                const fxRate = parseFloat(sellInput.dataset.fxRate);
+                const retailPriceUSD = retailPriceLocal / fxRate;
+                const companyMargin = ((sellPriceUSD - productCost) / sellPriceUSD * 100).toFixed(2);
+                const customerMargin = ((retailPriceUSD - sellPriceUSD) / retailPriceUSD * 100).toFixed(2);
+                
+                countries.push({
+                    country: country,
+                    currency: sellInput.dataset.currency,
+                    fx_rate: fxRate,
+                    sell_price_usd: sellPriceUSD,
+                    company_margin: companyMargin,
+                    retail_price_local: retailPriceLocal,
+                    retail_price_usd: retailPriceUSD,
+                    customer_margin: customerMargin
+                });
+                
+                countriesProcessed.add(country);
+            }
         }
     });
     
     if (countries.length === 0) {
-        showError('Please enter retail prices for at least one country');
+        showError('Please enter both sell price and retail price for at least one country');
         return;
     }
     
     const token = localStorage.getItem('token');
+    const avgSellPrice = (countries.reduce((sum, c) => sum + parseFloat(c.sell_price_usd), 0) / countries.length).toFixed(2);
+    
     const data = {
         product_id: parseInt(document.getElementById('pricingProductId').value),
         asin: document.getElementById('pricingAsin').value,
         product_cost: productCost,
-        sell_price: sellPrice,
+        sell_price: avgSellPrice, // Average sell price for summary
         countries: countries,
         notes: document.getElementById('pricingNotes').value
     };

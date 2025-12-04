@@ -579,6 +579,7 @@ function initializeDatabase() {
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       pricing_submission_id INTEGER NOT NULL,
       country TEXT NOT NULL,
+      sell_price_usd DECIMAL(10,2) NOT NULL,
       retail_price_local DECIMAL(10,2) NOT NULL,
       retail_price_usd DECIMAL(10,2) NOT NULL,
       customer_margin DECIMAL(5,2) NOT NULL,
@@ -589,6 +590,12 @@ function initializeDatabase() {
         console.error('Error creating pricing_submissions_country table:', err.message);
       } else {
         console.log('[SETUP] pricing_submissions_country table ready');
+        // Add sell_price_usd column if it doesn't exist (for existing databases)
+        db.run(`ALTER TABLE pricing_submissions_country ADD COLUMN sell_price_usd DECIMAL(10,2)`, (err) => {
+          if (err && !err.message.includes('duplicate column')) {
+            console.error('Note: Could not add sell_price_usd column:', err.message);
+          }
+        });
       }
     });
 
@@ -3520,14 +3527,15 @@ app.post('/api/pricing/submit', authenticateToken, requireRole('salesperson', 'a
       // Insert country-specific pricing
       const stmt = db.prepare(`
         INSERT INTO pricing_submissions_country 
-        (pricing_submission_id, country, retail_price_local, retail_price_usd, customer_margin, fx_rate)
-        VALUES (?, ?, ?, ?, ?, ?)
+        (pricing_submission_id, country, sell_price_usd, retail_price_local, retail_price_usd, customer_margin, fx_rate)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
       `);
       
       countries.forEach(country => {
         stmt.run([
           submissionId,
           country.country,
+          country.sell_price_usd,
           country.retail_price_local,
           country.retail_price_usd,
           country.customer_margin,
