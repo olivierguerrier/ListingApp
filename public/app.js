@@ -91,6 +91,7 @@ function setupEventListeners() {
     document.getElementById('searchInput').addEventListener('input', filterItems);
     document.getElementById('statusFilter').addEventListener('change', filterItems);
     document.getElementById('countryFilter').addEventListener('change', filterItems);
+    document.getElementById('missingFilter').addEventListener('change', filterItems);
     document.getElementById('brandFilter').addEventListener('change', () => {
         loadVariationFilters(); // Reload filters for cross-filtering
         filterItems();
@@ -143,6 +144,7 @@ async function loadItems(page = 1, applyFilters = false) {
             const searchTerm = document.getElementById('searchInput').value;
             const statusFilter = document.getElementById('statusFilter').value;
             const countryFilter = document.getElementById('countryFilter').value;
+            const missingFilter = document.getElementById('missingFilter').value;
             const brandFilter = document.getElementById('brandFilter');
             const bundleFilter = document.getElementById('bundleFilter');
             const ppgFilter = document.getElementById('ppgFilter');
@@ -155,6 +157,9 @@ async function loadItems(page = 1, applyFilters = false) {
             }
             if (countryFilter !== 'all') {
                 queryParams += `&country=${encodeURIComponent(countryFilter)}`;
+            }
+            if (missingFilter !== 'all') {
+                queryParams += `&missing=${missingFilter}`;
             }
             
             // Add multi-select filters
