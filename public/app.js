@@ -587,6 +587,8 @@ function renderItems(itemsToRender) {
         
         // Stage 2.5: Pricing - show submission and approval status
         let pricingCircle = '';
+        let pricingClickable = '';
+        
         if (!item.stage_2_product_finalized) {
             // Stage 2 not done yet - gray circle
             pricingCircle = `<div style="width: 40px; height: 40px; border-radius: 50%; background: #e5e7eb; display: flex; align-items: center; justify-content: center; color: #9ca3af; font-weight: 600; font-size: 11px; margin: 0 auto;"></div>`;
@@ -594,14 +596,16 @@ function renderItems(itemsToRender) {
             // Approved - green checkmark
             pricingCircle = `<div style="width: 40px; height: 40px; border-radius: 50%; background: var(--success-color); display: flex; align-items: center; justify-content: center; color: white; font-weight: 600; font-size: 18px; margin: 0 auto;">✓</div>`;
         } else if (item.stage_3a_pricing_submitted) {
-            // Submitted but not approved yet - yellow pending
-            pricingCircle = `<div style="width: 40px; height: 40px; border-radius: 50%; background: var(--warning-color); display: flex; align-items: center; justify-content: center; color: white; font-weight: 600; font-size: 18px; margin: 0 auto; position: relative;">
+            // Submitted but not approved yet - yellow pending (clickable to view/edit)
+            pricingClickable = currentUser.role !== 'viewer' ? ` style="cursor: pointer;" onclick="openPricingSubmissionModal(${item.id})" title="Click to view or resubmit pricing"` : '';
+            pricingCircle = `<div${pricingClickable} style="width: 40px; height: 40px; border-radius: 50%; background: var(--warning-color); display: flex; align-items: center; justify-content: center; color: white; font-weight: 600; font-size: 18px; margin: 0 auto; position: relative; ${currentUser.role !== 'viewer' ? 'cursor: pointer; transition: transform 0.2s;' : ''}" ${currentUser.role !== 'viewer' ? 'onmouseover="this.style.transform=\'scale(1.1)\'" onmouseout="this.style.transform=\'scale(1)\'"' : ''}>
                 <span>⏳</span>
             </div>
             <div style="text-align: center; margin-top: 5px; font-size: 11px; color: var(--warning-color); font-weight: 600;">Pending</div>`;
         } else {
-            // Stage 2 done but pricing not submitted yet - gray with dollar sign
-            pricingCircle = `<div style="width: 40px; height: 40px; border-radius: 50%; background: #e5e7eb; display: flex; align-items: center; justify-content: center; color: #6b7280; font-weight: 600; font-size: 18px; margin: 0 auto;">💰</div>
+            // Stage 2 done but pricing not submitted yet - clickable dollar sign
+            pricingClickable = currentUser.role !== 'viewer' ? ` onclick="openPricingSubmissionModal(${item.id})" title="Click to submit pricing"` : '';
+            pricingCircle = `<div${pricingClickable} style="width: 40px; height: 40px; border-radius: 50%; background: #e5e7eb; display: flex; align-items: center; justify-content: center; color: #6b7280; font-weight: 600; font-size: 18px; margin: 0 auto; ${currentUser.role !== 'viewer' ? 'cursor: pointer; transition: all 0.2s;' : ''}" ${currentUser.role !== 'viewer' ? 'onmouseover="this.style.background=\'var(--warning-color)\'; this.style.color=\'white\'; this.style.transform=\'scale(1.1)\';" onmouseout="this.style.background=\'#e5e7eb\'; this.style.color=\'#6b7280\'; this.style.transform=\'scale(1)\';"' : ''}>💰</div>
             <div style="text-align: center; margin-top: 5px; font-size: 11px; color: #6b7280;">Required</div>`;
         }
         
@@ -641,8 +645,6 @@ function renderItems(itemsToRender) {
                 <td style="text-align: center;">${s5Circle}</td>
                 <td>
                     <button class="btn btn-secondary btn-sm" onclick="openFlowModal(${item.id})">View</button>
-                    ${item.stage_2_product_finalized && !item.stage_3b_pricing_approved && currentUser.role !== 'viewer' ? 
-                        `<button class="btn btn-primary btn-sm" onclick="openPricingSubmissionModal(${item.id})" style="background: var(--warning-color);">💰 Pricing</button>` : ''}
                     <button class="btn btn-danger btn-sm" onclick="deleteItem(${item.id})">Delete</button>
                 </td>
             </tr>
