@@ -189,6 +189,25 @@ h3 {
     cursor: pointer;
 }
 
+.filter-select[multiple] {
+    padding: 6px 10px;
+    min-height: 38px;
+    max-height: 200px;
+    overflow-y: auto;
+}
+
+.filter-select[multiple] option {
+    padding: 6px 8px;
+    margin: 2px 0;
+    border-radius: 4px;
+    cursor: pointer;
+}
+
+.filter-select[multiple] option:checked {
+    background: linear-gradient(0deg, var(--primary-color) 0%, var(--primary-color) 100%);
+    color: white;
+}
+
 .items-container {
     display: grid;
     gap: 20px;
@@ -297,6 +316,16 @@ h3 {
 
 .temp-badge {
     background-color: #f59e0b;
+    color: white;
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-size: 10px;
+    margin-left: 6px;
+    font-weight: 600;
+}
+
+.missing-badge {
+    background-color: #dc2626;
     color: white;
     padding: 2px 6px;
     border-radius: 4px;

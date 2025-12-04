@@ -16,6 +16,7 @@
                 <button id="syncVcBtn" class="btn btn-secondary">Sync VC Data</button>
                 <button id="syncQpiBtn" class="btn btn-secondary">Sync QPI Data</button>
                 <button id="importQpiBtn" class="btn btn-secondary">Import from QPI</button>
+                <button id="syncVariationsBtn" class="btn btn-secondary">Sync Variations</button>
                 <button id="addItemBtn" class="btn btn-primary">+ Add New Item</button>
             </div>
         </header>
@@ -41,6 +42,15 @@
             <select id="countryFilter" class="filter-select">
                 <option value="all">All Countries</option>
                 <option value="loading">Loading countries...</option>
+            </select>
+            <select id="brandFilter" class="filter-select" multiple size="1" style="min-width: 150px;">
+                <option value="">All Brands</option>
+            </select>
+            <select id="bundleFilter" class="filter-select" multiple size="1" style="min-width: 150px;">
+                <option value="">All Bundles</option>
+            </select>
+            <select id="ppgFilter" class="filter-select" multiple size="1" style="min-width: 150px;">
+                <option value="">All PPG</option>
             </select>
         </div>
 

@@ -327,6 +327,25 @@ function initializeDatabase() {
         }
       }
     });
+    
+    // Variations Master data table
+    db.run(`CREATE TABLE IF NOT EXISTS variations_master (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      asin TEXT UNIQUE NOT NULL,
+      brand TEXT,
+      title TEXT,
+      bundle TEXT,
+      ppg TEXT,
+      synced_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )`, (err) => {
+      if (err) {
+        console.error('Error creating variations_master table:', err.message);
+      } else {
+        console.log('[SETUP] variations_master table ready');
+      }
+    });
 
     console.log('Database tables initialized');
     
@@ -447,9 +466,14 @@ app.get('/api/products', (req, res) => {
       (SELECT COUNT(DISTINCT country_code) FROM asin_country_status WHERE asin = p.asin) as vc_country_count,
       (SELECT COUNT(DISTINCT country_code) FROM asin_country_status) as vc_total_countries,
       (SELECT COUNT(DISTINCT source_file) FROM qpi_file_tracking WHERE asin = p.asin) as qpi_file_count,
-      (SELECT COUNT(DISTINCT source_file) FROM qpi_file_tracking) as qpi_total_files
+      (SELECT COUNT(DISTINCT source_file) FROM qpi_file_tracking) as qpi_total_files,
+      vm.brand as vm_brand,
+      vm.title as vm_title,
+      vm.bundle as vm_bundle,
+      vm.ppg as vm_ppg
     FROM products p
     LEFT JOIN product_skus ps ON p.id = ps.product_id
+    LEFT JOIN variations_master vm ON p.asin = vm.asin
     GROUP BY p.id
     ORDER BY p.created_at DESC
     LIMIT ? OFFSET ?
@@ -757,7 +781,9 @@ app.get('/api/database/:table', (req, res) => {
     'temp_asin_counter',
     'items',
     'item_country_pricing',
-    'asin_country_status'
+    'asin_country_status',
+    'qpi_file_tracking',
+    'variations_master'
   ];
   
   if (!allowedTables.includes(tableName)) {
@@ -811,6 +837,9 @@ app.get('/api/items', (req, res) => {
   const search = req.query.search || '';
   const stage = req.query.stage || '';
   const country = req.query.country || '';
+  const brands = req.query.brands ? req.query.brands.split(',') : [];
+  const bundles = req.query.bundles ? req.query.bundles.split(',') : [];
+  const ppgs = req.query.ppgs ? req.query.ppgs.split(',') : [];
   
   // Build WHERE clauses
   let whereConditions = [];
@@ -853,12 +882,35 @@ app.get('/api/items', (req, res) => {
     countParams.push(country);
   }
   
+  // Variation filters
+  if (brands.length > 0) {
+    const placeholders = brands.map(() => '?').join(',');
+    whereConditions.push(`vm.brand IN (${placeholders})`);
+    queryParams.push(...brands);
+    countParams.push(...brands);
+  }
+  
+  if (bundles.length > 0) {
+    const placeholders = bundles.map(() => '?').join(',');
+    whereConditions.push(`vm.bundle IN (${placeholders})`);
+    queryParams.push(...bundles);
+    countParams.push(...bundles);
+  }
+  
+  if (ppgs.length > 0) {
+    const placeholders = ppgs.map(() => '?').join(',');
+    whereConditions.push(`vm.ppg IN (${placeholders})`);
+    queryParams.push(...ppgs);
+    countParams.push(...ppgs);
+  }
+  
   const whereClause = whereConditions.length > 0 ? 'WHERE ' + whereConditions.join(' AND ') : '';
   
   const countQuery = `
     SELECT COUNT(DISTINCT p.id) as count 
     FROM products p
     LEFT JOIN product_skus ps ON p.id = ps.product_id
+    LEFT JOIN variations_master vm ON p.asin = vm.asin
     ${joinClause}
     ${whereClause}
   `;
@@ -877,9 +929,14 @@ app.get('/api/items', (req, res) => {
       (SELECT COUNT(DISTINCT country_code) FROM asin_country_status WHERE asin = p.asin) as vc_country_count,
       (SELECT COUNT(DISTINCT country_code) FROM asin_country_status) as vc_total_countries,
       (SELECT COUNT(DISTINCT source_file) FROM qpi_file_tracking WHERE asin = p.asin) as qpi_file_count,
-      (SELECT COUNT(DISTINCT source_file) FROM qpi_file_tracking) as qpi_total_files
+      (SELECT COUNT(DISTINCT source_file) FROM qpi_file_tracking) as qpi_total_files,
+      vm.brand as vm_brand,
+      vm.title as vm_title,
+      vm.bundle as vm_bundle,
+      vm.ppg as vm_ppg
     FROM products p
     LEFT JOIN product_skus ps ON p.id = ps.product_id
+    LEFT JOIN variations_master vm ON p.asin = vm.asin
     ${joinClause}
     ${whereClause}
     GROUP BY p.id
@@ -1571,6 +1628,111 @@ app.post('/api/sync/qpi', (req, res) => {
     })
     .on('error', (err) => {
       res.status(500).json({ error: 'Error reading CSV file: ' + err.message });
+    });
+});
+
+// Get unique filter values for variations master
+app.get('/api/variations/filters', (req, res) => {
+  const queries = {
+    brands: 'SELECT DISTINCT brand FROM variations_master WHERE brand IS NOT NULL AND brand != "" ORDER BY brand',
+    bundles: 'SELECT DISTINCT bundle FROM variations_master WHERE bundle IS NOT NULL AND bundle != "" ORDER BY bundle',
+    ppgs: 'SELECT DISTINCT ppg FROM variations_master WHERE ppg IS NOT NULL AND ppg != "" ORDER BY ppg'
+  };
+  
+  const results = {};
+  let completed = 0;
+  
+  Object.keys(queries).forEach(key => {
+    db.all(queries[key], [], (err, rows) => {
+      if (err) {
+        console.error(`Error fetching ${key}:`, err.message);
+        results[key] = [];
+      } else {
+        const column = key === 'brands' ? 'brand' : (key === 'bundles' ? 'bundle' : 'ppg');
+        results[key] = rows.map(r => r[column]);
+      }
+      
+      completed++;
+      if (completed === Object.keys(queries).length) {
+        res.json(results);
+      }
+    });
+  });
+});
+
+// Sync Variations Master data
+app.post('/api/sync/variations', (req, res) => {
+  const variationsPath = 'A:\\Code\\InputFiles\\Variations_Master.csv';
+  
+  if (!fs.existsSync(variationsPath)) {
+    res.status(404).json({ error: 'Variations Master CSV file not found' });
+    return;
+  }
+  
+  const variationsData = [];
+  
+  fs.createReadStream(variationsPath)
+    .pipe(csv())
+    .on('data', (data) => {
+      const asin = data['ASIN'];
+      const brand = data['brand'];
+      const title = data['title'];
+      const bundle = data['Bundle_Name'];
+      const ppg = data['PPG_Grouping'];
+      
+      if (asin) {
+        variationsData.push({ asin, brand, title, bundle, ppg });
+      }
+    })
+    .on('end', () => {
+      console.log(`Found ${variationsData.length} items in Variations Master`);
+      
+      let imported = 0;
+      let updated = 0;
+      let errors = 0;
+      
+      const stmt = db.prepare(`
+        INSERT INTO variations_master (asin, brand, title, bundle, ppg, synced_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+        ON CONFLICT(asin) 
+        DO UPDATE SET 
+          brand = excluded.brand,
+          title = excluded.title,
+          bundle = excluded.bundle,
+          ppg = excluded.ppg,
+          synced_at = CURRENT_TIMESTAMP,
+          updated_at = CURRENT_TIMESTAMP
+      `);
+      
+      variationsData.forEach(item => {
+        stmt.run([item.asin, item.brand, item.title, item.bundle, item.ppg], function(err) {
+          if (err) {
+            errors++;
+            console.error('Error importing variation:', err.message);
+          } else {
+            if (this.changes > 0) {
+              if (this.lastID) {
+                imported++;
+              } else {
+                updated++;
+              }
+            }
+          }
+        });
+      });
+      
+      stmt.finalize(() => {
+        res.json({
+          message: 'Variations Master sync completed',
+          total: variationsData.length,
+          imported: imported,
+          updated: updated,
+          errors: errors
+        });
+      });
+    })
+    .on('error', (err) => {
+      res.status(500).json({ error: 'Error reading Variations Master CSV: ' + err.message });
     });
 });
 

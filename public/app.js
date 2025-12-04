@@ -21,6 +21,7 @@ document.addEventListener('DOMContentLoaded', () => {
     loadItems();
     loadSkus();
     loadCountries();
+    loadVariationFilters();
     setupEventListeners();
 });
 
@@ -65,6 +66,9 @@ function setupEventListeners() {
 
     // Sync VC Button
     document.getElementById('syncVcBtn').addEventListener('click', syncVcData);
+    
+    // Sync Variations Button
+    document.getElementById('syncVariationsBtn').addEventListener('click', syncVariationsData);
 
     // Item Form Submit
     document.getElementById('itemForm').addEventListener('submit', handleItemSubmit);
@@ -86,6 +90,9 @@ function setupEventListeners() {
     document.getElementById('searchInput').addEventListener('input', filterItems);
     document.getElementById('statusFilter').addEventListener('change', filterItems);
     document.getElementById('countryFilter').addEventListener('change', filterItems);
+    document.getElementById('brandFilter').addEventListener('change', filterItems);
+    document.getElementById('bundleFilter').addEventListener('change', filterItems);
+    document.getElementById('ppgFilter').addEventListener('change', filterItems);
 
     // Modal close buttons
     document.querySelectorAll('.close').forEach(closeBtn => {
@@ -126,6 +133,9 @@ async function loadItems(page = 1, applyFilters = false) {
             const searchTerm = document.getElementById('searchInput').value;
             const statusFilter = document.getElementById('statusFilter').value;
             const countryFilter = document.getElementById('countryFilter').value;
+            const brandFilter = document.getElementById('brandFilter');
+            const bundleFilter = document.getElementById('bundleFilter');
+            const ppgFilter = document.getElementById('ppgFilter');
             
             if (searchTerm) {
                 queryParams += `&search=${encodeURIComponent(searchTerm)}`;
@@ -135,6 +145,28 @@ async function loadItems(page = 1, applyFilters = false) {
             }
             if (countryFilter !== 'all') {
                 queryParams += `&country=${encodeURIComponent(countryFilter)}`;
+            }
+            
+            // Add multi-select filters
+            const selectedBrands = Array.from(brandFilter.selectedOptions)
+                .map(opt => opt.value)
+                .filter(val => val !== '');
+            if (selectedBrands.length > 0) {
+                queryParams += `&brands=${encodeURIComponent(selectedBrands.join(','))}`;
+            }
+            
+            const selectedBundles = Array.from(bundleFilter.selectedOptions)
+                .map(opt => opt.value)
+                .filter(val => val !== '');
+            if (selectedBundles.length > 0) {
+                queryParams += `&bundles=${encodeURIComponent(selectedBundles.join(','))}`;
+            }
+            
+            const selectedPpgs = Array.from(ppgFilter.selectedOptions)
+                .map(opt => opt.value)
+                .filter(val => val !== '');
+            if (selectedPpgs.length > 0) {
+                queryParams += `&ppgs=${encodeURIComponent(selectedPpgs.join(','))}`;
             }
         }
         
@@ -223,6 +255,45 @@ async function loadCountries() {
         console.error('Error loading countries:', error);
         const countryFilter = document.getElementById('countryFilter');
         countryFilter.innerHTML = '<option value="all">All Countries (Error loading)</option>';
+    }
+}
+
+async function loadVariationFilters() {
+    try {
+        const response = await fetch(`${API_BASE}/variations/filters`);
+        const filters = await response.json();
+        
+        // Load brands
+        const brandFilter = document.getElementById('brandFilter');
+        brandFilter.innerHTML = '<option value="">All Brands</option>';
+        filters.brands.forEach(brand => {
+            const option = document.createElement('option');
+            option.value = brand;
+            option.textContent = brand;
+            brandFilter.appendChild(option);
+        });
+        
+        // Load bundles
+        const bundleFilter = document.getElementById('bundleFilter');
+        bundleFilter.innerHTML = '<option value="">All Bundles</option>';
+        filters.bundles.forEach(bundle => {
+            const option = document.createElement('option');
+            option.value = bundle;
+            option.textContent = bundle;
+            bundleFilter.appendChild(option);
+        });
+        
+        // Load PPGs
+        const ppgFilter = document.getElementById('ppgFilter');
+        ppgFilter.innerHTML = '<option value="">All PPG</option>';
+        filters.ppgs.forEach(ppg => {
+            const option = document.createElement('option');
+            option.value = ppg;
+            option.textContent = ppg;
+            ppgFilter.appendChild(option);
+        });
+    } catch (error) {
+        console.error('Error loading variation filters:', error);
     }
 }
 
@@ -342,6 +413,7 @@ function renderItems(itemsToRender) {
         const skus = item.skus || [];
         const displaySku = skus.length > 0 ? skus.join(', ') : '-';
         const isTempAsin = item.is_temp_asin === 1;
+        const missingVariations = !item.vm_brand && !item.vm_title && !item.vm_bundle && !item.vm_ppg;
         
         // Calculate Stage 4 percentage (VC Listed by country)
         const stage4Percent = item.vc_country_count && item.vc_total_countries 
@@ -368,6 +440,7 @@ function renderItems(itemsToRender) {
                 <td class="item-name" title="${escapeHtml(item.name || item.asin)}">
                     ${escapeHtml(item.name || item.asin)}
                     ${isTempAsin ? '<span class="temp-badge">TEMP</span>' : ''}
+                    ${missingVariations ? '<span class="missing-badge" title="Not found in Variations Master">MISSING</span>' : ''}
                 </td>
                 <td class="item-asin">${escapeHtml(item.asin)}</td>
                 <td class="item-skus" title="${escapeHtml(displaySku)}">${escapeHtml(displaySku)}</td>
@@ -1007,6 +1080,31 @@ async function syncVcData() {
     } catch (error) {
         console.error('Error syncing VC data:', error);
         showError('Failed to sync VC data: ' + error.message);
+    }
+}
+
+async function syncVariationsData() {
+    if (!confirm('This will sync Brand, Title, Bundle, and PPG data from Variations_Master.csv. Continue?')) {
+        return;
+    }
+
+    try {
+        const response = await fetch(`${API_BASE}/sync/variations`, {
+            method: 'POST'
+        });
+
+        const result = await response.json();
+        
+        if (response.ok) {
+            alert(`Variations Sync Complete!\n\nTotal: ${result.total}\nImported: ${result.imported}\nUpdated: ${result.updated}\nErrors: ${result.errors}`);
+            loadVariationFilters(); // Reload filter options
+            loadItems(); // Reload items to show new data
+        } else {
+            throw new Error(result.error || 'Sync failed');
+        }
+    } catch (error) {
+        console.error('Error syncing variations data:', error);
+        showError('Failed to sync variations data: ' + error.message);
     }
 }
 
