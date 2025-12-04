@@ -269,17 +269,64 @@ function initializeDatabase() {
       UNIQUE(asin, country_code)
     )`);
     
-    // QPI file tracking table - tracks which QPIs contain each ASIN
-    db.run(`CREATE TABLE IF NOT EXISTS qpi_file_tracking (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      asin TEXT NOT NULL,
-      sku TEXT,
-      source_file TEXT NOT NULL,
-      qpi_sync_date DATE,
-      last_seen DATETIME DEFAULT CURRENT_TIMESTAMP,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      UNIQUE(asin, source_file)
-    )`);
+    // QPI file tracking table - check if migration needed first
+    db.all('PRAGMA table_info(qpi_file_tracking)', (err, columns) => {
+      if (err || !columns || columns.length === 0) {
+        // Table doesn't exist, create new one
+        db.run(`CREATE TABLE IF NOT EXISTS qpi_file_tracking (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          asin TEXT NOT NULL,
+          sku TEXT,
+          source_file TEXT NOT NULL,
+          qpi_sync_date DATE,
+          last_seen DATETIME DEFAULT CURRENT_TIMESTAMP,
+          created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+          UNIQUE(asin, source_file)
+        )`, (createErr) => {
+          if (createErr) {
+            console.error('Error creating qpi_file_tracking table:', createErr.message);
+          } else {
+            console.log('[SETUP] qpi_file_tracking table created');
+          }
+        });
+      } else {
+        // Table exists, check if migration needed
+        const hasSourceFile = columns.some(c => c.name === 'source_file');
+        const hasOldFileNameColumn = columns.some(c => c.name === 'qpi_file_name');
+        
+        // If table has old structure, drop and recreate
+        if (hasOldFileNameColumn && !hasSourceFile) {
+          console.log('[MIGRATION] Updating qpi_file_tracking table structure...');
+          db.serialize(() => {
+            db.run('DROP TABLE qpi_file_tracking', (dropErr) => {
+              if (dropErr) {
+                console.error('Error dropping old qpi_file_tracking table:', dropErr.message);
+                return;
+              }
+              
+              db.run(`CREATE TABLE qpi_file_tracking (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                asin TEXT NOT NULL,
+                sku TEXT,
+                source_file TEXT NOT NULL,
+                qpi_sync_date DATE,
+                last_seen DATETIME DEFAULT CURRENT_TIMESTAMP,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE(asin, source_file)
+              )`, (createErr) => {
+                if (createErr) {
+                  console.error('Error creating new qpi_file_tracking table:', createErr.message);
+                } else {
+                  console.log('[MIGRATION] qpi_file_tracking table updated successfully. Please re-sync QPI data.');
+                }
+              });
+            });
+          });
+        } else if (hasSourceFile) {
+          console.log('[SETUP] qpi_file_tracking table ready');
+        }
+      }
+    });
 
     console.log('Database tables initialized');
     
