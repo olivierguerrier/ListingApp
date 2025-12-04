@@ -839,6 +839,7 @@ app.get('/api/items', (req, res) => {
   const search = req.query.search || '';
   const stage = req.query.stage || '';
   const country = req.query.country || '';
+  const temp = req.query.temp || 'all';
   const missing = req.query.missing || 'all';
   const brands = req.query.brands ? req.query.brands.split(',') : [];
   const bundles = req.query.bundles ? req.query.bundles.split(',') : [];
@@ -883,6 +884,13 @@ app.get('/api/items', (req, res) => {
     whereConditions.push('acs.country_code = ?');
     queryParams.push(country);
     countParams.push(country);
+  }
+  
+  // Temp ASIN filter
+  if (temp === 'temp') {
+    whereConditions.push('p.is_temp_asin = 1');
+  } else if (temp === 'permanent') {
+    whereConditions.push('(p.is_temp_asin = 0 OR p.is_temp_asin IS NULL)');
   }
   
   // Missing filter - check if ASIN exists in variations_master
