@@ -104,6 +104,7 @@
         <div class="view-tabs" style="margin-bottom: 30px;">
             <button class="tab-btn active" data-tab="users">👥 User Management</button>
             <button class="tab-btn" data-tab="fx-rates">💱 FX Rates</button>
+            <button class="tab-btn" data-tab="customer-admin">🏢 Customer Admin</button>
         </div>
         
         <!-- User Management Tab -->
@@ -165,6 +166,56 @@
                             </tr>
                         </tbody>
                     </table>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Customer Admin Tab -->
+        <div id="customerAdminTab" class="admin-tab-content" style="display: none;">
+            <div class="card">
+                <h2>🏢 Customer/Marketplace Mapping</h2>
+                <p style="color: var(--text-secondary); margin-bottom: 20px;">
+                    View and manage vendor codes, QPIs, and marketplace mappings for all countries.
+                </p>
+                
+                <!-- Filter Controls -->
+                <div style="display: flex; gap: 10px; margin-bottom: 20px;">
+                    <input type="text" id="mappingSearch" placeholder="Search by country, vendor code, QPI..." style="flex: 1; padding: 8px; border: 1px solid var(--border-color); border-radius: 4px;">
+                    <select id="mappingCustomerFilter" style="padding: 8px; border: 1px solid var(--border-color); border-radius: 4px;">
+                        <option value="all">All Customers</option>
+                    </select>
+                    <select id="mappingMarketplaceFilter" style="padding: 8px; border: 1px solid var(--border-color); border-radius: 4px;">
+                        <option value="all">All Marketplaces</option>
+                    </select>
+                    <button class="btn btn-secondary" onclick="loadVendorMapping()">🔄 Refresh</button>
+                    <button class="btn btn-primary" onclick="syncVendorMapping()">📥 Re-Sync from File</button>
+                </div>
+                
+                <div style="overflow-x: auto;">
+                    <table class="users-table" id="vendorMappingTable">
+                        <thead>
+                            <tr>
+                                <th>Customer</th>
+                                <th>Country</th>
+                                <th>Marketplace</th>
+                                <th>Country Code</th>
+                                <th>Vendor Code</th>
+                                <th>QPI File</th>
+                                <th>VC File</th>
+                                <th>PPG Default</th>
+                            </tr>
+                        </thead>
+                        <tbody id="vendorMappingTableBody">
+                            <tr>
+                                <td colspan="8" style="text-align: center; padding: 40px;">Loading mappings...</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+                
+                <div id="mappingStats" style="margin-top: 20px; padding: 15px; background: var(--bg-secondary); border-radius: 8px;">
+                    <strong>Statistics:</strong>
+                    <span id="mappingStatsContent">Loading...</span>
                 </div>
             </div>
         </div>

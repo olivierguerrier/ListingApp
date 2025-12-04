@@ -1336,6 +1336,29 @@ app.get('/api/marketplaces', (req, res) => {
   });
 });
 
+// Get all vendor mapping data (Admin only)
+app.get('/api/vendor-mapping', authenticateToken, requireRole('admin'), (req, res) => {
+  db.all(`
+    SELECT 
+      id,
+      customer,
+      country,
+      marketplace,
+      country_code,
+      vendor_code,
+      qpi_file,
+      vc_file,
+      ppg_default
+    FROM vendor_mapping
+    ORDER BY customer, marketplace, country
+  `, [], (err, rows) => {
+    if (err) {
+      return res.status(500).json({ error: err.message });
+    }
+    res.json(rows);
+  });
+});
+
 // Get list of marketplaces from vendor mapping (legacy)
 app.get('/api/countries', (req, res) => {
   db.all(`

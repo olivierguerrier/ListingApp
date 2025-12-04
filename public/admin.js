@@ -40,6 +40,12 @@ function switchTab(tab) {
     // Show/hide content
     document.getElementById('usersTab').style.display = tab === 'users' ? 'block' : 'none';
     document.getElementById('fxRatesTab').style.display = tab === 'fx-rates' ? 'block' : 'none';
+    document.getElementById('customerAdminTab').style.display = tab === 'customer-admin' ? 'block' : 'none';
+    
+    // Load data when switching to customer admin
+    if (tab === 'customer-admin') {
+        loadVendorMapping();
+    }
 }
 
 async function checkAuth() {
@@ -220,6 +226,167 @@ function logout() {
     localStorage.clear();
     window.location.href = '/login.html';
 }
+
+// ============ VENDOR MAPPING / CUSTOMER ADMIN ============
+
+let vendorMappingData = [];
+
+async function loadVendorMapping() {
+    const token = localStorage.getItem('token');
+    const searchTerm = document.getElementById('mappingSearch')?.value.toLowerCase() || '';
+    const customerFilter = document.getElementById('mappingCustomerFilter')?.value || 'all';
+    const marketplaceFilter = document.getElementById('mappingMarketplaceFilter')?.value || 'all';
+    
+    try {
+        const response = await fetch(`${API_BASE}/vendor-mapping`, {
+            headers: {
+                'Authorization': `Bearer ${token}`
+            }
+        });
+        
+        if (!response.ok) {
+            throw new Error('Failed to load vendor mapping');
+        }
+        
+        vendorMappingData = await response.json();
+        
+        // Apply filters
+        let filteredData = vendorMappingData;
+        
+        if (searchTerm) {
+            filteredData = filteredData.filter(row => 
+                (row.country && row.country.toLowerCase().includes(searchTerm)) ||
+                (row.marketplace && row.marketplace.toLowerCase().includes(searchTerm)) ||
+                (row.country_code && row.country_code.toLowerCase().includes(searchTerm)) ||
+                (row.vendor_code && row.vendor_code.toLowerCase().includes(searchTerm)) ||
+                (row.qpi_file && row.qpi_file.toLowerCase().includes(searchTerm)) ||
+                (row.customer && row.customer.toLowerCase().includes(searchTerm))
+            );
+        }
+        
+        if (customerFilter !== 'all') {
+            filteredData = filteredData.filter(row => row.customer === customerFilter);
+        }
+        
+        if (marketplaceFilter !== 'all') {
+            filteredData = filteredData.filter(row => row.marketplace === marketplaceFilter);
+        }
+        
+        renderVendorMapping(filteredData);
+        updateMappingFilters();
+        updateMappingStats(filteredData);
+    } catch (error) {
+        console.error('Error loading vendor mapping:', error);
+        showMessage('Error loading vendor mapping: ' + error.message, 'error');
+    }
+}
+
+function renderVendorMapping(data) {
+    const tbody = document.getElementById('vendorMappingTableBody');
+    
+    if (data.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="8" style="text-align: center; padding: 40px; color: var(--text-secondary);">No mappings found</td></tr>';
+        return;
+    }
+    
+    tbody.innerHTML = data.map(row => `
+        <tr>
+            <td>${row.customer || '-'}</td>
+            <td>${row.country || '-'}</td>
+            <td><strong>${row.marketplace || '-'}</strong></td>
+            <td><code>${row.country_code || '-'}</code></td>
+            <td><code>${row.vendor_code || '-'}</code></td>
+            <td><small>${row.qpi_file || '-'}</small></td>
+            <td><small>${row.vc_file || '-'}</small></td>
+            <td>${row.ppg_default || '-'}</td>
+        </tr>
+    `).join('');
+}
+
+function updateMappingFilters() {
+    // Populate customer filter
+    const customerFilter = document.getElementById('mappingCustomerFilter');
+    const customers = [...new Set(vendorMappingData.map(r => r.customer).filter(Boolean))].sort();
+    const currentCustomer = customerFilter.value;
+    customerFilter.innerHTML = '<option value="all">All Customers</option>' + 
+        customers.map(c => `<option value="${c}" ${c === currentCustomer ? 'selected' : ''}>${c}</option>`).join('');
+    
+    // Populate marketplace filter
+    const marketplaceFilter = document.getElementById('mappingMarketplaceFilter');
+    const marketplaces = [...new Set(vendorMappingData.map(r => r.marketplace).filter(Boolean))].sort();
+    const currentMarketplace = marketplaceFilter.value;
+    marketplaceFilter.innerHTML = '<option value="all">All Marketplaces</option>' + 
+        marketplaces.map(m => `<option value="${m}" ${m === currentMarketplace ? 'selected' : ''}>${m}</option>`).join('');
+}
+
+function updateMappingStats(data) {
+    const stats = {
+        totalRecords: data.length,
+        uniqueCountries: new Set(data.map(r => r.country)).size,
+        uniqueMarketplaces: new Set(data.map(r => r.marketplace)).size,
+        uniqueVendorCodes: new Set(data.map(r => r.vendor_code)).size,
+        uniqueQPIs: new Set(data.map(r => r.qpi_file).filter(Boolean)).size
+    };
+    
+    document.getElementById('mappingStatsContent').innerHTML = `
+        ${stats.totalRecords} records | 
+        ${stats.uniqueCountries} countries | 
+        ${stats.uniqueMarketplaces} marketplaces | 
+        ${stats.uniqueVendorCodes} vendor codes | 
+        ${stats.uniqueQPIs} QPI files
+    `;
+}
+
+async function syncVendorMapping() {
+    const token = localStorage.getItem('token');
+    
+    if (!confirm('This will re-sync the vendor mapping from the Excel file. Continue?')) {
+        return;
+    }
+    
+    try {
+        showMessage('Syncing vendor mapping...', 'info');
+        
+        const response = await fetch(`${API_BASE}/sync/vendor-mapping`, {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${token}`
+            }
+        });
+        
+        const result = await response.json();
+        
+        if (response.ok) {
+            showMessage(result.message || 'Vendor mapping synced successfully!', 'success');
+            loadVendorMapping(); // Reload data
+        } else {
+            showMessage('Error: ' + (result.error || 'Failed to sync vendor mapping'), 'error');
+        }
+    } catch (error) {
+        showMessage('Error syncing vendor mapping: ' + error.message, 'error');
+    }
+}
+
+// Add event listeners for filters
+document.addEventListener('DOMContentLoaded', () => {
+    const mappingSearch = document.getElementById('mappingSearch');
+    const customerFilter = document.getElementById('mappingCustomerFilter');
+    const marketplaceFilter = document.getElementById('mappingMarketplaceFilter');
+    
+    if (mappingSearch) {
+        mappingSearch.addEventListener('input', () => {
+            setTimeout(loadVendorMapping, 300); // Debounce
+        });
+    }
+    
+    if (customerFilter) {
+        customerFilter.addEventListener('change', loadVendorMapping);
+    }
+    
+    if (marketplaceFilter) {
+        marketplaceFilter.addEventListener('change', loadVendorMapping);
+    }
+});
 
 // ============ FX RATES MANAGEMENT ============
 
