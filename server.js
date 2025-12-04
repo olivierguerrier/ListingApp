@@ -1336,8 +1336,8 @@ app.get('/api/marketplaces', (req, res) => {
   });
 });
 
-// Get all vendor mapping data (Admin only)
-app.get('/api/vendor-mapping', authenticateToken, requireRole('admin'), (req, res) => {
+// Get all vendor mapping data (Sales Person, Approver, Admin)
+app.get('/api/vendor-mapping', authenticateToken, requireRole('sales person', 'approver', 'admin'), (req, res) => {
   db.all(`
     SELECT 
       id,

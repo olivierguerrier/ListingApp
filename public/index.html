@@ -15,8 +15,16 @@
         </div>
         
         <nav class="sidebar-nav">
-            <!-- Admin Console -->
-            <div class="sidebar-section">
+            <!-- Customer Admin - Accessible by Sales Person, Approver, Admin -->
+            <div class="sidebar-section" id="customerAdminSection" style="display: none;">
+                <button class="sidebar-item" id="sidebarCustomerAdminBtn">
+                    <span class="sidebar-icon">🏢</span>
+                    <span>Customer Admin</span>
+                </button>
+            </div>
+            
+            <!-- Admin Console - Admin only -->
+            <div class="sidebar-section" id="adminConsoleSection" style="display: none;">
                 <a href="/admin.html" class="sidebar-item">
                     <span class="sidebar-icon">⚙️</span>
                     <span>Admin Console</span>
@@ -87,6 +95,7 @@
             <button class="tab-btn active" data-view="products">Products (by ASIN)</button>
             <button class="tab-btn" data-view="skus">SKUs (by Item Number)</button>
             <button class="tab-btn" data-view="pricing-approvals" id="pricingApprovalsTab" style="display: none;">💰 Pricing Approvals</button>
+            <button class="tab-btn" data-view="customer-admin" id="customerAdminViewTab" style="display: none;">🏢 Customer Admin</button>
             <button class="tab-btn" data-view="reports">Reports</button>
             <button class="tab-btn" data-view="database">Database Explorer</button>
         </div>
@@ -450,6 +459,57 @@
             
             <div id="pricingApprovalsContainer">
                 <p style="text-align: center; padding: 40px;">Loading pricing submissions...</p>
+            </div>
+        </div>
+        
+        <!-- Customer Admin View -->
+        <div id="customerAdminView" class="view-container" style="display: none;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                <h2>🏢 Customer/Marketplace Mapping</h2>
+                <button class="btn btn-primary" onclick="syncVendorMappingFromMain()">📥 Re-Sync from File</button>
+            </div>
+            
+            <p style="color: var(--text-secondary); margin-bottom: 20px;">
+                View and manage vendor codes, QPIs, and marketplace mappings for all countries.
+            </p>
+            
+            <!-- Filter Controls -->
+            <div style="display: flex; gap: 10px; margin-bottom: 20px;">
+                <input type="text" id="mainMappingSearch" placeholder="Search by country, vendor code, QPI..." style="flex: 1; padding: 8px; border: 1px solid var(--border-color); border-radius: 4px;">
+                <select id="mainMappingCustomerFilter" style="padding: 8px; border: 1px solid var(--border-color); border-radius: 4px;">
+                    <option value="all">All Customers</option>
+                </select>
+                <select id="mainMappingMarketplaceFilter" style="padding: 8px; border: 1px solid var(--border-color); border-radius: 4px;">
+                    <option value="all">All Marketplaces</option>
+                </select>
+                <button class="btn btn-secondary" onclick="loadVendorMappingFromMain()">🔄 Refresh</button>
+            </div>
+            
+            <div style="overflow-x: auto;">
+                <table class="items-table" id="mainVendorMappingTable">
+                    <thead>
+                        <tr>
+                            <th>Customer</th>
+                            <th>Country</th>
+                            <th>Marketplace</th>
+                            <th>Country Code</th>
+                            <th>Vendor Code</th>
+                            <th>QPI File</th>
+                            <th>VC File</th>
+                            <th>PPG Default</th>
+                        </tr>
+                    </thead>
+                    <tbody id="mainVendorMappingTableBody">
+                        <tr>
+                            <td colspan="8" style="text-align: center; padding: 40px;">Loading mappings...</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+            
+            <div id="mainMappingStats" style="margin-top: 20px; padding: 15px; background: var(--bg-secondary); border-radius: 8px;">
+                <strong>Statistics:</strong>
+                <span id="mainMappingStatsContent">Loading...</span>
             </div>
         </div>
     </div>

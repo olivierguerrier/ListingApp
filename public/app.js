@@ -68,6 +68,26 @@ function setupUserUI() {
         }
     }
     
+    // Show Customer Admin for Sales Person, Approver, and Admin
+    if (currentUser.role === 'sales person' || currentUser.role === 'approver' || currentUser.role === 'admin') {
+        const customerAdminSection = document.getElementById('customerAdminSection');
+        const customerAdminViewTab = document.getElementById('customerAdminViewTab');
+        if (customerAdminSection) {
+            customerAdminSection.style.display = 'block';
+        }
+        if (customerAdminViewTab) {
+            customerAdminViewTab.style.display = 'inline-block';
+        }
+    }
+    
+    // Show Admin Console only for Admins
+    if (currentUser.role === 'admin') {
+        const adminConsoleSection = document.getElementById('adminConsoleSection');
+        if (adminConsoleSection) {
+            adminConsoleSection.style.display = 'block';
+        }
+    }
+    
     // Hide features based on role
     if (currentUser.role === 'viewer') {
         // Viewers can only view and export
@@ -155,6 +175,7 @@ document.addEventListener('DOMContentLoaded', () => {
     loadVariationFilters();
     setupFilterSearch();
     setupEventListeners();
+    setupCustomerAdminFilters();
 });
 
 // Event Listeners
@@ -497,11 +518,14 @@ function switchView(view) {
     document.getElementById('productsView').style.display = view === 'products' ? 'block' : 'none';
     document.getElementById('skusView').style.display = view === 'skus' ? 'block' : 'none';
     document.getElementById('pricingApprovalsView').style.display = view === 'pricing-approvals' ? 'block' : 'none';
+    document.getElementById('customerAdminView').style.display = view === 'customer-admin' ? 'block' : 'none';
     document.getElementById('databaseView').style.display = view === 'database' ? 'block' : 'none';
     
     // Load data based on view
     if (view === 'pricing-approvals') {
         loadPricingApprovalsView();
+    } else if (view === 'customer-admin') {
+        loadVendorMappingFromMain();
     } else if (view === 'products' && items.length > 0) {
         renderItems(items);
     } else if (view === 'skus' && skus.length > 0) {
@@ -1541,6 +1565,15 @@ function initSidebar() {
         syncOnlineStatus();
         closeSidebar();
     });
+    
+    // Customer Admin button
+    const customerAdminBtn = document.getElementById('sidebarCustomerAdminBtn');
+    if (customerAdminBtn) {
+        customerAdminBtn.addEventListener('click', () => {
+            switchView('customer-admin');
+            closeSidebar();
+        });
+    }
 }
 
 // Handle item form submission
@@ -2489,5 +2522,167 @@ async function exportReportExcel(reportType, reportTitle) {
     } catch (error) {
         console.error('Error exporting report:', error);
         showError('Failed to export report');
+    }
+}
+
+// ============ VENDOR MAPPING / CUSTOMER ADMIN (Main App) ============
+
+let vendorMappingData = [];
+
+async function loadVendorMappingFromMain() {
+    const token = localStorage.getItem('token');
+    const searchTerm = document.getElementById('mainMappingSearch')?.value.toLowerCase() || '';
+    const customerFilter = document.getElementById('mainMappingCustomerFilter')?.value || 'all';
+    const marketplaceFilter = document.getElementById('mainMappingMarketplaceFilter')?.value || 'all';
+    
+    try {
+        const response = await fetch(`${API_BASE}/vendor-mapping`, {
+            headers: {
+                'Authorization': `Bearer ${token}`
+            }
+        });
+        
+        if (!response.ok) {
+            throw new Error('Failed to load vendor mapping');
+        }
+        
+        vendorMappingData = await response.json();
+        
+        // Apply filters
+        let filteredData = vendorMappingData;
+        
+        if (searchTerm) {
+            filteredData = filteredData.filter(row => 
+                (row.country && row.country.toLowerCase().includes(searchTerm)) ||
+                (row.marketplace && row.marketplace.toLowerCase().includes(searchTerm)) ||
+                (row.country_code && row.country_code.toLowerCase().includes(searchTerm)) ||
+                (row.vendor_code && row.vendor_code.toLowerCase().includes(searchTerm)) ||
+                (row.qpi_file && row.qpi_file.toLowerCase().includes(searchTerm)) ||
+                (row.customer && row.customer.toLowerCase().includes(searchTerm))
+            );
+        }
+        
+        if (customerFilter !== 'all') {
+            filteredData = filteredData.filter(row => row.customer === customerFilter);
+        }
+        
+        if (marketplaceFilter !== 'all') {
+            filteredData = filteredData.filter(row => row.marketplace === marketplaceFilter);
+        }
+        
+        renderVendorMappingFromMain(filteredData);
+        updateMappingFiltersFromMain();
+        updateMappingStatsFromMain(filteredData);
+    } catch (error) {
+        console.error('Error loading vendor mapping:', error);
+        showError('Failed to load vendor mapping');
+    }
+}
+
+function renderVendorMappingFromMain(data) {
+    const tbody = document.getElementById('mainVendorMappingTableBody');
+    
+    if (data.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="8" style="text-align: center; padding: 40px; color: var(--text-secondary);">No mappings found</td></tr>';
+        return;
+    }
+    
+    tbody.innerHTML = data.map(row => `
+        <tr>
+            <td>${row.customer || '-'}</td>
+            <td>${row.country || '-'}</td>
+            <td><strong>${row.marketplace || '-'}</strong></td>
+            <td><code>${row.country_code || '-'}</code></td>
+            <td><code>${row.vendor_code || '-'}</code></td>
+            <td><small>${row.qpi_file || '-'}</small></td>
+            <td><small>${row.vc_file || '-'}</small></td>
+            <td>${row.ppg_default || '-'}</td>
+        </tr>
+    `).join('');
+}
+
+function updateMappingFiltersFromMain() {
+    // Populate customer filter
+    const customerFilter = document.getElementById('mainMappingCustomerFilter');
+    const customers = [...new Set(vendorMappingData.map(r => r.customer).filter(Boolean))].sort();
+    const currentCustomer = customerFilter.value;
+    customerFilter.innerHTML = '<option value="all">All Customers</option>' + 
+        customers.map(c => `<option value="${c}" ${c === currentCustomer ? 'selected' : ''}>${c}</option>`).join('');
+    
+    // Populate marketplace filter
+    const marketplaceFilter = document.getElementById('mainMappingMarketplaceFilter');
+    const marketplaces = [...new Set(vendorMappingData.map(r => r.marketplace).filter(Boolean))].sort();
+    const currentMarketplace = marketplaceFilter.value;
+    marketplaceFilter.innerHTML = '<option value="all">All Marketplaces</option>' + 
+        marketplaces.map(m => `<option value="${m}" ${m === currentMarketplace ? 'selected' : ''}>${m}</option>`).join('');
+}
+
+function updateMappingStatsFromMain(data) {
+    const stats = {
+        totalRecords: data.length,
+        uniqueCountries: new Set(data.map(r => r.country)).size,
+        uniqueMarketplaces: new Set(data.map(r => r.marketplace)).size,
+        uniqueVendorCodes: new Set(data.map(r => r.vendor_code)).size,
+        uniqueQPIs: new Set(data.map(r => r.qpi_file).filter(Boolean)).size
+    };
+    
+    document.getElementById('mainMappingStatsContent').innerHTML = `
+        ${stats.totalRecords} records | 
+        ${stats.uniqueCountries} countries | 
+        ${stats.uniqueMarketplaces} marketplaces | 
+        ${stats.uniqueVendorCodes} vendor codes | 
+        ${stats.uniqueQPIs} QPI files
+    `;
+}
+
+async function syncVendorMappingFromMain() {
+    const token = localStorage.getItem('token');
+    
+    if (!confirm('This will re-sync the vendor mapping from the Excel file. Continue?')) {
+        return;
+    }
+    
+    try {
+        showInfo('Syncing vendor mapping...');
+        
+        const response = await fetch(`${API_BASE}/sync/vendor-mapping`, {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${token}`
+            }
+        });
+        
+        const result = await response.json();
+        
+        if (response.ok) {
+            showSuccess(result.message || 'Vendor mapping synced successfully!');
+            loadVendorMappingFromMain(); // Reload data
+        } else {
+            showError('Error: ' + (result.error || 'Failed to sync vendor mapping'));
+        }
+    } catch (error) {
+        showError('Error syncing vendor mapping: ' + error.message);
+    }
+}
+
+function setupCustomerAdminFilters() {
+    const mappingSearch = document.getElementById('mainMappingSearch');
+    const customerFilter = document.getElementById('mainMappingCustomerFilter');
+    const marketplaceFilter = document.getElementById('mainMappingMarketplaceFilter');
+    
+    if (mappingSearch) {
+        let timeout;
+        mappingSearch.addEventListener('input', () => {
+            clearTimeout(timeout);
+            timeout = setTimeout(loadVendorMappingFromMain, 300); // Debounce
+        });
+    }
+    
+    if (customerFilter) {
+        customerFilter.addEventListener('change', loadVendorMappingFromMain);
+    }
+    
+    if (marketplaceFilter) {
+        marketplaceFilter.addEventListener('change', loadVendorMappingFromMain);
     }
 }
