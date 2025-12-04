@@ -1045,11 +1045,11 @@ function setupMarginCalculations() {
             
             // Color code based on margin
             if (cMargin < 20) {
-                companyMargin.style.color = 'var(--danger)';
+                companyMargin.style.color = 'var(--danger-color)';
             } else if (cMargin < 35) {
-                companyMargin.style.color = 'var(--warning)';
+                companyMargin.style.color = 'var(--warning-color)';
             } else {
-                companyMargin.style.color = 'var(--success)';
+                companyMargin.style.color = 'var(--success-color)';
             }
         } else {
             companyMargin.value = '';
@@ -1061,20 +1061,29 @@ function setupMarginCalculations() {
             
             // Color code based on margin
             if (custMargin < 25) {
-                customerMargin.style.color = 'var(--danger)';
+                customerMargin.style.color = 'var(--danger-color)';
             } else if (custMargin < 40) {
-                customerMargin.style.color = 'var(--warning)';
+                customerMargin.style.color = 'var(--warning-color)';
             } else {
-                customerMargin.style.color = 'var(--success)';
+                customerMargin.style.color = 'var(--success-color)';
             }
         } else {
             customerMargin.value = '';
         }
     }
     
+    // Remove any existing listeners to prevent duplicates
+    productCost.removeEventListener('input', calculateMargins);
+    sellPrice.removeEventListener('input', calculateMargins);
+    retailPrice.removeEventListener('input', calculateMargins);
+    
+    // Add the event listeners
     productCost.addEventListener('input', calculateMargins);
     sellPrice.addEventListener('input', calculateMargins);
     retailPrice.addEventListener('input', calculateMargins);
+    
+    // Calculate immediately in case there are pre-filled values
+    calculateMargins();
 }
 
 function closePricingSubmissionModal() {
