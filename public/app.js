@@ -22,6 +22,7 @@ document.addEventListener('DOMContentLoaded', () => {
     loadSkus();
     loadCountries();
     loadVariationFilters();
+    setupFilterSearch();
     setupEventListeners();
 });
 
@@ -90,9 +91,18 @@ function setupEventListeners() {
     document.getElementById('searchInput').addEventListener('input', filterItems);
     document.getElementById('statusFilter').addEventListener('change', filterItems);
     document.getElementById('countryFilter').addEventListener('change', filterItems);
-    document.getElementById('brandFilter').addEventListener('change', filterItems);
-    document.getElementById('bundleFilter').addEventListener('change', filterItems);
-    document.getElementById('ppgFilter').addEventListener('change', filterItems);
+    document.getElementById('brandFilter').addEventListener('change', () => {
+        loadVariationFilters(); // Reload filters for cross-filtering
+        filterItems();
+    });
+    document.getElementById('bundleFilter').addEventListener('change', () => {
+        loadVariationFilters(); // Reload filters for cross-filtering
+        filterItems();
+    });
+    document.getElementById('ppgFilter').addEventListener('change', () => {
+        loadVariationFilters(); // Reload filters for cross-filtering
+        filterItems();
+    });
 
     // Modal close buttons
     document.querySelectorAll('.close').forEach(closeBtn => {
@@ -260,41 +270,103 @@ async function loadCountries() {
 
 async function loadVariationFilters() {
     try {
-        const response = await fetch(`${API_BASE}/variations/filters`);
+        // Get currently selected values for cross-filtering
+        const brandFilter = document.getElementById('brandFilter');
+        const bundleFilter = document.getElementById('bundleFilter');
+        const ppgFilter = document.getElementById('ppgFilter');
+        
+        const selectedBrands = Array.from(brandFilter.selectedOptions)
+            .map(opt => opt.value)
+            .filter(val => val !== '');
+        const selectedBundles = Array.from(bundleFilter.selectedOptions)
+            .map(opt => opt.value)
+            .filter(val => val !== '');
+        const selectedPpgs = Array.from(ppgFilter.selectedOptions)
+            .map(opt => opt.value)
+            .filter(val => val !== '');
+        
+        // Build query string for cross-filtering
+        let queryParams = [];
+        if (selectedBrands.length > 0) {
+            queryParams.push(`brands=${encodeURIComponent(selectedBrands.join(','))}`);
+        }
+        if (selectedBundles.length > 0) {
+            queryParams.push(`bundles=${encodeURIComponent(selectedBundles.join(','))}`);
+        }
+        if (selectedPpgs.length > 0) {
+            queryParams.push(`ppgs=${encodeURIComponent(selectedPpgs.join(','))}`);
+        }
+        
+        const queryString = queryParams.length > 0 ? '?' + queryParams.join('&') : '';
+        const response = await fetch(`${API_BASE}/variations/filters${queryString}`);
         const filters = await response.json();
         
-        // Load brands
-        const brandFilter = document.getElementById('brandFilter');
-        brandFilter.innerHTML = '<option value="">All Brands</option>';
-        filters.brands.forEach(brand => {
-            const option = document.createElement('option');
-            option.value = brand;
-            option.textContent = brand;
-            brandFilter.appendChild(option);
-        });
+        // Store full lists for search functionality
+        window.allBrands = filters.brands || [];
+        window.allBundles = filters.bundles || [];
+        window.allPpgs = filters.ppgs || [];
         
-        // Load bundles
-        const bundleFilter = document.getElementById('bundleFilter');
-        bundleFilter.innerHTML = '<option value="">All Bundles</option>';
-        filters.bundles.forEach(bundle => {
-            const option = document.createElement('option');
-            option.value = bundle;
-            option.textContent = bundle;
-            bundleFilter.appendChild(option);
-        });
+        // Populate filters
+        populateFilterOptions('brandFilter', window.allBrands, selectedBrands, 'All Brands');
+        populateFilterOptions('bundleFilter', window.allBundles, selectedBundles, 'All Bundles');
+        populateFilterOptions('ppgFilter', window.allPpgs, selectedPpgs, 'All PPG');
         
-        // Load PPGs
-        const ppgFilter = document.getElementById('ppgFilter');
-        ppgFilter.innerHTML = '<option value="">All PPG</option>';
-        filters.ppgs.forEach(ppg => {
-            const option = document.createElement('option');
-            option.value = ppg;
-            option.textContent = ppg;
-            ppgFilter.appendChild(option);
-        });
     } catch (error) {
         console.error('Error loading variation filters:', error);
     }
+}
+
+function populateFilterOptions(filterId, options, selectedValues, defaultLabel) {
+    const filterElement = document.getElementById(filterId);
+    filterElement.innerHTML = `<option value="">${defaultLabel}</option>`;
+    
+    options.forEach(option => {
+        const optElement = document.createElement('option');
+        optElement.value = option;
+        optElement.textContent = option;
+        if (selectedValues.includes(option)) {
+            optElement.selected = true;
+        }
+        filterElement.appendChild(optElement);
+    });
+}
+
+function setupFilterSearch() {
+    // Brand search
+    document.getElementById('brandSearch').addEventListener('input', (e) => {
+        filterSelectOptions('brandFilter', window.allBrands || [], e.target.value, 'All Brands');
+    });
+    
+    // Bundle search
+    document.getElementById('bundleSearch').addEventListener('input', (e) => {
+        filterSelectOptions('bundleFilter', window.allBundles || [], e.target.value, 'All Bundles');
+    });
+    
+    // PPG search
+    document.getElementById('ppgSearch').addEventListener('input', (e) => {
+        filterSelectOptions('ppgFilter', window.allPpgs || [], e.target.value, 'All PPG');
+    });
+}
+
+function filterSelectOptions(filterId, allOptions, searchTerm, defaultLabel) {
+    const filterElement = document.getElementById(filterId);
+    const currentlySelected = Array.from(filterElement.selectedOptions).map(opt => opt.value);
+    
+    const filtered = allOptions.filter(option => 
+        option.toLowerCase().includes(searchTerm.toLowerCase())
+    );
+    
+    filterElement.innerHTML = `<option value="">${defaultLabel}</option>`;
+    
+    filtered.forEach(option => {
+        const optElement = document.createElement('option');
+        optElement.value = option;
+        optElement.textContent = option;
+        if (currentlySelected.includes(option)) {
+            optElement.selected = true;
+        }
+        filterElement.appendChild(optElement);
+    });
 }
 
 // Switch between views

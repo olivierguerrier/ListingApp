@@ -208,6 +208,28 @@ h3 {
     color: white;
 }
 
+.multi-select-wrapper {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.filter-search {
+    padding: 8px 12px;
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    font-size: 13px;
+    background-color: #f8fafc;
+    width: 100%;
+    box-sizing: border-box;
+}
+
+.filter-search:focus {
+    outline: none;
+    border-color: var(--primary-color);
+    background-color: white;
+}
+
 .items-container {
     display: grid;
     gap: 20px;

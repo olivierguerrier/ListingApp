@@ -43,15 +43,30 @@
                 <option value="all">All Countries</option>
                 <option value="loading">Loading countries...</option>
             </select>
-            <select id="brandFilter" class="filter-select" multiple size="1" style="min-width: 150px;">
-                <option value="">All Brands</option>
-            </select>
-            <select id="bundleFilter" class="filter-select" multiple size="1" style="min-width: 150px;">
-                <option value="">All Bundles</option>
-            </select>
-            <select id="ppgFilter" class="filter-select" multiple size="1" style="min-width: 150px;">
-                <option value="">All PPG</option>
-            </select>
+            
+            <!-- Brand Filter with Search -->
+            <div class="multi-select-wrapper">
+                <input type="text" id="brandSearch" class="filter-search" placeholder="🔍 Search Brands..." />
+                <select id="brandFilter" class="filter-select" multiple size="5" style="min-width: 180px;">
+                    <option value="">All Brands</option>
+                </select>
+            </div>
+            
+            <!-- Bundle Filter with Search -->
+            <div class="multi-select-wrapper">
+                <input type="text" id="bundleSearch" class="filter-search" placeholder="🔍 Search Bundles..." />
+                <select id="bundleFilter" class="filter-select" multiple size="5" style="min-width: 180px;">
+                    <option value="">All Bundles</option>
+                </select>
+            </div>
+            
+            <!-- PPG Filter with Search -->
+            <div class="multi-select-wrapper">
+                <input type="text" id="ppgSearch" class="filter-search" placeholder="🔍 Search PPG..." />
+                <select id="ppgFilter" class="filter-select" multiple size="5" style="min-width: 180px;">
+                    <option value="">All PPG</option>
+                </select>
+            </div>
         </div>
 
         <!-- Products View -->
