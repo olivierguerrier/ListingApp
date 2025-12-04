@@ -2612,20 +2612,20 @@ function renderVendorMappingFromMain(data) {
     
     if (!data || data.length === 0) {
         console.warn('[Customer Admin] No data to display');
-        tbody.innerHTML = '<tr><td colspan="8" style="text-align: center; padding: 40px; color: var(--text-secondary);">No mappings found</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="8" style="text-align: center; padding: 40px; color: var(--text-secondary); border: 1px solid #e5e7eb;">No mappings found</td></tr>';
         return;
     }
     
     tbody.innerHTML = data.map(row => `
         <tr>
-            <td>${row.customer || '-'}</td>
-            <td>${row.country || '-'}</td>
-            <td><strong>${row.marketplace || '-'}</strong></td>
-            <td><code>${row.country_code || '-'}</code></td>
-            <td><code>${row.vendor_code || '-'}</code></td>
-            <td><small>${row.qpi_file || '-'}</small></td>
-            <td><small>${row.vc_file || '-'}</small></td>
-            <td>${row.ppg_default || '-'}</td>
+            <td style="padding: 12px; border: 1px solid #e5e7eb;">${row.customer || '-'}</td>
+            <td style="padding: 12px; border: 1px solid #e5e7eb;">${row.country || '-'}</td>
+            <td style="padding: 12px; border: 1px solid #e5e7eb;"><strong>${row.marketplace || '-'}</strong></td>
+            <td style="padding: 12px; border: 1px solid #e5e7eb;"><code>${row.country_code || '-'}</code></td>
+            <td style="padding: 12px; border: 1px solid #e5e7eb;"><code>${row.vendor_code || '-'}</code></td>
+            <td style="padding: 12px; border: 1px solid #e5e7eb;"><small>${row.qpi_file || '-'}</small></td>
+            <td style="padding: 12px; border: 1px solid #e5e7eb;"><small>${row.vc_file || '-'}</small></td>
+            <td style="padding: 12px; border: 1px solid #e5e7eb;">${row.ppg_default || '-'}</td>
         </tr>
     `).join('');
     

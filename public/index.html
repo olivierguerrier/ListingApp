@@ -441,7 +441,7 @@
         </div>
         
         <!-- Customer Admin View -->
-        <div id="customerAdminView" class="view-container" style="display: none;">
+        <div id="customerAdminView" class="view-container" style="display: none; min-height: 500px;">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
                 <h2>🏢 Customer/Marketplace Mapping</h2>
                 <button class="btn btn-primary" onclick="syncVendorMappingFromMain()">📥 Re-Sync from File</button>
@@ -451,23 +451,23 @@
                 View vendor codes, QPIs, and marketplace mappings for all countries.
             </p>
             
-            <div class="table-wrapper">
-                <table class="products-table" id="mainVendorMappingTable">
+            <div class="table-wrapper" style="width: 100%; overflow-x: auto;">
+                <table class="products-table" id="mainVendorMappingTable" style="width: 100%; border-collapse: collapse; background: white;">
                     <thead>
-                        <tr>
-                            <th>Customer</th>
-                            <th>Country</th>
-                            <th>Marketplace</th>
-                            <th>Country Code</th>
-                            <th>Vendor Code</th>
-                            <th>QPI File</th>
-                            <th>VC File</th>
-                            <th>PPG Default</th>
+                        <tr style="background: #f3f4f6;">
+                            <th style="padding: 12px; border: 1px solid #e5e7eb; text-align: left;">Customer</th>
+                            <th style="padding: 12px; border: 1px solid #e5e7eb; text-align: left;">Country</th>
+                            <th style="padding: 12px; border: 1px solid #e5e7eb; text-align: left;">Marketplace</th>
+                            <th style="padding: 12px; border: 1px solid #e5e7eb; text-align: left;">Country Code</th>
+                            <th style="padding: 12px; border: 1px solid #e5e7eb; text-align: left;">Vendor Code</th>
+                            <th style="padding: 12px; border: 1px solid #e5e7eb; text-align: left;">QPI File</th>
+                            <th style="padding: 12px; border: 1px solid #e5e7eb; text-align: left;">VC File</th>
+                            <th style="padding: 12px; border: 1px solid #e5e7eb; text-align: left;">PPG Default</th>
                         </tr>
                     </thead>
                     <tbody id="mainVendorMappingTableBody">
                         <tr>
-                            <td colspan="8" style="text-align: center; padding: 40px;">Loading mappings...</td>
+                            <td colspan="8" style="text-align: center; padding: 40px; border: 1px solid #e5e7eb;">Loading mappings...</td>
                         </tr>
                     </tbody>
                 </table>
