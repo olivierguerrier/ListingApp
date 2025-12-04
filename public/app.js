@@ -48,7 +48,7 @@ function setupUserUI() {
         </div>
     `;
     
-    const header = document.querySelector('header .controls');
+    const header = document.querySelector('header');
     if (header) {
         const userDiv = document.createElement('div');
         userDiv.innerHTML = userInfoHTML;
@@ -58,6 +58,14 @@ function setupUserUI() {
     // Load notifications count for approvers
     if (currentUser.role === 'approver' || currentUser.role === 'admin') {
         loadPendingApprovalsCount();
+    }
+    
+    // Show pricing approvals tab for approvers/admins
+    if (currentUser.role === 'approver' || currentUser.role === 'admin') {
+        const pricingTab = document.getElementById('pricingApprovalsTab');
+        if (pricingTab) {
+            pricingTab.style.display = 'inline-block';
+        }
     }
     
     // Hide features based on role
