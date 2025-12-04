@@ -184,27 +184,6 @@ function setupEventListeners() {
         openItemModal();
     });
 
-    // Export Button
-    document.getElementById('exportBtn').addEventListener('click', openExportModal);
-
-    // Sync PIM Button
-    document.getElementById('syncPimBtn').addEventListener('click', syncPimData);
-
-    // Import QPI Button
-    document.getElementById('importQpiBtn').addEventListener('click', importQpiData);
-
-    // Sync QPI Button
-    document.getElementById('syncQpiBtn').addEventListener('click', syncQpiData);
-
-    // Sync VC Button
-    document.getElementById('syncVcBtn').addEventListener('click', syncVcData);
-    
-    // Sync Variations Button
-    document.getElementById('syncVariationsBtn').addEventListener('click', syncVariationsData);
-    
-    // Sync Online Status Button
-    document.getElementById('syncOnlineBtn').addEventListener('click', syncOnlineStatus);
-
     // Item Form Submit
     document.getElementById('itemForm').addEventListener('submit', handleItemSubmit);
     
