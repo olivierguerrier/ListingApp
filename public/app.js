@@ -18,6 +18,149 @@ let skusPage = 1;
 let skusLimit = 50;
 let skusTotalPages = 1;
 
+// ============================================================================
+// Global Functions for Customer Admin (must be at top for onclick handlers)
+// ============================================================================
+
+// Store available QPI files for dropdowns
+let availableQPIFiles = [];
+
+// Edit vendor mapping row - enables editing mode
+window.editVendorMappingRow = async function(id) {
+    // Load QPI files if not already loaded
+    if (availableQPIFiles.length === 0) {
+        try {
+            const response = await fetch('/api/qpi-files', {
+                headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+            });
+            if (response.ok) {
+                availableQPIFiles = await response.json();
+                console.log('[Customer Admin] Loaded', availableQPIFiles.length, 'QPI files');
+            }
+        } catch (error) {
+            console.error('[Customer Admin] Error loading QPI files:', error);
+        }
+    }
+    
+    const row = document.querySelector(`tr[data-id="${id}"]`);
+    if (!row) {
+        alert('Row not found');
+        return;
+    }
+    
+    const cells = row.querySelectorAll('td');
+    
+    // Customer Code (cell 3) - text input
+    const customerCodeCell = cells[3];
+    const customerCodeValue = customerCodeCell.textContent.trim().replace(/<\/?code>/g, '').replace('-', '');
+    customerCodeCell.innerHTML = `<input type="text" value="${customerCodeValue}" style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;" data-field="customer_code">`;
+    
+    // QPI Source File (cell 5) - dropdown
+    const qpiCell = cells[5];
+    const qpiValue = qpiCell.textContent.trim().replace(/<\/?small>/g, '').replace('-', '');
+    let qpiOptions = '<option value="">(None)</option>';
+    availableQPIFiles.forEach(file => {
+        const selected = file === qpiValue ? 'selected' : '';
+        qpiOptions += `<option value="${file}" ${selected}>${file}</option>`;
+    });
+    qpiCell.innerHTML = `<select style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;" data-field="qpi_source_file">${qpiOptions}</select>`;
+    
+    // Language (cell 7) - text input
+    const languageCell = cells[7];
+    const languageValue = languageCell.textContent.trim().replace('-', '');
+    languageCell.innerHTML = `<input type="text" value="${languageValue}" style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;" data-field="language">`;
+    
+    // Currency (cell 8) - text input
+    const currencyCell = cells[8];
+    const currencyValue = currencyCell.textContent.trim().replace('-', '');
+    currencyCell.innerHTML = `<input type="text" value="${currencyValue}" style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;" data-field="currency">`;
+    
+    // Replace Edit button with Save and Cancel buttons
+    const actionCell = cells[9];
+    actionCell.innerHTML = `
+        <button onclick="saveVendorMappingRow(${id})" class="btn-sm" style="padding: 4px 8px; font-size: 12px; background: #10b981; color: white; margin-right: 4px;">💾 Save</button>
+        <button onclick="loadVendorMappingFromMain()" class="btn-sm" style="padding: 4px 8px; font-size: 12px; background: #6b7280; color: white;">✖ Cancel</button>
+    `;
+};
+
+// Save vendor mapping row
+window.saveVendorMappingRow = async function(id) {
+    const row = document.querySelector(`tr[data-id="${id}"]`);
+    if (!row) {
+        alert('Row not found');
+        return;
+    }
+    
+    const cells = row.querySelectorAll('td');
+    
+    // Get values from inputs/selects if in edit mode, otherwise from text
+    const getFieldValue = (cell, fallbackText) => {
+        const input = cell.querySelector('input');
+        const select = cell.querySelector('select');
+        if (input) return input.value.trim();
+        if (select) return select.value.trim();
+        return fallbackText.replace(/<\/?code>/g, '').replace(/<\/?small>/g, '').trim();
+    };
+    
+    const customerCode = getFieldValue(cells[3], cells[3].textContent);
+    const vendorCode = cells[4].textContent.trim();
+    const qpiSourceFile = getFieldValue(cells[5], cells[5].textContent);
+    const vcFile = cells[6].textContent.trim();
+    const language = getFieldValue(cells[7], cells[7].textContent);
+    const currency = getFieldValue(cells[8], cells[8].textContent);
+    
+    const data = {
+        customer_code: customerCode === '-' ? null : customerCode,
+        vendor_code: vendorCode === '-' ? null : vendorCode,
+        qpi_source_file: qpiSourceFile === '-' ? null : qpiSourceFile,
+        vc_file: vcFile === '-' ? null : vcFile,
+        language: language === '-' ? null : language,
+        currency: currency === '-' ? null : currency
+    };
+    
+    try {
+        const response = await fetch(`/api/vendor-mapping/${id}`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${localStorage.getItem('token')}`
+            },
+            body: JSON.stringify(data)
+        });
+        
+        if (response.ok) {
+            // Show success toast
+            const toast = document.createElement('div');
+            toast.style.position = 'fixed';
+            toast.style.top = '20px';
+            toast.style.right = '20px';
+            toast.style.padding = '12px 24px';
+            toast.style.borderRadius = '8px';
+            toast.style.backgroundColor = '#10b981';
+            toast.style.color = 'white';
+            toast.style.fontWeight = 'bold';
+            toast.style.zIndex = '10000';
+            toast.style.boxShadow = '0 4px 6px rgba(0,0,0,0.1)';
+            toast.textContent = '✓ Vendor mapping updated successfully';
+            document.body.appendChild(toast);
+            setTimeout(() => toast.remove(), 3000);
+            
+            // Reload data
+            loadVendorMappingFromMain();
+        } else {
+            const error = await response.json();
+            alert('Error updating: ' + error.error);
+        }
+    } catch (error) {
+        console.error('Error saving vendor mapping:', error);
+        alert('Error saving changes');
+    }
+};
+
+// ============================================================================
+// End Global Functions
+// ============================================================================
+
 // Check authentication
 function checkAuth() {
     const token = localStorage.getItem('token');
@@ -2715,159 +2858,4 @@ async function syncVendorMappingFromMain() {
 
 function setupCustomerAdminFilters() {
     // No filters needed anymore
-}
-
-// ============================================================================
-// Customer Admin - Editable Table Functions
-// ============================================================================
-
-// Store available QPI files for dropdowns
-let availableQPIFiles = [];
-
-// Load available QPI files
-async function loadAvailableQPIFiles() {
-    try {
-        const response = await fetch('/api/qpi-files', {
-            headers: { 'Authorization': `Bearer ${getJWT()}` }
-        });
-        if (response.ok) {
-            availableQPIFiles = await response.json();
-            console.log('[Customer Admin] Loaded', availableQPIFiles.length, 'QPI files');
-        }
-    } catch (error) {
-        console.error('[Customer Admin] Error loading QPI files:', error);
-    }
-}
-
-// Edit vendor mapping row - enables editing mode
-window.editVendorMappingRow = async function(id) {
-    const row = document.querySelector(`tr[data-id="${id}"]`);
-    if (!row) {
-        alert('Row not found');
-        return;
-    }
-    
-    // Load QPI files if not already loaded
-    if (availableQPIFiles.length === 0) {
-        await loadAvailableQPIFiles();
-    }
-    
-    const cells = row.querySelectorAll('td');
-    
-    // Customer Code (cell 3) - text input
-    const customerCodeCell = cells[3];
-    const customerCodeValue = customerCodeCell.textContent.trim().replace(/<\/?code>/g, '').replace('-', '');
-    customerCodeCell.innerHTML = `<input type="text" value="${customerCodeValue}" style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;" data-field="customer_code">`;
-    
-    // QPI Source File (cell 5) - dropdown
-    const qpiCell = cells[5];
-    const qpiValue = qpiCell.textContent.trim().replace(/<\/?small>/g, '').replace('-', '');
-    let qpiOptions = '<option value="">(None)</option>';
-    availableQPIFiles.forEach(file => {
-        const selected = file === qpiValue ? 'selected' : '';
-        qpiOptions += `<option value="${file}" ${selected}>${file}</option>`;
-    });
-    qpiCell.innerHTML = `<select style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;" data-field="qpi_source_file">${qpiOptions}</select>`;
-    
-    // Language (cell 7) - text input
-    const languageCell = cells[7];
-    const languageValue = languageCell.textContent.trim().replace('-', '');
-    languageCell.innerHTML = `<input type="text" value="${languageValue}" style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;" data-field="language">`;
-    
-    // Currency (cell 8) - text input
-    const currencyCell = cells[8];
-    const currencyValue = currencyCell.textContent.trim().replace('-', '');
-    currencyCell.innerHTML = `<input type="text" value="${currencyValue}" style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;" data-field="currency">`;
-    
-    // Replace Edit button with Save and Cancel buttons
-    const actionCell = cells[9];
-    actionCell.innerHTML = `
-        <button onclick="saveVendorMappingRow(${id})" class="btn-sm" style="padding: 4px 8px; font-size: 12px; background: #10b981; color: white; margin-right: 4px;">💾 Save</button>
-        <button onclick="loadVendorMappingFromMain()" class="btn-sm" style="padding: 4px 8px; font-size: 12px; background: #6b7280; color: white;">✖ Cancel</button>
-    `;
-}
-
-// Attach click handlers for editable cells (no longer needed with Edit button)
-function attachEditableHandlers() {
-    // Removed - using Edit button instead
-}
-
-// Save vendor mapping row
-window.saveVendorMappingRow = async function(id) {
-    const row = document.querySelector(`tr[data-id="${id}"]`);
-    if (!row) {
-        alert('Row not found');
-        return;
-    }
-    
-    const cells = row.querySelectorAll('td');
-    
-    // Get values from inputs/selects if in edit mode, otherwise from text
-    const getFieldValue = (cell, fallbackText) => {
-        const input = cell.querySelector('input');
-        const select = cell.querySelector('select');
-        if (input) return input.value.trim();
-        if (select) return select.value.trim();
-        return fallbackText.replace(/<\/?code>/g, '').replace(/<\/?small>/g, '').trim();
-    };
-    
-    const customerCode = getFieldValue(cells[3], cells[3].textContent);
-    const vendorCode = cells[4].textContent.trim();
-    const qpiSourceFile = getFieldValue(cells[5], cells[5].textContent);
-    const vcFile = cells[6].textContent.trim();
-    const language = getFieldValue(cells[7], cells[7].textContent);
-    const currency = getFieldValue(cells[8], cells[8].textContent);
-    
-    const data = {
-        customer_code: customerCode === '-' ? null : customerCode,
-        vendor_code: vendorCode === '-' ? null : vendorCode,
-        qpi_source_file: qpiSourceFile === '-' ? null : qpiSourceFile,
-        vc_file: vcFile === '-' ? null : vcFile,
-        language: language === '-' ? null : language,
-        currency: currency === '-' ? null : currency
-    };
-    
-    try {
-        const response = await fetch(`/api/vendor-mapping/${id}`, {
-            method: 'PUT',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${getJWT()}`
-            },
-            body: JSON.stringify(data)
-        });
-        
-        if (response.ok) {
-            showToast('✓ Vendor mapping updated successfully', 'success');
-            loadVendorMappingFromMain(); // Reload data
-        } else {
-            const error = await response.json();
-            alert('Error updating: ' + error.error);
-        }
-    } catch (error) {
-        console.error('Error saving vendor mapping:', error);
-        alert('Error saving changes');
-    }
-}
-
-// Simple toast notification
-function showToast(message, type = 'info') {
-    const toast = document.createElement('div');
-    toast.style.position = 'fixed';
-    toast.style.top = '20px';
-    toast.style.right = '20px';
-    toast.style.padding = '12px 24px';
-    toast.style.borderRadius = '8px';
-    toast.style.backgroundColor = type === 'success' ? '#10b981' : '#ef4444';
-    toast.style.color = 'white';
-    toast.style.fontWeight = 'bold';
-    toast.style.zIndex = '10000';
-    toast.style.boxShadow = '0 4px 6px rgba(0,0,0,0.1)';
-    toast.textContent = message;
-    
-    document.body.appendChild(toast);
-    
-    setTimeout(() => {
-        toast.remove();
-    }, 3000);
 }
