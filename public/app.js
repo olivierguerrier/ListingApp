@@ -3,6 +3,7 @@ const API_BASE = '/api';
 // State management
 let items = [];
 let skus = [];
+let vendorMappingData = [];
 let currentItem = null;
 let currentView = 'products'; // 'products', 'skus', or 'database'
 let currentTable = 'products';
@@ -2523,8 +2524,6 @@ async function exportReportExcel(reportType, reportTitle) {
 }
 
 // ============ VENDOR MAPPING / CUSTOMER ADMIN (Main App) ============
-
-let vendorMappingData = [];
 
 async function loadVendorMappingFromMain() {
     const token = localStorage.getItem('token');
