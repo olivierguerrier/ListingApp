@@ -2553,7 +2553,12 @@ async function loadVendorMappingFromMain() {
 function renderVendorMappingFromMain(data) {
     const tbody = document.getElementById('mainVendorMappingTableBody');
     
-    if (data.length === 0) {
+    if (!tbody) {
+        console.error('mainVendorMappingTableBody element not found');
+        return;
+    }
+    
+    if (!data || data.length === 0) {
         tbody.innerHTML = '<tr><td colspan="8" style="text-align: center; padding: 40px; color: var(--text-secondary);">No mappings found</td></tr>';
         return;
     }
@@ -2573,6 +2578,18 @@ function renderVendorMappingFromMain(data) {
 }
 
 function updateMappingStatsFromMain(data) {
+    const statsElement = document.getElementById('mainMappingStatsContent');
+    
+    if (!statsElement) {
+        console.error('mainMappingStatsContent element not found');
+        return;
+    }
+    
+    if (!data || data.length === 0) {
+        statsElement.innerHTML = 'No data available';
+        return;
+    }
+    
     const stats = {
         totalRecords: data.length,
         uniqueCountries: new Set(data.map(r => r.country)).size,
@@ -2581,7 +2598,7 @@ function updateMappingStatsFromMain(data) {
         uniqueQPIs: new Set(data.map(r => r.qpi_file).filter(Boolean)).size
     };
     
-    document.getElementById('mainMappingStatsContent').innerHTML = `
+    statsElement.innerHTML = `
         ${stats.totalRecords} records | 
         ${stats.uniqueCountries} countries | 
         ${stats.uniqueMarketplaces} marketplaces | 
