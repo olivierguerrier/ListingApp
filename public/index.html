@@ -497,6 +497,58 @@
         </div>
     </div>
 
+    <!-- Product Details Modal -->
+    <div id="productDetailsModal" class="modal">
+        <div class="modal-content modal-large" style="max-width: 1200px;">
+            <span class="close">&times;</span>
+            <h2>Product Details</h2>
+            
+            <!-- Product Information Section -->
+            <div class="product-info-section" style="background: var(--card-bg); padding: 20px; border-radius: 8px; margin-bottom: 20px;">
+                <h3 style="margin-top: 0;">Product Information</h3>
+                <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 15px;">
+                    <div><strong>ASIN:</strong> <span id="detailAsin"></span></div>
+                    <div><strong>SKU(s):</strong> <span id="detailSku"></span></div>
+                    <div><strong>Brand:</strong> <span id="detailBrand"></span></div>
+                    <div><strong>Name:</strong> <span id="detailName"></span></div>
+                    <div><strong>Item Number:</strong> <span id="detailItemNumber"></span></div>
+                    <div><strong>Countries:</strong> <span id="detailCountries"></span></div>
+                    <div><strong>Description:</strong> <span id="detailDescription"></span></div>
+                    <div><strong>First Order Date:</strong> <span id="detailSeasonLaunch"></span></div>
+                    <div><strong>Is Temp ASIN:</strong> <span id="detailIsTempAsin"></span></div>
+                    <div><strong>Created:</strong> <span id="detailCreatedAt"></span></div>
+                </div>
+            </div>
+
+            <!-- Country Status Table -->
+            <div class="country-status-section">
+                <h3>Status by Country</h3>
+                <div style="overflow-x: auto;">
+                    <table class="data-table" style="width: 100%;">
+                        <thead>
+                            <tr>
+                                <th>Country</th>
+                                <th>VC Listed</th>
+                                <th>VC Status</th>
+                                <th>In QPI</th>
+                                <th>Online</th>
+                                <th>Last Price</th>
+                                <th>Last Seen Online</th>
+                            </tr>
+                        </thead>
+                        <tbody id="countryStatusTableBody">
+                            <!-- Will be populated dynamically -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div class="form-actions" style="margin-top: 20px;">
+                <button type="button" class="btn btn-secondary" onclick="closeProductDetailsModal()">Close</button>
+            </div>
+        </div>
+    </div>
+
     <script src="app.js"></script>
 </body>
 </html>

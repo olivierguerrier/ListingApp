@@ -756,7 +756,12 @@ function renderPricingTable(pricingData, vcStatusData) {
 
 // Open flow tracking modal
 async function openFlowModal(itemId) {
-    const modal = document.getElementById('flowModal');
+    // Redirect to the new product details modal
+    await openProductDetailsModal(itemId);
+}
+
+async function openProductDetailsModal(itemId) {
+    const modal = document.getElementById('productDetailsModal');
     const item = items.find(i => i.id === itemId);
     
     if (!item) {
@@ -764,10 +769,81 @@ async function openFlowModal(itemId) {
         return;
     }
     
-    document.getElementById('flowItemId').value = itemId;
-    document.getElementById('flowAsin').textContent = item.asin;
+    // Populate product information
+    document.getElementById('detailAsin').textContent = item.asin || 'N/A';
+    document.getElementById('detailSku').textContent = item.skus ? item.skus.join(', ') : 'N/A';
+    document.getElementById('detailBrand').textContent = item.display_brand || item.brand || 'N/A';
+    document.getElementById('detailName').textContent = item.display_name || item.name || 'N/A';
+    document.getElementById('detailItemNumber').textContent = item.stage_1_item_number || 'N/A';
+    document.getElementById('detailCountries').textContent = item.stage_1_country || 'N/A';
+    document.getElementById('detailDescription').textContent = item.stage_1_description || item.product_description || 'N/A';
+    document.getElementById('detailSeasonLaunch').textContent = item.stage_1_season_launch || 'N/A';
+    document.getElementById('detailIsTempAsin').textContent = item.is_temp_asin ? 'Yes' : 'No';
+    document.getElementById('detailCreatedAt').textContent = item.created_at || 'N/A';
+    
+    // Fetch country-specific data
+    await loadCountryStatusData(item.asin);
     
     modal.style.display = 'block';
+}
+
+async function loadCountryStatusData(asin) {
+    const tableBody = document.getElementById('countryStatusTableBody');
+    tableBody.innerHTML = '<tr><td colspan="7" style="text-align: center;">Loading...</td></tr>';
+    
+    try {
+        // Fetch all country data for this ASIN and get all marketplaces
+        const [vcData, qpiData, onlineData, marketplaces] = await Promise.all([
+            fetch(`${API_BASE}/database/asin_country_status?limit=10000`).then(r => r.json()),
+            fetch(`${API_BASE}/database/qpi_file_tracking?limit=10000`).then(r => r.json()),
+            fetch(`${API_BASE}/database/asin_online_status?limit=10000`).then(r => r.json()),
+            fetch(`${API_BASE}/marketplaces`).then(r => r.json())
+        ]);
+        
+        // Filter data for this ASIN
+        const vcRecords = vcData.rows.filter(r => r.asin === asin);
+        const qpiRecords = qpiData.rows.filter(r => r.asin === asin);
+        const onlineRecords = onlineData.rows.filter(r => r.asin === asin);
+        
+        // Build country rows for ALL marketplaces
+        const rows = [];
+        for (const marketplace of marketplaces) {
+            // Check if product is in VC for this marketplace
+            const vcRecord = vcRecords.find(r => r.country_code === marketplace);
+            
+            // Check if product is online in this marketplace
+            const onlineRecord = onlineRecords.find(r => r.country === marketplace);
+            
+            // QPI is per-ASIN, not per-country, so just check if any QPI records exist
+            const hasQpi = qpiRecords.length > 0;
+            
+            rows.push(`
+                <tr>
+                    <td><strong>${marketplace}</strong></td>
+                    <td style="text-align: center; color: ${vcRecord ? 'var(--success)' : 'var(--text-secondary)'};">${vcRecord ? '✓' : '✗'}</td>
+                    <td>${vcRecord ? (vcRecord.vc_status || 'N/A') : '-'}</td>
+                    <td style="text-align: center; color: ${hasQpi ? 'var(--success)' : 'var(--text-secondary)'};">${hasQpi ? '✓' : '✗'}</td>
+                    <td style="text-align: center; color: ${onlineRecord ? 'var(--success)' : 'var(--text-secondary)'};">${onlineRecord ? '✓' : '✗'}</td>
+                    <td>${onlineRecord && onlineRecord.last_buybox_price ? '$' + (onlineRecord.last_buybox_price / 100).toFixed(2) : '-'}</td>
+                    <td>${onlineRecord ? (onlineRecord.last_seen_online || 'N/A') : '-'}</td>
+                </tr>
+            `);
+        }
+        
+        if (rows.length === 0) {
+            tableBody.innerHTML = '<tr><td colspan="7" style="text-align: center; color: var(--text-secondary);">No marketplaces configured</td></tr>';
+        } else {
+            tableBody.innerHTML = rows.join('');
+        }
+        
+    } catch (error) {
+        console.error('Error loading country status:', error);
+        tableBody.innerHTML = '<tr><td colspan="7" style="text-align: center; color: var(--danger);">Error loading data</td></tr>';
+    }
+}
+
+function closeProductDetailsModal() {
+    document.getElementById('productDetailsModal').style.display = 'none';
 }
 
 // Handle item form submission
