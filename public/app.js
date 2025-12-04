@@ -1021,16 +1021,12 @@ function openPricingSubmissionModal(productId) {
     document.getElementById('companyMargin').value = '';
     document.getElementById('customerMargin').value = '';
     
-    // Show modal first
+    // Show modal
     document.getElementById('pricingSubmissionModal').style.display = 'block';
-    
-    // Setup margin calculations after a brief delay to ensure DOM is ready
-    setTimeout(() => {
-        setupMarginCalculations();
-    }, 50);
 }
 
-function setupMarginCalculations() {
+// Global function for calculating pricing margins (called from HTML oninput)
+window.calculatePricingMargins = function() {
     const productCost = document.getElementById('productCost');
     const sellPrice = document.getElementById('sellPrice');
     const retailPrice = document.getElementById('retailPrice');
@@ -1038,70 +1034,47 @@ function setupMarginCalculations() {
     const customerMargin = document.getElementById('customerMargin');
     
     if (!productCost || !sellPrice || !retailPrice || !companyMargin || !customerMargin) {
-        console.error('Pricing form elements not found');
         return;
     }
     
-    // Store the calculation function in a way we can reference it
-    window.calculatePricingMargins = function() {
-        const cost = parseFloat(productCost.value) || 0;
-        const sell = parseFloat(sellPrice.value) || 0;
-        const retail = parseFloat(retailPrice.value) || 0;
+    const cost = parseFloat(productCost.value) || 0;
+    const sell = parseFloat(sellPrice.value) || 0;
+    const retail = parseFloat(retailPrice.value) || 0;
+    
+    // Calculate Company Margin
+    if (cost > 0 && sell > 0) {
+        const cMargin = ((sell - cost) / sell * 100).toFixed(2);
+        companyMargin.value = `${cMargin}% ($${(sell - cost).toFixed(2)} profit)`;
         
-        console.log('Calculating margins:', { cost, sell, retail });
-        
-        if (cost > 0 && sell > 0) {
-            const cMargin = ((sell - cost) / sell * 100).toFixed(2);
-            companyMargin.value = `${cMargin}% ($${(sell - cost).toFixed(2)} profit)`;
-            
-            // Color code based on margin
-            if (cMargin < 20) {
-                companyMargin.style.color = 'var(--danger-color)';
-            } else if (cMargin < 35) {
-                companyMargin.style.color = 'var(--warning-color)';
-            } else {
-                companyMargin.style.color = 'var(--success-color)';
-            }
+        // Color code based on margin
+        if (cMargin < 20) {
+            companyMargin.style.color = '#c40000';
+        } else if (cMargin < 35) {
+            companyMargin.style.color = '#f69931';
         } else {
-            companyMargin.value = '';
+            companyMargin.style.color = '#067d62';
         }
+    } else {
+        companyMargin.value = '';
+    }
+    
+    // Calculate Customer Margin
+    if (sell > 0 && retail > 0) {
+        const custMargin = ((retail - sell) / retail * 100).toFixed(2);
+        customerMargin.value = `${custMargin}% ($${(retail - sell).toFixed(2)} markup)`;
         
-        if (sell > 0 && retail > 0) {
-            const custMargin = ((retail - sell) / retail * 100).toFixed(2);
-            customerMargin.value = `${custMargin}% ($${(retail - sell).toFixed(2)} markup)`;
-            
-            // Color code based on margin
-            if (custMargin < 25) {
-                customerMargin.style.color = 'var(--danger-color)';
-            } else if (custMargin < 40) {
-                customerMargin.style.color = 'var(--warning-color)';
-            } else {
-                customerMargin.style.color = 'var(--success-color)';
-            }
+        // Color code based on margin
+        if (custMargin < 25) {
+            customerMargin.style.color = '#c40000';
+        } else if (custMargin < 40) {
+            customerMargin.style.color = '#f69931';
         } else {
-            customerMargin.value = '';
+            customerMargin.style.color = '#067d62';
         }
-    };
-    
-    // Clear any existing listeners by cloning and replacing the elements
-    const productCostClone = productCost.cloneNode(true);
-    const sellPriceClone = sellPrice.cloneNode(true);
-    const retailPriceClone = retailPrice.cloneNode(true);
-    
-    productCost.parentNode.replaceChild(productCostClone, productCost);
-    sellPrice.parentNode.replaceChild(sellPriceClone, sellPrice);
-    retailPrice.parentNode.replaceChild(retailPriceClone, retailPrice);
-    
-    // Add event listeners to the new clones
-    document.getElementById('productCost').addEventListener('input', window.calculatePricingMargins);
-    document.getElementById('sellPrice').addEventListener('input', window.calculatePricingMargins);
-    document.getElementById('retailPrice').addEventListener('input', window.calculatePricingMargins);
-    
-    // Calculate immediately
-    window.calculatePricingMargins();
-    
-    console.log('Margin calculations setup complete');
-}
+    } else {
+        customerMargin.value = '';
+    }
+};
 
 function closePricingSubmissionModal() {
     document.getElementById('pricingSubmissionModal').style.display = 'none';
