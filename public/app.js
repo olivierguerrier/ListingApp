@@ -671,7 +671,7 @@ async function filterItems() {
 function openItemModal(itemId = null) {
     const modal = document.getElementById('itemModal');
     const form = document.getElementById('itemForm');
-    const modalTitle = document.querySelector('#itemModal .modal-header h2');
+    const modalTitle = document.getElementById('modalTitle');
     
     if (itemId) {
         modalTitle.textContent = 'Edit Product';
@@ -776,10 +776,33 @@ async function handleItemSubmit(e) {
     
     const itemId = document.getElementById('itemId').value;
     const sku = document.getElementById('sku').value;
-    const asin = document.getElementById('asin').value;
-    const productName = document.getElementById('productName').value;
+    const asin = document.getElementById('asin').value || '';  // Optional
+    const name = document.getElementById('name').value || '';  // Optional
     
-    const itemData = { sku, asin, name: productName };
+    // Get selected countries
+    const countrySelect = document.getElementById('country');
+    const selectedCountries = Array.from(countrySelect.selectedOptions).map(option => option.value);
+    
+    // Get other fields
+    const itemNumber = document.getElementById('itemNumber').value || '';
+    const brand = document.getElementById('brand').value || '';
+    const description = document.getElementById('description').value || '';
+    const seasonLaunch = document.getElementById('seasonLaunch').value || '';
+    
+    // Build item data
+    const itemData = {
+        sku,
+        asin,
+        name,
+        brand,
+        stage_1_country: selectedCountries.join(','),  // Store as comma-separated
+        stage_1_item_number: itemNumber,
+        stage_1_description: description,
+        stage_1_season_launch: seasonLaunch,
+        stage_1_brand: brand,
+        stage_1_idea_considered: 1,  // Mark as Stage 1
+        is_temp_asin: asin ? 0 : 1   // If no ASIN, mark as temp
+    };
     
     try {
         let response;
@@ -801,6 +824,7 @@ async function handleItemSubmit(e) {
         
         if (response.ok) {
             document.getElementById('itemModal').style.display = 'none';
+            document.getElementById('itemForm').reset();
             loadItems();
             showSuccess(itemId ? 'Product updated successfully' : 'Product created successfully');
         } else {

@@ -902,167 +902,231 @@ app.get('/api/items', (req, res) => {
   const bundles = req.query.bundles ? req.query.bundles.split(',') : [];
   const ppgs = req.query.ppgs ? req.query.ppgs.split(',') : [];
   
-  // Build WHERE clauses
-  let whereConditions = [];
-  let queryParams = [];
-  let countParams = [];
-  
-  // Search filter
-  if (search) {
-    whereConditions.push('(p.name LIKE ? OR p.asin LIKE ? OR ps.sku LIKE ?)');
-    const searchPattern = `%${search}%`;
-    queryParams.push(searchPattern, searchPattern, searchPattern);
-    countParams.push(searchPattern, searchPattern, searchPattern);
-  }
-  
-  // Stage filter
-  if (stage && stage !== 'all') {
-    // Map stage_5 to stage_5_product_ordered column name
-    const stageMap = {
-      'stage_1': 'stage_1_idea_considered',
-      'stage_2': 'stage_2_product_finalized',
-      'stage_3a': 'stage_3a_pricing_submitted',
-      'stage_3b': 'stage_3b_pricing_approved',
-      'stage_4': 'stage_4_product_listed',
-      'stage_5': 'stage_5_product_ordered',
-      'stage_6': 'stage_6_product_online'
-    };
+  // Helper function to build queries and execute
+  const buildAndExecuteQuery = (marketplaceName, marketplaceCountryCodes) => {
+    // Build WHERE clauses
+    let whereConditions = [];
+    let queryParams = [];
+    let countParams = [];
     
-    const stageColumn = stageMap[stage];
-    if (stageColumn) {
-      whereConditions.push(`p.${stageColumn} = 1`);
+    // Search filter
+    if (search) {
+      whereConditions.push('(p.name LIKE ? OR p.asin LIKE ? OR ps.sku LIKE ?)');
+      const searchPattern = `%${search}%`;
+      queryParams.push(searchPattern, searchPattern, searchPattern);
+      countParams.push(searchPattern, searchPattern, searchPattern);
     }
-  }
-  
-  // Country filter - need to join with asin_country_status
-  let joinClause = '';
-  if (country && country !== 'all') {
-    joinClause = 'INNER JOIN asin_country_status acs ON p.asin = acs.asin';
-    whereConditions.push('acs.country_code = ?');
-    queryParams.push(country);
-    countParams.push(country);
-  }
-  
-  // Temp ASIN filter
-  if (temp === 'temp') {
-    whereConditions.push('p.is_temp_asin = 1');
-  } else if (temp === 'permanent') {
-    whereConditions.push('(p.is_temp_asin = 0 OR p.is_temp_asin IS NULL)');
-  }
-  
-  // Missing filter - check if ASIN exists in variations_master
-  if (missing === 'missing') {
-    whereConditions.push('vm.asin IS NULL');
-  } else if (missing === 'present') {
-    whereConditions.push('vm.asin IS NOT NULL');
-  }
-  
-  // Variation filters
-  if (brands.length > 0) {
-    const placeholders = brands.map(() => '?').join(',');
-    whereConditions.push(`vm.brand IN (${placeholders})`);
-    queryParams.push(...brands);
-    countParams.push(...brands);
-  }
-  
-  if (bundles.length > 0) {
-    const placeholders = bundles.map(() => '?').join(',');
-    whereConditions.push(`vm.bundle IN (${placeholders})`);
-    queryParams.push(...bundles);
-    countParams.push(...bundles);
-  }
-  
-  if (ppgs.length > 0) {
-    const placeholders = ppgs.map(() => '?').join(',');
-    whereConditions.push(`vm.ppg IN (${placeholders})`);
-    queryParams.push(...ppgs);
-    countParams.push(...ppgs);
-  }
-  
-  const whereClause = whereConditions.length > 0 ? 'WHERE ' + whereConditions.join(' AND ') : '';
-  
-  const countQuery = `
-    SELECT COUNT(DISTINCT p.id) as count 
-    FROM products p
-    LEFT JOIN product_skus ps ON p.id = ps.product_id
-    LEFT JOIN variations_master vm ON p.asin = vm.asin
-    ${joinClause}
-    ${whereClause}
-  `;
-  
-  const query = `
-    SELECT 
-      p.*,
-      GROUP_CONCAT(DISTINCT ps.sku) as skus,
-      GROUP_CONCAT(
-        DISTINCT json_object(
-          'sku', ps.sku,
-          'is_primary', ps.is_primary,
-          'source', ps.source
-        )
-      ) as sku_details,
-      (SELECT COUNT(DISTINCT country_code) FROM asin_country_status WHERE asin = p.asin) as vc_country_count,
-      (SELECT COUNT(DISTINCT country_code) FROM asin_country_status) as vc_total_countries,
-      (SELECT COUNT(DISTINCT source_file) FROM qpi_file_tracking WHERE asin = p.asin) as qpi_file_count,
-      (SELECT COUNT(DISTINCT source_file) FROM qpi_file_tracking) as qpi_total_files,
-      (SELECT COUNT(DISTINCT country) FROM asin_online_status WHERE asin = p.asin) as online_country_count,
-      9 as online_total_countries,
-      vm.brand as vm_brand,
-      vm.title as vm_title,
-      vm.bundle as vm_bundle,
-      vm.ppg as vm_ppg,
-      COALESCE(vm.title, p.legal_name, p.name, p.asin) as display_name,
-      COALESCE(vm.brand, p.brand) as display_brand
-    FROM products p
-    LEFT JOIN product_skus ps ON p.id = ps.product_id
-    LEFT JOIN variations_master vm ON p.asin = vm.asin
-    ${joinClause}
-    ${whereClause}
-    GROUP BY p.id
-    ORDER BY p.created_at DESC
-    LIMIT ? OFFSET ?
-  `;
-  
-  queryParams.push(limit, offset);
+    
+    // Stage filter
+    if (stage && stage !== 'all') {
+      // Map stage_5 to stage_5_product_ordered column name
+      const stageMap = {
+        'stage_1': 'stage_1_idea_considered',
+        'stage_2': 'stage_2_product_finalized',
+        'stage_3a': 'stage_3a_pricing_submitted',
+        'stage_3b': 'stage_3b_pricing_approved',
+        'stage_4': 'stage_4_product_listed',
+        'stage_5': 'stage_5_product_ordered',
+        'stage_6': 'stage_6_product_online'
+      };
+      
+      const stageColumn = stageMap[stage];
+      if (stageColumn) {
+        whereConditions.push(`p.${stageColumn} = 1`);
+      }
+    }
+    
+    // Marketplace filter
+    let joinClause = '';
+    if (marketplaceName) {
+      // Use marketplace name to filter asin_country_status.country_code
+      joinClause = 'INNER JOIN asin_country_status acs ON p.asin = acs.asin';
+      whereConditions.push(`acs.country_code = ?`);
+      queryParams.push(marketplaceName);
+      countParams.push(marketplaceName);
+    }
+    
+    // Temp ASIN filter
+    if (temp === 'temp') {
+      whereConditions.push('p.is_temp_asin = 1');
+    } else if (temp === 'permanent') {
+      whereConditions.push('(p.is_temp_asin = 0 OR p.is_temp_asin IS NULL)');
+    }
+    
+    // Missing filter - check if ASIN exists in variations_master
+    if (missing === 'missing') {
+      whereConditions.push('vm.asin IS NULL');
+    } else if (missing === 'present') {
+      whereConditions.push('vm.asin IS NOT NULL');
+    }
+    
+    // Variation filters
+    if (brands.length > 0) {
+      const placeholders = brands.map(() => '?').join(',');
+      whereConditions.push(`vm.brand IN (${placeholders})`);
+      queryParams.push(...brands);
+      countParams.push(...brands);
+    }
+    
+    if (bundles.length > 0) {
+      const placeholders = bundles.map(() => '?').join(',');
+      whereConditions.push(`vm.bundle IN (${placeholders})`);
+      queryParams.push(...bundles);
+      countParams.push(...bundles);
+    }
+    
+    if (ppgs.length > 0) {
+      const placeholders = ppgs.map(() => '?').join(',');
+      whereConditions.push(`vm.ppg IN (${placeholders})`);
+      queryParams.push(...ppgs);
+      countParams.push(...ppgs);
+    }
+    
+    const whereClause = whereConditions.length > 0 ? 'WHERE ' + whereConditions.join(' AND ') : '';
+    
+    const countQuery = `
+      SELECT COUNT(DISTINCT p.id) as count 
+      FROM products p
+      LEFT JOIN product_skus ps ON p.id = ps.product_id
+      LEFT JOIN variations_master vm ON p.asin = vm.asin
+      ${joinClause}
+      ${whereClause}
+    `;
+    
+    // Build marketplace-filtered subqueries
+    let vcCountSubquery, vcTotalSubquery, qpiCountSubquery, qpiTotalSubquery, onlineCountSubquery, onlineTotalSubquery;
+    
+    if (marketplaceName && marketplaceCountryCodes.length > 0) {
+      // Filter by marketplace
+      // For VC count: check if ASIN is in asin_country_status with marketplace name
+      vcCountSubquery = `(SELECT CASE WHEN EXISTS(SELECT 1 FROM asin_country_status WHERE asin = p.asin AND country_code = ?) THEN 1 ELSE 0 END)`;
+      vcTotalSubquery = `1`;  // Only one marketplace selected
+      
+      // For QPI: count how many QPI files for this marketplace contain this ASIN
+      const codePlaceholders = marketplaceCountryCodes.map(() => '?').join(',');
+      qpiCountSubquery = `(SELECT COUNT(DISTINCT qpi_file) FROM vendor_mapping WHERE country_code IN (${codePlaceholders}) AND qpi_file IN (SELECT DISTINCT source_file FROM qpi_file_tracking WHERE asin = p.asin))`;
+      qpiTotalSubquery = `(SELECT COUNT(DISTINCT qpi_file) FROM vendor_mapping WHERE country_code IN (${codePlaceholders}) AND qpi_file IS NOT NULL AND qpi_file != '')`;
+      
+      // For Online: check if ASIN is online in this marketplace
+      onlineCountSubquery = `(SELECT CASE WHEN EXISTS(SELECT 1 FROM asin_online_status WHERE asin = p.asin AND country = ?) THEN 1 ELSE 0 END)`;
+      onlineTotalSubquery = `1`;  // Only one marketplace selected
+      
+      // Add params for subqueries: marketplace name, country codes (2x for QPI), marketplace name again
+      queryParams.push(marketplaceName, ...marketplaceCountryCodes, ...marketplaceCountryCodes, marketplaceName);
+    } else {
+      // No marketplace filter - use all countries that exist in the data
+      vcCountSubquery = `(SELECT COUNT(DISTINCT country_code) FROM asin_country_status WHERE asin = p.asin)`;
+      vcTotalSubquery = `(SELECT COUNT(DISTINCT marketplace) FROM vendor_mapping)`;
+      qpiCountSubquery = `(SELECT COUNT(DISTINCT source_file) FROM qpi_file_tracking WHERE asin = p.asin)`;
+      qpiTotalSubquery = `(SELECT COUNT(DISTINCT qpi_file) FROM vendor_mapping WHERE qpi_file IS NOT NULL AND qpi_file != '')`;
+      onlineCountSubquery = `(SELECT COUNT(DISTINCT country) FROM asin_online_status WHERE asin = p.asin)`;
+      onlineTotalSubquery = `(SELECT COUNT(DISTINCT country) FROM asin_online_status)`;  // Count actual countries in data, not all marketplaces
+    }
+    
+    const query = `
+      SELECT 
+        p.*,
+        GROUP_CONCAT(DISTINCT ps.sku) as skus,
+        GROUP_CONCAT(
+          DISTINCT json_object(
+            'sku', ps.sku,
+            'is_primary', ps.is_primary,
+            'source', ps.source
+          )
+        ) as sku_details,
+        ${vcCountSubquery} as vc_country_count,
+        ${vcTotalSubquery} as vc_total_countries,
+        ${qpiCountSubquery} as qpi_file_count,
+        ${qpiTotalSubquery} as qpi_total_files,
+        ${onlineCountSubquery} as online_country_count,
+        ${onlineTotalSubquery} as online_total_countries,
+        vm.brand as vm_brand,
+        vm.title as vm_title,
+        vm.bundle as vm_bundle,
+        vm.ppg as vm_ppg,
+        COALESCE(vm.title, p.legal_name, p.name, p.asin) as display_name,
+        COALESCE(vm.brand, p.brand) as display_brand
+      FROM products p
+      LEFT JOIN product_skus ps ON p.id = ps.product_id
+      LEFT JOIN variations_master vm ON p.asin = vm.asin
+      ${joinClause}
+      ${whereClause}
+      GROUP BY p.id
+      ORDER BY p.created_at DESC
+      LIMIT ? OFFSET ?
+    `;
+    
+    queryParams.push(limit, offset);
 
-  db.get(countQuery, countParams, (countErr, countRow) => {
-    if (countErr) {
-      res.status(500).json({ error: countErr.message });
-      return;
-    }
-    
-    db.all(query, queryParams, (err, rows) => {
+    db.get(countQuery, countParams, (countErr, countRow) => {
+      if (countErr) {
+        res.status(500).json({ error: countErr.message });
+        return;
+      }
+      
+      db.all(query, queryParams, (err, rows) => {
+        if (err) {
+          res.status(500).json({ error: err.message });
+          return;
+        }
+        
+        // Parse SKU details and convert to old format
+        const items = rows.map(row => ({
+          id: row.id,
+          sku: row.skus ? row.skus.split(',')[0] : '',  // First SKU as primary
+          asin: row.asin,
+          name: row.name,
+          ...row,
+          skus: row.skus ? row.skus.split(',') : [],
+          sku_details: row.sku_details ? JSON.parse(`[${row.sku_details}]`) : []
+        }));
+        
+        res.json({
+          data: items,
+          pagination: {
+            total: countRow.count,
+            limit: limit,
+            offset: offset,
+            page: Math.floor(offset / limit) + 1,
+            total_pages: Math.ceil(countRow.count / limit)
+          }
+        });
+      });
+    });
+  };
+  
+  // If marketplace is selected, get country codes for that marketplace
+  if (country && country !== 'all') {
+    db.all('SELECT DISTINCT country_code FROM vendor_mapping WHERE marketplace = ?', [country], (err, rows) => {
       if (err) {
         res.status(500).json({ error: err.message });
         return;
       }
-      
-      // Parse SKU details and convert to old format
-      const items = rows.map(row => ({
-        id: row.id,
-        sku: row.skus ? row.skus.split(',')[0] : '',  // First SKU as primary
-        asin: row.asin,
-        name: row.name,
-        ...row,
-        skus: row.skus ? row.skus.split(',') : [],
-        sku_details: row.sku_details ? JSON.parse(`[${row.sku_details}]`) : []
-      }));
-      
-      res.json({
-        data: items,
-        pagination: {
-          total: countRow.count,
-          limit: limit,
-          offset: offset,
-          page: Math.floor(offset / limit) + 1,
-          total_pages: Math.ceil(countRow.count / limit)
-        }
-      });
+      const countryCodes = rows.map(row => row.country_code);
+      buildAndExecuteQuery(country, countryCodes);
     });
+  } else {
+    // No marketplace filter
+    buildAndExecuteQuery(null, []);
+  }
+});
+
+// Get list of marketplaces for filter dropdown
+app.get('/api/marketplaces', (req, res) => {
+  db.all(`
+    SELECT DISTINCT marketplace
+    FROM vendor_mapping
+    ORDER BY marketplace
+  `, [], (err, rows) => {
+    if (err) {
+      res.status(500).json({ error: err.message });
+      return;
+    }
+    res.json(rows.map(row => row.marketplace));
   });
 });
 
-// Get list of marketplaces from vendor mapping
+// Get list of marketplaces from vendor mapping (legacy)
 app.get('/api/countries', (req, res) => {
   db.all(`
     SELECT DISTINCT marketplace, country_code
@@ -1137,32 +1201,75 @@ app.get('/api/items/:id', (req, res) => {
 // Create new item
 // Create new product
 app.post('/api/items', (req, res) => {
-  const { sku, asin, name } = req.body;
+  const { 
+    sku, 
+    asin, 
+    name, 
+    brand,
+    stage_1_country,
+    stage_1_item_number,
+    stage_1_description,
+    stage_1_season_launch,
+    stage_1_brand,
+    stage_1_idea_considered,
+    is_temp_asin
+  } = req.body;
 
   if (!sku) {
     res.status(400).json({ error: 'SKU is required' });
     return;
   }
 
-  // Use findOrCreateProduct helper
+  // Use findOrCreateProduct helper with additional fields
   findOrCreateProduct(asin, name, (err, product) => {
     if (err) {
       res.status(500).json({ error: err.message });
       return;
     }
 
-    // Add SKU to product
-    addSkuToProduct(product.id, sku, true, 'manual', (err, changes) => {
-      if (err) {
-        res.status(500).json({ error: err.message });
-        return;
+    // Update product with additional stage 1 fields
+    const updateQuery = `
+      UPDATE products 
+      SET brand = COALESCE(?, brand),
+          stage_1_country = COALESCE(?, stage_1_country),
+          stage_1_item_number = COALESCE(?, stage_1_item_number),
+          stage_1_description = COALESCE(?, stage_1_description),
+          stage_1_season_launch = COALESCE(?, stage_1_season_launch),
+          stage_1_brand = COALESCE(?, stage_1_brand),
+          stage_1_idea_considered = COALESCE(?, stage_1_idea_considered),
+          is_temp_asin = COALESCE(?, is_temp_asin),
+          updated_at = CURRENT_TIMESTAMP
+      WHERE id = ?
+    `;
+
+    db.run(updateQuery, [
+      brand,
+      stage_1_country,
+      stage_1_item_number,
+      stage_1_description,
+      stage_1_season_launch,
+      stage_1_brand,
+      stage_1_idea_considered,
+      is_temp_asin,
+      product.id
+    ], (updateErr) => {
+      if (updateErr) {
+        console.error('Error updating product fields:', updateErr.message);
       }
-      
-      res.json({ 
-        id: product.id, 
-        asin: product.asin,
-        message: 'Product created successfully',
-        is_temp_asin: product.is_temp_asin
+
+      // Add SKU to product
+      addSkuToProduct(product.id, sku, true, 'manual', (err, changes) => {
+        if (err) {
+          res.status(500).json({ error: err.message });
+          return;
+        }
+        
+        res.json({ 
+          id: product.id, 
+          asin: product.asin,
+          message: 'Product created successfully',
+          is_temp_asin: is_temp_asin || product.is_temp_asin
+        });
       });
     });
   });
@@ -2099,11 +2206,8 @@ app.post('/api/sync/online', (req, res) => {
         const skipAsins = new Set((fullyOnlineAsins || []).map(r => r.asin));
         console.log(`[KEEPA SYNC] Skipping ${skipAsins.size} ASINs already online in all countries`);
         
-        // Process each file sequentially
-        processFiles(filesToProcess, 0);
-      });
-      
-      function processFiles(filesToProcess, index) {
+        // Process each file sequentially - function defined here to access skipAsins via closure
+        function processFiles(filesToProcess, index) {
         if (index >= filesToProcess.length) {
           // All done - now update stage_6_product_online for all ASINs that are online
           db.run(`
@@ -2169,61 +2273,95 @@ app.post('/api/sync/online', (req, res) => {
           let fileAsinsFound = new Set();
           let fileAsinsOnline = 0;
           
-          // Process all rows synchronously
+          // Process all rows in one transaction (simpler and more reliable)
           const date = new Date().toISOString().split('T')[0];
           
           db.serialize(() => {
-            db.run('BEGIN TRANSACTION');
-            
-            const stmt = db.prepare(`
-              INSERT INTO asin_online_status (asin, country, first_seen_online, last_seen_online, last_buybox_price, last_synced)
-              VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
-              ON CONFLICT(asin, country)
-              DO UPDATE SET
-                last_seen_online = excluded.last_seen_online,
-                last_buybox_price = excluded.last_buybox_price,
-                last_synced = CURRENT_TIMESTAMP
-            `);
-            
-            for (const row of rows) {
-              const asin = row.asin;
-              const country = domainMap[row.domain] || `Unknown_${row.domain}`;
-              const price = row.buybox_price;
-              
-              // Skip if this ASIN is already online everywhere
-              if (skipAsins.has(asin)) {
-                continue;
+            db.run('BEGIN TRANSACTION', (err) => {
+              if (err) {
+                console.error('[KEEPA SYNC] Error starting transaction:', err.message);
+                filesSkipped++;
+                processFiles(filesToProcess, index + 1);
+                return;
               }
               
-              fileAsinsFound.add(asin);
-              stmt.run([asin, country, date, date, price]);
-            }
-            
-            stmt.finalize();
-            db.run('COMMIT');
-            
-            fileAsinsOnline = fileAsinsFound.size;
-            totalAsinsFound += fileAsinsOnline;
-            
-            // Mark file as processed
-            db.run(
-              'INSERT INTO keepa_file_tracking (filename, asins_found, asins_online) VALUES (?, ?, ?)',
-              [filename, rows.length, fileAsinsOnline],
-              (err) => {
-                if (err) {
-                  console.error('Error tracking file:', err.message);
+              const stmt = db.prepare(`
+                INSERT INTO asin_online_status (asin, country, first_seen_online, last_seen_online, last_buybox_price, last_synced)
+                VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+                ON CONFLICT(asin, country)
+                DO UPDATE SET
+                  last_seen_online = excluded.last_seen_online,
+                  last_buybox_price = excluded.last_buybox_price,
+                  last_synced = CURRENT_TIMESTAMP
+              `);
+              
+              let inserted = 0;
+              for (const row of rows) {
+                const asin = row.asin;
+                const country = domainMap[row.domain] || `Unknown_${row.domain}`;
+                const price = row.buybox_price;
+                
+                // Skip if this ASIN is already online everywhere
+                if (skipAsins.has(asin)) {
+                  continue;
                 }
                 
-                filesProcessed++;
-                console.log(`[KEEPA SYNC] Completed ${filename}: ${fileAsinsOnline} unique ASINs online`);
+                fileAsinsFound.add(asin);
+                stmt.run([asin, country, date, date, price]);
+                inserted++;
                 
-                // Process next file
-                processFiles(filesToProcess, index + 1);
+                // Log progress every 1000 records
+                if (inserted % 1000 === 0) {
+                  console.log(`[KEEPA SYNC] Inserted ${inserted}/${rows.length} records...`);
+                }
               }
-            );
+              
+              stmt.finalize((err) => {
+                if (err) {
+                  console.error('[KEEPA SYNC] Error finalizing statement:', err.message);
+                  db.run('ROLLBACK');
+                  filesSkipped++;
+                  processFiles(filesToProcess, index + 1);
+                  return;
+                }
+                
+                db.run('COMMIT', (err) => {
+                  if (err) {
+                    console.error('[KEEPA SYNC] Error committing transaction:', err.message);
+                    filesSkipped++;
+                    processFiles(filesToProcess, index + 1);
+                    return;
+                  }
+                  
+                  fileAsinsOnline = fileAsinsFound.size;
+                  totalAsinsFound += fileAsinsOnline;
+                  
+                  // Mark file as processed
+                  db.run(
+                    'INSERT INTO keepa_file_tracking (filename, asins_found, asins_online) VALUES (?, ?, ?)',
+                    [filename, rows.length, fileAsinsOnline],
+                    (err) => {
+                      if (err) {
+                        console.error('Error tracking file:', err.message);
+                      }
+                      
+                      filesProcessed++;
+                      console.log(`[KEEPA SYNC] Completed ${filename}: ${fileAsinsOnline} unique ASINs online`);
+                      
+                      // Process next file
+                      processFiles(filesToProcess, index + 1);
+                    }
+                  );
+                });
+              });
+            });
           });
         });
       }
+      
+      // Start processing files
+      processFiles(filesToProcess, 0);
+      });
     });
     
   } catch (error) {
