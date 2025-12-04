@@ -1083,13 +1083,31 @@ function closePricingSubmissionModal() {
 async function handlePricingSubmissionSubmit(e) {
     e.preventDefault();
     
+    const productCost = parseFloat(document.getElementById('productCost').value);
+    const sellPrice = parseFloat(document.getElementById('sellPrice').value);
+    const retailPrice = parseFloat(document.getElementById('retailPrice').value);
+    
+    // Validate required fields
+    if (!productCost || productCost <= 0) {
+        showError('Please enter a valid Product Cost');
+        return;
+    }
+    if (!sellPrice || sellPrice <= 0) {
+        showError('Please enter a valid Sell Price');
+        return;
+    }
+    if (!retailPrice || retailPrice <= 0) {
+        showError('Please enter a valid Retail Price');
+        return;
+    }
+    
     const token = localStorage.getItem('token');
     const data = {
         product_id: parseInt(document.getElementById('pricingProductId').value),
         asin: document.getElementById('pricingAsin').value,
-        product_cost: parseFloat(document.getElementById('productCost').value),
-        sell_price: parseFloat(document.getElementById('sellPrice').value),
-        retail_price: parseFloat(document.getElementById('retailPrice').value),
+        product_cost: productCost,
+        sell_price: sellPrice,
+        retail_price: retailPrice,
         currency: document.getElementById('pricingCurrency').value,
         notes: document.getElementById('pricingNotes').value
     };
