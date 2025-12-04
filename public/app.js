@@ -516,7 +516,6 @@ function switchView(view) {
     
     // Show/hide sections
     document.getElementById('productsView').style.display = view === 'products' ? 'block' : 'none';
-    document.getElementById('skusView').style.display = view === 'skus' ? 'block' : 'none';
     document.getElementById('pricingApprovalsView').style.display = view === 'pricing-approvals' ? 'block' : 'none';
     document.getElementById('customerAdminView').style.display = view === 'customer-admin' ? 'block' : 'none';
     document.getElementById('databaseView').style.display = view === 'database' ? 'block' : 'none';
@@ -528,8 +527,6 @@ function switchView(view) {
         loadVendorMappingFromMain();
     } else if (view === 'products' && items.length > 0) {
         renderItems(items);
-    } else if (view === 'skus' && skus.length > 0) {
-        renderSkus(skus);
     } else if (view === 'database') {
         loadDatabaseTable(currentTable);
     }
@@ -1386,22 +1383,21 @@ function closeApprovalsModal() {
 // Load pricing approvals view
 async function loadPricingApprovalsView() {
     const container = document.getElementById('pricingApprovalsContainer');
-    const statusFilter = document.getElementById('pricingStatusFilter').value;
     
     container.innerHTML = '<p style="text-align: center; padding: 40px;">Loading pricing submissions...</p>';
     
     const token = localStorage.getItem('token');
     
     try {
-        const url = statusFilter === 'all' ? 
-            `${API_BASE}/pricing/submissions` : 
-            `${API_BASE}/pricing/submissions?status=${statusFilter}`;
-            
-        const response = await fetch(url, {
+        const response = await fetch(`${API_BASE}/pricing/submissions`, {
             headers: {
                 'Authorization': `Bearer ${token}`
             }
         });
+        
+        if (!response.ok) {
+            throw new Error('Failed to load pricing submissions');
+        }
         
         const submissions = await response.json();
         
@@ -1482,8 +1478,9 @@ async function loadPricingApprovalsView() {
         container.innerHTML = html;
         
     } catch (error) {
-        container.innerHTML = '<p style="text-align: center; padding: 40px; color: var(--danger-color);">Error loading pricing submissions</p>';
+        container.innerHTML = `<p style="text-align: center; padding: 40px; color: var(--danger-color);">Error loading pricing submissions: ${error.message}</p>`;
         console.error('Error loading pricing submissions:', error);
+        showError('Failed to load pricing submissions: ' + error.message);
     }
 }
 
@@ -2531,9 +2528,6 @@ let vendorMappingData = [];
 
 async function loadVendorMappingFromMain() {
     const token = localStorage.getItem('token');
-    const searchTerm = document.getElementById('mainMappingSearch')?.value.toLowerCase() || '';
-    const customerFilter = document.getElementById('mainMappingCustomerFilter')?.value || 'all';
-    const marketplaceFilter = document.getElementById('mainMappingMarketplaceFilter')?.value || 'all';
     
     try {
         const response = await fetch(`${API_BASE}/vendor-mapping`, {
@@ -2548,34 +2542,11 @@ async function loadVendorMappingFromMain() {
         
         vendorMappingData = await response.json();
         
-        // Apply filters
-        let filteredData = vendorMappingData;
-        
-        if (searchTerm) {
-            filteredData = filteredData.filter(row => 
-                (row.country && row.country.toLowerCase().includes(searchTerm)) ||
-                (row.marketplace && row.marketplace.toLowerCase().includes(searchTerm)) ||
-                (row.country_code && row.country_code.toLowerCase().includes(searchTerm)) ||
-                (row.vendor_code && row.vendor_code.toLowerCase().includes(searchTerm)) ||
-                (row.qpi_file && row.qpi_file.toLowerCase().includes(searchTerm)) ||
-                (row.customer && row.customer.toLowerCase().includes(searchTerm))
-            );
-        }
-        
-        if (customerFilter !== 'all') {
-            filteredData = filteredData.filter(row => row.customer === customerFilter);
-        }
-        
-        if (marketplaceFilter !== 'all') {
-            filteredData = filteredData.filter(row => row.marketplace === marketplaceFilter);
-        }
-        
-        renderVendorMappingFromMain(filteredData);
-        updateMappingFiltersFromMain();
-        updateMappingStatsFromMain(filteredData);
+        renderVendorMappingFromMain(vendorMappingData);
+        updateMappingStatsFromMain(vendorMappingData);
     } catch (error) {
         console.error('Error loading vendor mapping:', error);
-        showError('Failed to load vendor mapping');
+        showError('Failed to load vendor mapping: ' + error.message);
     }
 }
 
@@ -2599,22 +2570,6 @@ function renderVendorMappingFromMain(data) {
             <td>${row.ppg_default || '-'}</td>
         </tr>
     `).join('');
-}
-
-function updateMappingFiltersFromMain() {
-    // Populate customer filter
-    const customerFilter = document.getElementById('mainMappingCustomerFilter');
-    const customers = [...new Set(vendorMappingData.map(r => r.customer).filter(Boolean))].sort();
-    const currentCustomer = customerFilter.value;
-    customerFilter.innerHTML = '<option value="all">All Customers</option>' + 
-        customers.map(c => `<option value="${c}" ${c === currentCustomer ? 'selected' : ''}>${c}</option>`).join('');
-    
-    // Populate marketplace filter
-    const marketplaceFilter = document.getElementById('mainMappingMarketplaceFilter');
-    const marketplaces = [...new Set(vendorMappingData.map(r => r.marketplace).filter(Boolean))].sort();
-    const currentMarketplace = marketplaceFilter.value;
-    marketplaceFilter.innerHTML = '<option value="all">All Marketplaces</option>' + 
-        marketplaces.map(m => `<option value="${m}" ${m === currentMarketplace ? 'selected' : ''}>${m}</option>`).join('');
 }
 
 function updateMappingStatsFromMain(data) {
@@ -2666,23 +2621,5 @@ async function syncVendorMappingFromMain() {
 }
 
 function setupCustomerAdminFilters() {
-    const mappingSearch = document.getElementById('mainMappingSearch');
-    const customerFilter = document.getElementById('mainMappingCustomerFilter');
-    const marketplaceFilter = document.getElementById('mainMappingMarketplaceFilter');
-    
-    if (mappingSearch) {
-        let timeout;
-        mappingSearch.addEventListener('input', () => {
-            clearTimeout(timeout);
-            timeout = setTimeout(loadVendorMappingFromMain, 300); // Debounce
-        });
-    }
-    
-    if (customerFilter) {
-        customerFilter.addEventListener('change', loadVendorMappingFromMain);
-    }
-    
-    if (marketplaceFilter) {
-        marketplaceFilter.addEventListener('change', loadVendorMappingFromMain);
-    }
+    // No filters needed anymore
 }
