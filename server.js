@@ -539,6 +539,58 @@ function initializeDatabase() {
         console.log('[SETUP] notifications table ready');
       }
     });
+    
+    // FX rates table
+    db.run(`CREATE TABLE IF NOT EXISTS fx_rates (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      country TEXT NOT NULL UNIQUE,
+      currency TEXT NOT NULL,
+      rate_to_usd DECIMAL(10,6) NOT NULL,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_by INTEGER,
+      FOREIGN KEY (updated_by) REFERENCES users(id)
+    )`, (err) => {
+      if (err) {
+        console.error('Error creating fx_rates table:', err.message);
+      } else {
+        console.log('[SETUP] fx_rates table ready');
+        // Insert default FX rates
+        db.run(`INSERT OR IGNORE INTO fx_rates (country, currency, rate_to_usd) VALUES 
+          ('Canada', 'CAD', 1.35),
+          ('United States', 'USD', 1.00),
+          ('Mexico', 'MXN', 20.00),
+          ('United Kingdom', 'GBP', 0.79),
+          ('Germany', 'EUR', 0.92),
+          ('France', 'EUR', 0.92),
+          ('Italy', 'EUR', 0.92),
+          ('Spain', 'EUR', 0.92),
+          ('Netherlands', 'EUR', 0.92),
+          ('Poland', 'PLN', 4.00),
+          ('Sweden', 'SEK', 10.50),
+          ('Japan', 'JPY', 149.00),
+          ('Australia', 'AUD', 1.52),
+          ('Singapore', 'SGD', 1.34)
+        `);
+      }
+    });
+    
+    // Pricing submissions by country table
+    db.run(`CREATE TABLE IF NOT EXISTS pricing_submissions_country (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      pricing_submission_id INTEGER NOT NULL,
+      country TEXT NOT NULL,
+      retail_price_local DECIMAL(10,2) NOT NULL,
+      retail_price_usd DECIMAL(10,2) NOT NULL,
+      customer_margin DECIMAL(5,2) NOT NULL,
+      fx_rate DECIMAL(10,6) NOT NULL,
+      FOREIGN KEY (pricing_submission_id) REFERENCES pricing_submissions(id) ON DELETE CASCADE
+    )`, (err) => {
+      if (err) {
+        console.error('Error creating pricing_submissions_country table:', err.message);
+      } else {
+        console.log('[SETUP] pricing_submissions_country table ready');
+      }
+    });
 
     console.log('Database tables initialized');
     
@@ -3432,62 +3484,106 @@ app.delete('/api/users/:id', authenticateToken, requireRole('admin'), (req, res)
 
 // Submit pricing for approval
 app.post('/api/pricing/submit', authenticateToken, requireRole('salesperson', 'admin'), (req, res) => {
-  const { product_id, asin, product_cost, sell_price, retail_price, currency, notes } = req.body;
+  const { product_id, asin, product_cost, sell_price, countries, notes } = req.body;
   
-  if (!product_id || !asin || !product_cost || !sell_price || !retail_price) {
-    return res.status(400).json({ error: 'All pricing fields are required' });
+  if (!product_id || !asin || !product_cost || !sell_price) {
+    return res.status(400).json({ error: 'Product cost and sell price are required' });
   }
   
-  // Calculate margins
-  const company_margin = ((sell_price - product_cost) / sell_price * 100).toFixed(2);
-  const customer_margin = ((retail_price - sell_price) / retail_price * 100).toFixed(2);
+  if (!countries || !Array.isArray(countries) || countries.length === 0) {
+    return res.status(400).json({ error: 'At least one country pricing is required' });
+  }
   
-  db.run(`
-    INSERT INTO pricing_submissions 
-    (product_id, asin, product_cost, sell_price, company_margin, retail_price, customer_margin, currency, notes, submitted_by)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `, [product_id, asin, product_cost, sell_price, company_margin, retail_price, customer_margin, currency || 'USD', notes, req.user.id], 
-  function(err) {
-    if (err) {
-      return res.status(500).json({ error: err.message });
-    }
+  // Calculate company margin (always in USD)
+  const company_margin = ((sell_price - product_cost) / sell_price * 100).toFixed(2);
+  
+  // Calculate average customer margin across all countries
+  const avgCustomerMargin = (countries.reduce((sum, c) => sum + parseFloat(c.customer_margin), 0) / countries.length).toFixed(2);
+  
+  db.serialize(() => {
+    db.run('BEGIN TRANSACTION');
     
-    const submissionId = this.lastID;
-    
-    // Create notifications for all approvers
-    db.all('SELECT id FROM users WHERE role = "approver" AND is_active = 1', [], (err, approvers) => {
-      if (!err && approvers.length > 0) {
-        const stmt = db.prepare(`
-          INSERT INTO notifications (user_id, type, title, message, link)
-          VALUES (?, 'pricing_approval', ?, ?, ?)
-        `);
-        
-        approvers.forEach(approver => {
-          stmt.run([
-            approver.id,
-            'Pricing Approval Required',
-            `New pricing submission for ASIN ${asin} requires your approval`,
-            `/pricing-approvals`
-          ]);
-        });
-        
-        stmt.finalize();
-      }
-    });
-    
-    // Update product stage
+    // Insert main pricing submission
     db.run(`
-      UPDATE products 
-      SET stage_3a_pricing_submitted = 1,
-          updated_at = CURRENT_TIMESTAMP
-      WHERE id = ?
-    `, [product_id]);
-    
-    res.json({
-      id: submissionId,
-      message: 'Pricing submitted for approval',
-      company_margin,
-      customer_margin
+      INSERT INTO pricing_submissions 
+      (product_id, asin, product_cost, sell_price, company_margin, retail_price, customer_margin, currency, notes, submitted_by)
+      VALUES (?, ?, ?, ?, ?, ?, ?, 'USD', ?, ?)
+    `, [product_id, asin, product_cost, sell_price, company_margin, 0, avgCustomerMargin, notes, req.user.id], 
+    function(err) {
+      if (err) {
+        db.run('ROLLBACK');
+        return res.status(500).json({ error: err.message });
+      }
+      
+      const submissionId = this.lastID;
+      
+      // Insert country-specific pricing
+      const stmt = db.prepare(`
+        INSERT INTO pricing_submissions_country 
+        (pricing_submission_id, country, retail_price_local, retail_price_usd, customer_margin, fx_rate)
+        VALUES (?, ?, ?, ?, ?, ?)
+      `);
+      
+      countries.forEach(country => {
+        stmt.run([
+          submissionId,
+          country.country,
+          country.retail_price_local,
+          country.retail_price_usd,
+          country.customer_margin,
+          country.fx_rate
+        ]);
+      });
+      
+      stmt.finalize((err) => {
+        if (err) {
+          db.run('ROLLBACK');
+          return res.status(500).json({ error: err.message });
+        }
+        
+        db.run('COMMIT', (err) => {
+          if (err) {
+            return res.status(500).json({ error: err.message });
+          }
+          
+          // Create notifications for all approvers
+          db.all('SELECT id FROM users WHERE role = "approver" AND is_active = 1', [], (err, approvers) => {
+            if (!err && approvers.length > 0) {
+              const stmt = db.prepare(`
+                INSERT INTO notifications (user_id, type, title, message, link)
+                VALUES (?, 'pricing_approval', ?, ?, ?)
+              `);
+              
+              approvers.forEach(approver => {
+                stmt.run([
+                  approver.id,
+                  'Pricing Approval Required',
+                  `New multi-country pricing submission for ASIN ${asin} requires your approval`,
+                  `/pricing-approvals`
+                ]);
+              });
+              
+              stmt.finalize();
+            }
+          });
+          
+          // Update product stage
+          db.run(`
+            UPDATE products 
+            SET stage_3a_pricing_submitted = 1,
+                updated_at = CURRENT_TIMESTAMP
+            WHERE id = ?
+          `, [product_id]);
+          
+          res.json({
+            id: submissionId,
+            message: 'Multi-country pricing submitted for approval',
+            company_margin,
+            avg_customer_margin: avgCustomerMargin,
+            countries_count: countries.length
+          });
+        });
+      });
     });
   });
 });
@@ -3644,6 +3740,83 @@ app.put('/api/notifications/read-all', authenticateToken, (req, res) => {
       res.json({ message: 'All notifications marked as read', count: this.changes });
     }
   );
+});
+
+// ============ FX RATES MANAGEMENT ============
+
+// Get all FX rates
+app.get('/api/fx-rates', authenticateToken, (req, res) => {
+  db.all('SELECT * FROM fx_rates ORDER BY country', [], (err, rows) => {
+    if (err) {
+      return res.status(500).json({ error: err.message });
+    }
+    res.json(rows);
+  });
+});
+
+// Update FX rate (Admin only)
+app.put('/api/fx-rates/:id', authenticateToken, requireRole('admin'), (req, res) => {
+  const { id } = req.params;
+  const { rate_to_usd } = req.body;
+  
+  if (!rate_to_usd || rate_to_usd <= 0) {
+    return res.status(400).json({ error: 'Invalid FX rate' });
+  }
+  
+  db.run(`
+    UPDATE fx_rates 
+    SET rate_to_usd = ?, 
+        updated_at = CURRENT_TIMESTAMP,
+        updated_by = ?
+    WHERE id = ?
+  `, [rate_to_usd, req.user.id, id], function(err) {
+    if (err) {
+      return res.status(500).json({ error: err.message });
+    }
+    if (this.changes === 0) {
+      return res.status(404).json({ error: 'FX rate not found' });
+    }
+    res.json({ message: 'FX rate updated successfully' });
+  });
+});
+
+// Bulk update FX rates (Admin only)
+app.post('/api/fx-rates/bulk-update', authenticateToken, requireRole('admin'), (req, res) => {
+  const { rates } = req.body; // Array of { id, rate_to_usd }
+  
+  if (!Array.isArray(rates) || rates.length === 0) {
+    return res.status(400).json({ error: 'Invalid rates data' });
+  }
+  
+  db.serialize(() => {
+    db.run('BEGIN TRANSACTION');
+    
+    const stmt = db.prepare(`
+      UPDATE fx_rates 
+      SET rate_to_usd = ?, 
+          updated_at = CURRENT_TIMESTAMP,
+          updated_by = ?
+      WHERE id = ?
+    `);
+    
+    rates.forEach(rate => {
+      stmt.run([rate.rate_to_usd, req.user.id, rate.id]);
+    });
+    
+    stmt.finalize((err) => {
+      if (err) {
+        db.run('ROLLBACK');
+        return res.status(500).json({ error: err.message });
+      }
+      
+      db.run('COMMIT', (err) => {
+        if (err) {
+          return res.status(500).json({ error: err.message });
+        }
+        res.json({ message: `${rates.length} FX rates updated successfully` });
+      });
+    });
+  });
 });
 
 app.get('*', (req, res) => {

@@ -26,6 +26,7 @@
         <div class="view-tabs">
             <button class="tab-btn active" data-view="products">Products (by ASIN)</button>
             <button class="tab-btn" data-view="skus">SKUs (by Item Number)</button>
+            <button class="tab-btn" data-view="pricing-approvals" id="pricingApprovalsTab" style="display: none;">💰 Pricing Approvals</button>
             <button class="tab-btn" data-view="reports">Reports</button>
             <button class="tab-btn" data-view="database">Database Explorer</button>
         </div>
@@ -370,6 +371,25 @@
                         <!-- Pricing rows will be added here -->
                     </tbody>
                 </table>
+            </div>
+        </div>
+        
+        <!-- Pricing Approvals View -->
+        <div id="pricingApprovalsView" class="view-container" style="display: none;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                <h2>💰 Pricing Approvals</h2>
+                <div>
+                    <select id="pricingStatusFilter" class="filter-select">
+                        <option value="all">All Submissions</option>
+                        <option value="pending">Pending</option>
+                        <option value="approved">Approved</option>
+                        <option value="rejected">Rejected</option>
+                    </select>
+                </div>
+            </div>
+            
+            <div id="pricingApprovalsContainer">
+                <p style="text-align: center; padding: 40px;">Loading pricing submissions...</p>
             </div>
         </div>
     </div>

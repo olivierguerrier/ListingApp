@@ -508,10 +508,13 @@ function switchView(view) {
     // Show/hide sections
     document.getElementById('productsView').style.display = view === 'products' ? 'block' : 'none';
     document.getElementById('skusView').style.display = view === 'skus' ? 'block' : 'none';
+    document.getElementById('pricingApprovalsView').style.display = view === 'pricing-approvals' ? 'block' : 'none';
     document.getElementById('databaseView').style.display = view === 'database' ? 'block' : 'none';
     
     // Load data based on view
-    if (view === 'products' && items.length > 0) {
+    if (view === 'pricing-approvals') {
+        loadPricingApprovalsView();
+    } else if (view === 'products' && items.length > 0) {
         renderItems(items);
     } else if (view === 'skus' && skus.length > 0) {
         renderSkus(skus);
@@ -1253,6 +1256,119 @@ async function reviewPricing(submissionId, action) {
 
 function closeApprovalsModal() {
     document.getElementById('approvalsModal').style.display = 'none';
+}
+
+// Load pricing approvals view
+async function loadPricingApprovalsView() {
+    const container = document.getElementById('pricingApprovalsContainer');
+    const statusFilter = document.getElementById('pricingStatusFilter').value;
+    
+    container.innerHTML = '<p style="text-align: center; padding: 40px;">Loading pricing submissions...</p>';
+    
+    const token = localStorage.getItem('token');
+    
+    try {
+        const url = statusFilter === 'all' ? 
+            `${API_BASE}/pricing/submissions` : 
+            `${API_BASE}/pricing/submissions?status=${statusFilter}`;
+            
+        const response = await fetch(url, {
+            headers: {
+                'Authorization': `Bearer ${token}`
+            }
+        });
+        
+        const submissions = await response.json();
+        
+        if (submissions.length === 0) {
+            container.innerHTML = '<p style="text-align: center; padding: 40px; color: var(--text-secondary);">No pricing submissions found</p>';
+            return;
+        }
+        
+        // Render as table
+        let html = `
+            <div style="overflow-x: auto;">
+                <table class="products-table">
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>Product</th>
+                            <th>ASIN</th>
+                            <th>Cost</th>
+                            <th>Sell Price</th>
+                            <th>Company Margin</th>
+                            <th>Retail Price</th>
+                            <th>Customer Margin</th>
+                            <th>Submitted By</th>
+                            <th>Submitted At</th>
+                            <th>Status</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+        `;
+        
+        submissions.forEach(sub => {
+            const statusColor = sub.status === 'approved' ? 'var(--success-color)' : 
+                               sub.status === 'rejected' ? 'var(--danger-color)' : 
+                               'var(--warning-color)';
+            const statusIcon = sub.status === 'approved' ? '✓' : 
+                              sub.status === 'rejected' ? '✗' : '⏳';
+            
+            html += `
+                <tr>
+                    <td>${sub.id}</td>
+                    <td>${sub.product_name || sub.asin}</td>
+                    <td>${sub.asin}</td>
+                    <td>${sub.currency} $${parseFloat(sub.product_cost).toFixed(2)}</td>
+                    <td>${sub.currency} $${parseFloat(sub.sell_price).toFixed(2)}</td>
+                    <td style="color: ${parseFloat(sub.company_margin) < 20 ? 'var(--danger-color)' : parseFloat(sub.company_margin) < 35 ? 'var(--warning-color)' : 'var(--success-color)'}; font-weight: 600;">
+                        ${parseFloat(sub.company_margin).toFixed(2)}%
+                    </td>
+                    <td>${sub.currency} $${parseFloat(sub.retail_price).toFixed(2)}</td>
+                    <td style="color: ${parseFloat(sub.customer_margin) < 25 ? 'var(--danger-color)' : parseFloat(sub.customer_margin) < 40 ? 'var(--warning-color)' : 'var(--success-color)'}; font-weight: 600;">
+                        ${parseFloat(sub.customer_margin).toFixed(2)}%
+                    </td>
+                    <td>${sub.submitted_by_full_name || sub.submitted_by_name}</td>
+                    <td>${new Date(sub.submitted_at).toLocaleString()}</td>
+                    <td>
+                        <span style="background: ${statusColor}; color: white; padding: 4px 12px; border-radius: 12px; font-size: 12px; font-weight: 600;">
+                            ${statusIcon} ${sub.status.toUpperCase()}
+                        </span>
+                    </td>
+                    <td>
+                        ${sub.status === 'pending' && (currentUser.role === 'approver' || currentUser.role === 'admin') ? 
+                            `<button class="btn btn-success btn-sm" onclick="quickApproveReject(${sub.id}, 'approve')">✓ Approve</button>
+                             <button class="btn btn-danger btn-sm" onclick="quickApproveReject(${sub.id}, 'reject')">✗ Reject</button>` : 
+                            sub.reviewed_at ? 
+                                `<small style="color: var(--text-secondary);">Reviewed by ${sub.reviewed_by_full_name || sub.reviewed_by_name}<br>${new Date(sub.reviewed_at).toLocaleString()}</small>` : 
+                                '<span style="color: var(--text-secondary);">-</span>'}
+                    </td>
+                </tr>
+            `;
+        });
+        
+        html += `
+                    </tbody>
+                </table>
+            </div>
+        `;
+        
+        container.innerHTML = html;
+        
+    } catch (error) {
+        container.innerHTML = '<p style="text-align: center; padding: 40px; color: var(--danger-color);">Error loading pricing submissions</p>';
+        console.error('Error loading pricing submissions:', error);
+    }
+}
+
+// Quick approve/reject from table
+async function quickApproveReject(submissionId, action) {
+    const notes = prompt(`${action === 'approve' ? 'Approve' : 'Reject'} this pricing submission. Add notes (optional):`);
+    if (notes === null) return; // User cancelled
+    
+    await reviewPricing(submissionId, action, notes);
+    loadPricingApprovalsView(); // Refresh the view
 }
 
 // Handle item form submission
