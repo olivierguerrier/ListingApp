@@ -499,7 +499,7 @@ function initializeDatabase() {
       domain INTEGER,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      UNIQUE(customer_code)
+      UNIQUE(customer_code, vendor_code)
     )`, (err) => {
       if (err) {
         console.error('Error creating vendor_mapping table:', err.message);
@@ -2784,27 +2784,83 @@ app.post('/api/sync/vc', (req, res) => {
       console.log(`Found vendor codes for ${vendorCodesByCountry.size} countries`);
       
       // Update vendor_mapping with discovered vendor codes
-      vendorCodesByCountry.forEach((vendorCodes, country) => {
-        const vendorCodeList = Array.from(vendorCodes).join(', ');
-        console.log(`  ${country}: ${vendorCodeList}`);
-        
-        vendorCodes.forEach(vendorCode => {
-          db.run(
-            `UPDATE vendor_mapping 
-             SET vendor_code = ?,
-                 updated_at = CURRENT_TIMESTAMP
-             WHERE country = ? AND (vendor_code IS NULL OR vendor_code = '')`,
-            [vendorCode, country],
-            function(err) {
-              if (err) {
-                console.error(`Error updating vendor_mapping for ${country}:`, err.message);
-              } else if (this.changes > 0) {
-                console.log(`  ✓ Updated vendor_code for ${country} to ${vendorCode}`);
-              }
+      // First, get the base mapping info for each country
+      db.all(
+        `SELECT DISTINCT country, keepa_marketplace, customer_code, qpi_source_file, vc_file, language, currency, domain
+         FROM vendor_mapping`,
+        [],
+        (err, baseRows) => {
+          if (err) {
+            console.error('Error fetching base vendor_mapping:', err.message);
+            return;
+          }
+
+          const countryBaseMap = new Map();
+          baseRows.forEach(row => {
+            countryBaseMap.set(row.country, row);
+          });
+
+          // Now insert new rows for each vendor code
+          vendorCodesByCountry.forEach((vendorCodes, country) => {
+            const vendorCodeList = Array.from(vendorCodes).join(', ');
+            console.log(`  ${country}: ${vendorCodeList}`);
+            
+            const baseInfo = countryBaseMap.get(country);
+            if (!baseInfo) {
+              console.log(`  ⚠ No base mapping found for ${country}, skipping`);
+              return;
             }
-          );
-        });
-      });
+
+            // Delete existing vendor codes for this country
+            db.run(
+              `DELETE FROM vendor_mapping WHERE country = ?`,
+              [country],
+              function(err) {
+                if (err) {
+                  console.error(`Error deleting old mappings for ${country}:`, err.message);
+                  return;
+                }
+
+                // Insert new rows for each vendor code
+                const stmt = db.prepare(`
+                  INSERT INTO vendor_mapping 
+                    (customer, country, keepa_marketplace, customer_code, vendor_code, qpi_source_file, vc_file, language, currency, domain)
+                  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                `);
+
+                let inserted = 0;
+                vendorCodes.forEach(vendorCode => {
+                  stmt.run(
+                    [
+                      'Amazon',
+                      country,
+                      baseInfo.keepa_marketplace,
+                      baseInfo.customer_code,
+                      vendorCode,
+                      baseInfo.qpi_source_file,
+                      baseInfo.vc_file,
+                      baseInfo.language,
+                      baseInfo.currency,
+                      baseInfo.domain
+                    ],
+                    function(err) {
+                      if (err) {
+                        console.error(`Error inserting vendor_code ${vendorCode} for ${country}:`, err.message);
+                      } else {
+                        inserted++;
+                      }
+                    }
+                  );
+                });
+
+                stmt.finalize(() => {
+                  console.log(`  ✓ Inserted ${inserted} vendor codes for ${country}`);
+                });
+              }
+            );
+          });
+        }
+      );
 
       // Batch insert/update ASIN country status
       if (asinCountryData.length > 0) {
