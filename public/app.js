@@ -1021,10 +1021,13 @@ function openPricingSubmissionModal(productId) {
     document.getElementById('companyMargin').value = '';
     document.getElementById('customerMargin').value = '';
     
-    // Setup margin calculation
-    setupMarginCalculations();
-    
+    // Show modal first
     document.getElementById('pricingSubmissionModal').style.display = 'block';
+    
+    // Setup margin calculations after a brief delay to ensure DOM is ready
+    setTimeout(() => {
+        setupMarginCalculations();
+    }, 50);
 }
 
 function setupMarginCalculations() {
@@ -1034,10 +1037,18 @@ function setupMarginCalculations() {
     const companyMargin = document.getElementById('companyMargin');
     const customerMargin = document.getElementById('customerMargin');
     
-    function calculateMargins() {
+    if (!productCost || !sellPrice || !retailPrice || !companyMargin || !customerMargin) {
+        console.error('Pricing form elements not found');
+        return;
+    }
+    
+    // Store the calculation function in a way we can reference it
+    window.calculatePricingMargins = function() {
         const cost = parseFloat(productCost.value) || 0;
         const sell = parseFloat(sellPrice.value) || 0;
         const retail = parseFloat(retailPrice.value) || 0;
+        
+        console.log('Calculating margins:', { cost, sell, retail });
         
         if (cost > 0 && sell > 0) {
             const cMargin = ((sell - cost) / sell * 100).toFixed(2);
@@ -1070,20 +1081,26 @@ function setupMarginCalculations() {
         } else {
             customerMargin.value = '';
         }
-    }
+    };
     
-    // Remove any existing listeners to prevent duplicates
-    productCost.removeEventListener('input', calculateMargins);
-    sellPrice.removeEventListener('input', calculateMargins);
-    retailPrice.removeEventListener('input', calculateMargins);
+    // Clear any existing listeners by cloning and replacing the elements
+    const productCostClone = productCost.cloneNode(true);
+    const sellPriceClone = sellPrice.cloneNode(true);
+    const retailPriceClone = retailPrice.cloneNode(true);
     
-    // Add the event listeners
-    productCost.addEventListener('input', calculateMargins);
-    sellPrice.addEventListener('input', calculateMargins);
-    retailPrice.addEventListener('input', calculateMargins);
+    productCost.parentNode.replaceChild(productCostClone, productCost);
+    sellPrice.parentNode.replaceChild(sellPriceClone, sellPrice);
+    retailPrice.parentNode.replaceChild(retailPriceClone, retailPrice);
     
-    // Calculate immediately in case there are pre-filled values
-    calculateMargins();
+    // Add event listeners to the new clones
+    document.getElementById('productCost').addEventListener('input', window.calculatePricingMargins);
+    document.getElementById('sellPrice').addEventListener('input', window.calculatePricingMargins);
+    document.getElementById('retailPrice').addEventListener('input', window.calculatePricingMargins);
+    
+    // Calculate immediately
+    window.calculatePricingMargins();
+    
+    console.log('Margin calculations setup complete');
 }
 
 function closePricingSubmissionModal() {
