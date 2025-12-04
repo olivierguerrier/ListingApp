@@ -373,11 +373,9 @@ function renderItems(itemsToRender) {
                 <td class="item-skus" title="${escapeHtml(displaySku)}">${escapeHtml(displaySku)}</td>
                 <td><span class="stage-badge ${item.stage_1_idea_considered ? 'completed' : 'pending'}" onclick="openWorkflowModal('${item.asin}', 1)" title="Stage 1: Ideation">${item.stage_1_idea_considered ? '✓' : '○'}</span></td>
                 <td><span class="stage-badge ${item.stage_2_product_finalized ? 'completed' : 'pending'}" onclick="openWorkflowModal('${item.asin}', 2)" title="Stage 2: PIM Finalized">${item.stage_2_product_finalized ? '✓' : '○'}</span></td>
-                <td><span class="stage-badge ${item.stage_3a_pricing_submitted ? 'completed' : 'pending'}" onclick="openWorkflowModal('${item.asin}', 3)" title="Stage 3a: Pricing Submitted">${item.stage_3a_pricing_submitted ? '✓' : '○'}</span></td>
-                <td><span class="stage-badge ${item.stage_3b_pricing_approved ? 'completed' : 'pending'}" onclick="openWorkflowModal('${item.asin}', 4)" title="Stage 3b: Pricing Approved">${item.stage_3b_pricing_approved ? '✓' : '○'}</span></td>
-                <td><span class="stage-badge percent-badge" style="background-color: ${getPercentColor(stage4Percent)}; color: white;" onclick="openWorkflowModal('${item.asin}', 5)" title="Stage 4: VC Listed - ${stage4Percent}% of countries">${stage4Percent}%</span></td>
-                <td><span class="stage-badge percent-badge" style="background-color: ${getPercentColor(stage5Percent)}; color: white;" onclick="openWorkflowModal('${item.asin}', 6)" title="Stage 5: QPI - ${stage5Percent}% of source files">${stage5Percent}%</span></td>
-                <td><span class="stage-badge ${item.stage_6_product_online ? 'completed' : 'pending'}" onclick="openWorkflowModal('${item.asin}', 7)" title="Stage 6: Online">${item.stage_6_product_online ? '✓' : '○'}</span></td>
+                <td><span class="stage-badge percent-badge" style="background-color: ${getPercentColor(stage4Percent)}; color: white;" onclick="openWorkflowModal('${item.asin}', 3)" title="Stage 3: VC Listed - ${stage4Percent}% of countries">${stage4Percent}%</span></td>
+                <td><span class="stage-badge percent-badge" style="background-color: ${getPercentColor(stage5Percent)}; color: white;" onclick="openWorkflowModal('${item.asin}', 4)" title="Stage 4: QPI - ${stage5Percent}% of source files">${stage5Percent}%</span></td>
+                <td><span class="stage-badge ${item.stage_6_product_online ? 'completed' : 'pending'}" onclick="openWorkflowModal('${item.asin}', 5)" title="Stage 5: Online">${item.stage_6_product_online ? '✓' : '○'}</span></td>
                 <td>
                     <div class="action-btns">
                         <button class="btn-icon" onclick="editItem('${item.asin}')" title="Edit">✏️</button>
@@ -1148,17 +1146,15 @@ async function openWorkflowModal(asin, stageNumber) {
     const stageNames = {
         1: 'Stage 1: Ideation',
         2: 'Stage 2: PIM Finalized',
-        3: 'Stage 3a: Pricing Submitted',
-        4: 'Stage 3b: Pricing Approved',
-        5: 'Stage 4: VC Listed',
-        6: 'Stage 5: Ordered (QPI)',
-        7: 'Stage 6: Online'
+        3: 'Stage 3: VC Listed',
+        4: 'Stage 4: Ordered (QPI)',
+        5: 'Stage 5: Online'
     };
     
     title.textContent = `${stageNames[stageNumber]} - ${asin}`;
     
-    // If it's Stage 5 (VC Listed), show country status
-    if (stageNumber === 5) {
+    // If it's Stage 3 (VC Listed), show country status
+    if (stageNumber === 3) {
         content.innerHTML = '<p style="text-align: center; color: var(--text-secondary);">Loading country status...</p>';
         modal.style.display = 'block';
         
@@ -1237,8 +1233,8 @@ async function openWorkflowModal(asin, stageNumber) {
                 </div>
             `;
         }
-    } else if (stageNumber === 6) {
-        // Stage 6: QPI Status - show which QPI source files contain this ASIN
+    } else if (stageNumber === 4) {
+        // Stage 4: QPI Status - show which QPI source files contain this ASIN
         content.innerHTML = '<p style="text-align: center; color: var(--text-secondary);">Loading QPI status...</p>';
         modal.style.display = 'block';
         
