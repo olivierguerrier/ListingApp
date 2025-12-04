@@ -346,6 +346,40 @@ function initializeDatabase() {
         console.log('[SETUP] variations_master table ready');
       }
     });
+    
+    // Online status tracking table
+    db.run(`CREATE TABLE IF NOT EXISTS asin_online_status (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      asin TEXT NOT NULL,
+      country TEXT NOT NULL,
+      first_seen_online DATE,
+      last_seen_online DATE,
+      last_buybox_price DECIMAL,
+      last_synced DATETIME,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE(asin, country)
+    )`, (err) => {
+      if (err) {
+        console.error('Error creating asin_online_status table:', err.message);
+      } else {
+        console.log('[SETUP] asin_online_status table ready');
+      }
+    });
+    
+    // Keepa file tracking table
+    db.run(`CREATE TABLE IF NOT EXISTS keepa_file_tracking (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      filename TEXT UNIQUE NOT NULL,
+      processed_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      asins_found INTEGER,
+      asins_online INTEGER
+    )`, (err) => {
+      if (err) {
+        console.error('Error creating keepa_file_tracking table:', err.message);
+      } else {
+        console.log('[SETUP] keepa_file_tracking table ready');
+      }
+    });
 
     console.log('Database tables initialized');
     
@@ -467,6 +501,8 @@ app.get('/api/products', (req, res) => {
       (SELECT COUNT(DISTINCT country_code) FROM asin_country_status) as vc_total_countries,
       (SELECT COUNT(DISTINCT source_file) FROM qpi_file_tracking WHERE asin = p.asin) as qpi_file_count,
       (SELECT COUNT(DISTINCT source_file) FROM qpi_file_tracking) as qpi_total_files,
+      (SELECT COUNT(DISTINCT country) FROM asin_online_status WHERE asin = p.asin) as online_country_count,
+      9 as online_total_countries,
       vm.brand as vm_brand,
       vm.title as vm_title,
       vm.bundle as vm_bundle,
@@ -785,7 +821,9 @@ app.get('/api/database/:table', (req, res) => {
     'item_country_pricing',
     'asin_country_status',
     'qpi_file_tracking',
-    'variations_master'
+    'variations_master',
+    'asin_online_status',
+    'keepa_file_tracking'
   ];
   
   if (!allowedTables.includes(tableName)) {
@@ -948,6 +986,8 @@ app.get('/api/items', (req, res) => {
       (SELECT COUNT(DISTINCT country_code) FROM asin_country_status) as vc_total_countries,
       (SELECT COUNT(DISTINCT source_file) FROM qpi_file_tracking WHERE asin = p.asin) as qpi_file_count,
       (SELECT COUNT(DISTINCT source_file) FROM qpi_file_tracking) as qpi_total_files,
+      (SELECT COUNT(DISTINCT country) FROM asin_online_status WHERE asin = p.asin) as online_country_count,
+      9 as online_total_countries,
       vm.brand as vm_brand,
       vm.title as vm_title,
       vm.bundle as vm_bundle,
@@ -1882,6 +1922,192 @@ app.post('/api/sync/variations', (req, res) => {
     });
 });
 
+// Sync Online Status from Keepa parquet files
+app.post('/api/sync/online', (req, res) => {
+  const keepaDir = 'A:\\Keepa_PBI\\Output\\Battat_Keepa_Extract';
+  
+  // Domain mapping (Keepa numeric codes to country names)
+  const domainMap = {
+    1: 'United States',
+    2: 'United Kingdom',
+    3: 'Germany',
+    4: 'France',
+    5: 'Japan',
+    6: 'Canada',
+    8: 'Italy',
+    9: 'Spain',
+    11: 'Mexico'
+  };
+  
+  try {
+    // Find all Keepa extract files
+    const files = fs.readdirSync(keepaDir)
+      .filter(f => f.startsWith('KeepaFiltered_') && f.endsWith('.parquet'))
+      .sort(); // Process chronologically
+    
+    if (files.length === 0) {
+      res.status(404).json({ error: 'No Keepa extract files found' });
+      return;
+    }
+
+    console.log(`[KEEPA SYNC] Found ${files.length} Keepa files to process`);
+
+    let filesProcessed = 0;
+    let filesSkipped = 0;
+    let totalAsinsFound = 0;
+    let totalAsinsOnline = 0;
+    
+    // Get list of already processed files
+    db.all('SELECT filename FROM keepa_file_tracking', [], (err, processedFiles) => {
+      if (err) {
+        res.status(500).json({ error: err.message });
+        return;
+      }
+      
+      const processedFilenames = new Set(processedFiles.map(f => f.filename));
+      const filesToProcess = files.filter(f => !processedFilenames.has(f));
+      
+      if (filesToProcess.length === 0) {
+        res.json({
+          message: 'All Keepa files already processed',
+          total_files: files.length,
+          files_processed: 0,
+          files_skipped: files.length,
+          asins_found: 0,
+          asins_online: 0
+        });
+        return;
+      }
+      
+      console.log(`[KEEPA SYNC] Processing ${filesToProcess.length} new files (${files.length - filesToProcess.length} already processed)`);
+      
+      // Get ASINs already online in all countries (to skip querying)
+      db.all(`
+        SELECT DISTINCT asin 
+        FROM asin_online_status 
+        GROUP BY asin
+        HAVING COUNT(DISTINCT country) >= ?
+      `, [Object.keys(domainMap).length], (err, fullyOnlineAsins) => {
+        if (err) {
+          console.error('Error fetching fully online ASINs:', err.message);
+        }
+        
+        const skipAsins = new Set((fullyOnlineAsins || []).map(r => r.asin));
+        console.log(`[KEEPA SYNC] Skipping ${skipAsins.size} ASINs already online in all countries`);
+        
+        // Process each file sequentially
+        processFiles(filesToProcess, 0);
+      });
+      
+      function processFiles(filesToProcess, index) {
+        if (index >= filesToProcess.length) {
+          // All done
+          res.json({
+            message: 'Keepa sync completed',
+            total_files: files.length,
+            files_processed: filesProcessed,
+            files_skipped: filesSkipped,
+            asins_found: totalAsinsFound,
+            asins_online: totalAsinsOnline
+          });
+          return;
+        }
+        
+        const filename = filesToProcess[index];
+        const filePath = path.join(keepaDir, filename).replace(/\\/g, '/');
+        
+        console.log(`[KEEPA SYNC] Processing file ${index + 1}/${filesToProcess.length}: ${filename}`);
+        
+        const duckDb = new duckdb.Database(':memory:');
+        
+        const query = `
+          SELECT 
+            ASIN as asin,
+            domain,
+            stats_buyBoxPrice as buybox_price,
+            timestamp
+          FROM '${filePath}'
+          WHERE ASIN IS NOT NULL 
+            AND ASIN != ''
+            AND stats_buyBoxPrice > 0
+        `;
+
+        duckDb.all(query, (err, rows) => {
+          duckDb.close();
+          
+          if (err) {
+            console.error(`Error reading ${filename}:`, err.message);
+            filesSkipped++;
+            processFiles(filesToProcess, index + 1);
+            return;
+          }
+          
+          console.log(`[KEEPA SYNC] Found ${rows.length} online ASINs in ${filename}`);
+          
+          let fileAsinsFound = new Set();
+          let fileAsinsOnline = 0;
+          
+          // Batch insert/update
+          const stmt = db.prepare(`
+            INSERT INTO asin_online_status (asin, country, first_seen_online, last_seen_online, last_buybox_price, last_synced)
+            VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+            ON CONFLICT(asin, country)
+            DO UPDATE SET
+              last_seen_online = excluded.last_seen_online,
+              last_buybox_price = excluded.last_buybox_price,
+              last_synced = CURRENT_TIMESTAMP
+          `);
+          
+          rows.forEach(row => {
+            const asin = row.asin;
+            const country = domainMap[row.domain] || `Unknown_${row.domain}`;
+            const date = row.timestamp ? new Date(row.timestamp).toISOString().split('T')[0] : new Date().toISOString().split('T')[0];
+            const price = row.buybox_price;
+            
+            // Skip if this ASIN is already online everywhere
+            if (skipAsins.has(asin)) {
+              return;
+            }
+            
+            fileAsinsFound.add(asin);
+            
+            stmt.run([asin, country, date, date, price], (err) => {
+              if (err) {
+                console.error(`Error inserting online status:`, err.message);
+              }
+            });
+          });
+          
+          stmt.finalize(() => {
+            fileAsinsOnline = fileAsinsFound.size;
+            totalAsinsFound += fileAsinsOnline;
+            
+            // Mark file as processed
+            db.run(
+              'INSERT INTO keepa_file_tracking (filename, asins_found, asins_online) VALUES (?, ?, ?)',
+              [filename, rows.length, fileAsinsOnline],
+              (err) => {
+                if (err) {
+                  console.error('Error tracking file:', err.message);
+                }
+                
+                filesProcessed++;
+                console.log(`[KEEPA SYNC] Completed ${filename}: ${fileAsinsOnline} unique ASINs online`);
+                
+                // Process next file
+                processFiles(filesToProcess, index + 1);
+              }
+            );
+          });
+        });
+      }
+    });
+    
+  } catch (error) {
+    res.status(500).json({ error: 'Error processing Keepa files: ' + error.message });
+  }
+});
+
 // Sync Vendor Central status from parquet extract
 app.post('/api/sync/vc', (req, res) => {
   const vcDir = 'A:\\ProcessOutput\\VC_Extracts\\Comparison_Extracts';
@@ -2353,6 +2579,73 @@ app.get('/api/reports/vc-not-qpi', (req, res) => {
       data: results
     });
   });
+});
+
+// Get online status for a specific ASIN
+app.get('/api/online-status/:asin', (req, res) => {
+  const asin = req.params.asin;
+  
+  const domainMap = {
+    'United States': 'US',
+    'United Kingdom': 'UK',
+    'Germany': 'DE',
+    'France': 'FR',
+    'Japan': 'JP',
+    'Canada': 'CA',
+    'Italy': 'IT',
+    'Spain': 'ES',
+    'Mexico': 'MX'
+  };
+  
+  const allCountries = Object.keys(domainMap);
+  
+  db.all(
+    `SELECT country, first_seen_online, last_seen_online, last_buybox_price, last_synced 
+     FROM asin_online_status 
+     WHERE asin = ? 
+     ORDER BY country`,
+    [asin],
+    (err, rows) => {
+      if (err) {
+        res.status(500).json({ error: err.message });
+        return;
+      }
+      
+      const onlineCountriesMap = new Map();
+      rows.forEach(row => {
+        onlineCountriesMap.set(row.country, {
+          online: true,
+          first_seen: row.first_seen_online,
+          last_seen: row.last_seen_online,
+          last_price: row.last_buybox_price,
+          last_synced: row.last_synced
+        });
+      });
+      
+      const countriesStatus = allCountries.map(country => {
+        const status = onlineCountriesMap.get(country);
+        return {
+          country: country,
+          country_code: domainMap[country],
+          online: status ? true : false,
+          first_seen: status ? status.first_seen : null,
+          last_seen: status ? status.last_seen : null,
+          last_price: status ? status.last_price : null,
+          last_synced: status ? status.last_synced : null
+        };
+      });
+      
+      const countriesOnline = rows.length;
+      const totalCountries = allCountries.length;
+      
+      res.json({
+        asin: asin,
+        total_countries: totalCountries,
+        countries_online: countriesOnline,
+        countries: countriesStatus
+      });
+    }
+  );
 });
 
 // Get QPI file status for a specific ASIN

@@ -70,6 +70,9 @@ function setupEventListeners() {
     
     // Sync Variations Button
     document.getElementById('syncVariationsBtn').addEventListener('click', syncVariationsData);
+    
+    // Sync Online Status Button
+    document.getElementById('syncOnlineBtn').addEventListener('click', syncOnlineStatus);
 
     // Item Form Submit
     document.getElementById('itemForm').addEventListener('submit', handleItemSubmit);
@@ -507,6 +510,11 @@ function renderItems(itemsToRender) {
             ? Math.round((item.qpi_file_count / item.qpi_total_files) * 100)
             : (item.stage_5_product_ordered ? 100 : 0);
         
+        // Calculate Stage 6 percentage (Online by country)
+        const stage6Percent = item.online_country_count && item.online_total_countries
+            ? Math.round((item.online_country_count / item.online_total_countries) * 100)
+            : (item.stage_6_product_online ? 100 : 0);
+        
         // Helper function to get color based on percentage
         const getPercentColor = (percent) => {
             if (percent === 0) return '#94a3b8'; // gray
@@ -531,7 +539,7 @@ function renderItems(itemsToRender) {
                 <td><span class="stage-badge ${item.stage_2_product_finalized ? 'completed' : 'pending'}" onclick="openWorkflowModal('${item.asin}', 2)" title="Stage 2: PIM Finalized">${item.stage_2_product_finalized ? '✓' : '○'}</span></td>
                 <td><span class="stage-badge percent-badge" style="background-color: ${getPercentColor(stage4Percent)}; color: white;" onclick="openWorkflowModal('${item.asin}', 3)" title="Stage 3: VC Listed - ${stage4Percent}% of countries">${stage4Percent}%</span></td>
                 <td><span class="stage-badge percent-badge" style="background-color: ${getPercentColor(stage5Percent)}; color: white;" onclick="openWorkflowModal('${item.asin}', 4)" title="Stage 4: QPI - ${stage5Percent}% of source files">${stage5Percent}%</span></td>
-                <td><span class="stage-badge ${item.stage_6_product_online ? 'completed' : 'pending'}" onclick="openWorkflowModal('${item.asin}', 5)" title="Stage 5: Online">${item.stage_6_product_online ? '✓' : '○'}</span></td>
+                <td><span class="stage-badge percent-badge" style="background-color: ${getPercentColor(stage6Percent)}; color: white;" onclick="openWorkflowModal('${item.asin}', 5)" title="Stage 5: Online - ${stage6Percent}% of countries">${stage6Percent}%</span></td>
                 <td>
                     <div class="action-btns">
                         <button class="btn-icon" onclick="editItem('${item.asin}')" title="Edit">✏️</button>
@@ -1191,6 +1199,29 @@ async function syncVariationsData() {
     }
 }
 
+async function syncOnlineStatus() {
+    if (!confirm('This will process Keepa extract files to determine which ASINs are online in which countries. This may take several minutes for the first sync. Continue?')) {
+        return;
+    }
+
+    try {
+        const response = await fetch(`${API_BASE}/sync/online`, {
+            method: 'POST'
+        });
+
+        const result = await response.json();
+        
+        if (response.ok) {
+            alert(`Online Status Sync Complete!\n\nFiles Processed: ${result.files_processed}\nFiles Skipped: ${result.files_skipped}\nASINs Found: ${result.asins_found}\nASINs Online: ${result.asins_online}`);
+            loadItems(); // Reload items to show new percentages
+        } else {
+            throw new Error(result.error || 'Sync failed');
+        }
+    } catch (error) {
+        console.error('Error syncing online status:', error);
+        showError('Failed to sync online status: ' + error.message);
+    }
+
 async function syncPimData() {
     if (!confirm('This will sync item data from the PIM Extract Excel file. Item names, descriptions, dimensions, and other details will be updated. Continue?')) {
         return;
@@ -1505,6 +1536,83 @@ async function openWorkflowModal(asin, stageNumber) {
             console.error('Error loading QPI status:', error);
             content.innerHTML = `
                 <p style="color: var(--danger-color);">Error loading QPI status</p>
+                <div style="margin-top: 20px;">
+                    <button class="btn btn-primary" onclick="document.getElementById('workflowModal').style.display='none'">Close</button>
+                </div>
+            `;
+        }
+    } else if (stageNumber === 5) {
+        // Stage 5: Online Status - show which countries ASIN is online in
+        content.innerHTML = '<p style="text-align: center; color: var(--text-secondary);">Loading online status...</p>';
+        modal.style.display = 'block';
+        
+        try {
+            // Fetch online status
+            const response = await fetch(`${API_BASE}/online-status/${asin}`);
+            const data = await response.json();
+            
+            const countriesOnline = data.countries_online;
+            const totalCountries = data.total_countries;
+            
+            content.innerHTML = `
+                <div style="margin-bottom: 20px;">
+                    <h3>Online Status by Country</h3>
+                    <p>ASIN: <strong>${asin}</strong></p>
+                    <p>Online Status: <strong style="color: ${countriesOnline > 0 ? 'var(--success-color)' : 'var(--danger-color)'}">
+                        ${countriesOnline > 0 ? `✓ ONLINE - Found in ${countriesOnline}/${totalCountries} countries` : '✗ NOT ONLINE - Not found in any country'}
+                    </strong></p>
+                </div>
+                
+                <div class="country-status-table-wrapper">
+                    <table class="country-status-table">
+                        <thead>
+                            <tr>
+                                <th>Country</th>
+                                <th>Status</th>
+                                <th>First Seen Online</th>
+                                <th>Last Seen Online</th>
+                                <th>Last Buybox Price</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${data.countries.map(country => {
+                                return `
+                                    <tr class="${country.online ? 'listed' : 'not-listed'}">
+                                        <td>
+                                            <strong>${escapeHtml(country.country)}</strong>
+                                            <br><small style="color: var(--text-secondary);">${escapeHtml(country.country_code)}</small>
+                                        </td>
+                                        <td>
+                                            ${country.online 
+                                                ? '<span class="status-badge listed">✓ Online</span>' 
+                                                : '<span class="status-badge not-listed">✗ Not Online</span>'}
+                                        </td>
+                                        <td><small>${country.first_seen ? escapeHtml(country.first_seen) : '-'}</small></td>
+                                        <td><small>${country.last_seen ? escapeHtml(country.last_seen) : '-'}</small></td>
+                                        <td><strong>${country.last_price ? '$' + parseFloat(country.last_price).toFixed(2) : '-'}</strong></td>
+                                    </tr>
+                                `;
+                            }).join('')}
+                        </tbody>
+                    </table>
+                </div>
+                
+                <div style="margin-top: 20px;">
+                    <p style="font-size: 14px; color: var(--text-secondary);">
+                        <strong>Note:</strong> Shows all Amazon marketplaces tracked. 
+                        This ASIN is online in <strong>${countriesOnline} out of ${totalCountries}</strong> countries.
+                        ${countriesOnline < totalCountries ? ' May launch in additional countries soon.' : ' Live in all tracked countries!'}
+                    </p>
+                </div>
+                
+                <div style="margin-top: 20px; text-align: right;">
+                    <button class="btn btn-primary" onclick="document.getElementById('workflowModal').style.display='none'">Close</button>
+                </div>
+            `;
+        } catch (error) {
+            console.error('Error loading online status:', error);
+            content.innerHTML = `
+                <p style="color: var(--danger-color);">Error loading online status: ${error.message}</p>
                 <div style="margin-top: 20px;">
                     <button class="btn btn-primary" onclick="document.getElementById('workflowModal').style.display='none'">Close</button>
                 </div>
