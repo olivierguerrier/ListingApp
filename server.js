@@ -2065,38 +2065,39 @@ app.post('/api/sync/online', (req, res) => {
           let fileAsinsFound = new Set();
           let fileAsinsOnline = 0;
           
-          // Batch insert/update
-          const stmt = db.prepare(`
-            INSERT INTO asin_online_status (asin, country, first_seen_online, last_seen_online, last_buybox_price, last_synced)
-            VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
-            ON CONFLICT(asin, country)
-            DO UPDATE SET
-              last_seen_online = excluded.last_seen_online,
-              last_buybox_price = excluded.last_buybox_price,
-              last_synced = CURRENT_TIMESTAMP
-          `);
+          // Process all rows synchronously
+          const date = new Date().toISOString().split('T')[0];
           
-          rows.forEach(row => {
-            const asin = row.asin;
-            const country = domainMap[row.domain] || `Unknown_${row.domain}`;
-            const date = new Date().toISOString().split('T')[0]; // Use current date since timestamp parsing is complex
-            const price = row.buybox_price;
+          db.serialize(() => {
+            db.run('BEGIN TRANSACTION');
             
-            // Skip if this ASIN is already online everywhere
-            if (skipAsins.has(asin)) {
-              return;
+            const stmt = db.prepare(`
+              INSERT INTO asin_online_status (asin, country, first_seen_online, last_seen_online, last_buybox_price, last_synced)
+              VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+              ON CONFLICT(asin, country)
+              DO UPDATE SET
+                last_seen_online = excluded.last_seen_online,
+                last_buybox_price = excluded.last_buybox_price,
+                last_synced = CURRENT_TIMESTAMP
+            `);
+            
+            for (const row of rows) {
+              const asin = row.asin;
+              const country = domainMap[row.domain] || `Unknown_${row.domain}`;
+              const price = row.buybox_price;
+              
+              // Skip if this ASIN is already online everywhere
+              if (skipAsins.has(asin)) {
+                continue;
+              }
+              
+              fileAsinsFound.add(asin);
+              stmt.run([asin, country, date, date, price]);
             }
             
-            fileAsinsFound.add(asin);
+            stmt.finalize();
+            db.run('COMMIT');
             
-            stmt.run([asin, country, date, date, price], (err) => {
-              if (err) {
-                console.error(`Error inserting online status:`, err.message);
-              }
-            });
-          });
-          
-          stmt.finalize(() => {
             fileAsinsOnline = fileAsinsFound.size;
             totalAsinsFound += fileAsinsOnline;
             
