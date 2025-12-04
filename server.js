@@ -1497,25 +1497,39 @@ app.put('/api/vendor-mapping/:id', authenticateToken, requireRole('sales person'
   const { id } = req.params;
   const { customer_code, vendor_code, qpi_source_file, vc_file, language, currency } = req.body;
 
-  db.run(`
-    UPDATE vendor_mapping 
-    SET 
-      customer_code = ?,
-      vendor_code = ?,
-      qpi_source_file = ?,
-      vc_file = ?,
-      language = ?,
-      currency = ?,
-      updated_at = CURRENT_TIMESTAMP
-    WHERE id = ?
-  `, [customer_code, vendor_code, qpi_source_file, vc_file, language, currency, id], function(err) {
+  // First, get the country for this record
+  db.get('SELECT country FROM vendor_mapping WHERE id = ?', [id], (err, row) => {
     if (err) {
       return res.status(500).json({ error: err.message });
     }
-    if (this.changes === 0) {
+    if (!row) {
       return res.status(404).json({ error: 'Vendor mapping not found' });
     }
-    res.json({ message: 'Vendor mapping updated', changes: this.changes });
+
+    const country = row.country;
+
+    // Update all records with the same country
+    db.run(`
+      UPDATE vendor_mapping 
+      SET 
+        customer_code = ?,
+        qpi_source_file = ?,
+        language = ?,
+        currency = ?,
+        updated_at = CURRENT_TIMESTAMP
+      WHERE country = ?
+    `, [customer_code, qpi_source_file, language, currency, country], function(err) {
+      if (err) {
+        return res.status(500).json({ error: err.message });
+      }
+      
+      console.log(`[Vendor Mapping] Updated ${this.changes} records for country: ${country}`);
+      res.json({ 
+        message: `Vendor mapping updated for all ${this.changes} records in ${country}`, 
+        changes: this.changes,
+        country: country
+      });
+    });
   });
 });
 

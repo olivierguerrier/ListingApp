@@ -129,6 +129,7 @@ window.saveVendorMappingRow = async function(id) {
         });
         
         if (response.ok) {
+            const result = await response.json();
             // Show success toast
             const toast = document.createElement('div');
             toast.style.position = 'fixed';
@@ -141,7 +142,7 @@ window.saveVendorMappingRow = async function(id) {
             toast.style.fontWeight = 'bold';
             toast.style.zIndex = '10000';
             toast.style.boxShadow = '0 4px 6px rgba(0,0,0,0.1)';
-            toast.textContent = '✓ Vendor mapping updated successfully';
+            toast.textContent = `✓ Updated ${result.changes} record(s) for ${result.country}`;
             document.body.appendChild(toast);
             setTimeout(() => toast.remove(), 3000);
             
