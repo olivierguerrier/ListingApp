@@ -471,7 +471,8 @@ app.get('/api/products', (req, res) => {
       vm.title as vm_title,
       vm.bundle as vm_bundle,
       vm.ppg as vm_ppg,
-      COALESCE(vm.title, p.legal_name, p.name, p.asin) as display_name
+      COALESCE(vm.title, p.legal_name, p.name, p.asin) as display_name,
+      COALESCE(vm.brand, p.brand) as display_brand
     FROM products p
     LEFT JOIN product_skus ps ON p.id = ps.product_id
     LEFT JOIN variations_master vm ON p.asin = vm.asin
@@ -935,7 +936,8 @@ app.get('/api/items', (req, res) => {
       vm.title as vm_title,
       vm.bundle as vm_bundle,
       vm.ppg as vm_ppg,
-      COALESCE(vm.title, p.legal_name, p.name, p.asin) as display_name
+      COALESCE(vm.title, p.legal_name, p.name, p.asin) as display_name,
+      COALESCE(vm.brand, p.brand) as display_brand
     FROM products p
     LEFT JOIN product_skus ps ON p.id = ps.product_id
     LEFT JOIN variations_master vm ON p.asin = vm.asin

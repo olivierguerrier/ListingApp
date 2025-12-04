@@ -514,6 +514,7 @@ function renderItems(itemsToRender) {
                     ${isTempAsin ? '<span class="temp-badge">TEMP</span>' : ''}
                     ${missingVariations ? '<span class="missing-badge" title="Not found in Variations Master">MISSING</span>' : ''}
                 </td>
+                <td class="item-brand">${escapeHtml(item.display_brand || '-')}</td>
                 <td class="item-asin">${escapeHtml(item.asin)}</td>
                 <td class="item-skus" title="${escapeHtml(displaySku)}">${escapeHtml(displaySku)}</td>
                 <td><span class="stage-badge ${item.stage_1_idea_considered ? 'completed' : 'pending'}" onclick="openWorkflowModal('${item.asin}', 1)" title="Stage 1: Ideation">${item.stage_1_idea_considered ? '✓' : '○'}</span></td>
