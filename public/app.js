@@ -459,12 +459,17 @@ window.clearProductFilter = clearProductFilter;
 
 async function loadProductColumnFilters() {
     try {
+        console.log('[Product Filters] Loading column filter data...');
+        console.log('[Product Filters] Current items count:', items.length);
+        
         // Get unique values from current items
         const names = [...new Set(items.map(i => i.name).filter(Boolean))].sort();
         const brands = [...new Set(items.map(i => i.brand).filter(Boolean))].sort();
         const asins = [...new Set(items.map(i => i.asin).filter(Boolean))].sort();
         const primaryItems = [...new Set(items.map(i => i.primary_item_number).filter(Boolean))].sort();
         const skus = [...new Set(items.flatMap(i => i.skus ? i.skus.split(', ') : []).filter(Boolean))].sort();
+        
+        console.log('[Product Filters] Filter data:', { names: names.length, brands: brands.length, asins: asins.length, primaryItems: primaryItems.length, skus: skus.length });
         
         productsColumnFilterData.name = names;
         productsColumnFilterData.brand = brands;
@@ -478,6 +483,8 @@ async function loadProductColumnFilters() {
         renderProductFilterOptions('asin', asins);
         renderProductFilterOptions('primaryItem', primaryItems);
         renderProductFilterOptions('sku', skus);
+        
+        console.log('[Product Filters] Filter options rendered');
     } catch (error) {
         console.error('Error loading product column filters:', error);
     }

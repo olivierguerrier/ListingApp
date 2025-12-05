@@ -1512,3 +1512,19 @@ th > div {
 #itemsView thead {
     position: relative;
 }
+
+#productsView .table-wrapper {
+    overflow: visible;
+}
+
+#productsView .products-table {
+    overflow: visible;
+}
+
+#productsView thead {
+    position: relative;
+}
+
+#productsView th {
+    position: relative;
+}
