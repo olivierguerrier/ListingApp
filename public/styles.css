@@ -240,6 +240,7 @@ h3 {
     border-radius: 8px;
     box-shadow: var(--shadow);
     overflow-x: auto;
+    overflow-y: visible;
 }
 
 .products-table {
@@ -1447,7 +1448,7 @@ table tbody tr:hover {
     padding: 12px;
     min-width: 250px;
     max-width: 300px;
-    z-index: 1000;
+    z-index: 10000;
     margin-top: 5px;
 }
 
@@ -1493,5 +1494,21 @@ table tbody tr:hover {
 }
 
 th {
+    position: relative;
+}
+
+th > div {
+    position: relative;
+}
+
+#itemsView .table-wrapper {
+    overflow: visible;
+}
+
+#itemsView .products-table {
+    overflow: visible;
+}
+
+#itemsView thead {
     position: relative;
 }
