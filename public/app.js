@@ -328,19 +328,42 @@ function logout() {
 let itemsCurrentPage = 1;
 let itemsLimit = 50;
 let itemsFilters = {
+    itemNumber: [],
+    productNumber: [],
     brand: [],
     series: [],
-    taxonomy: []
+    taxonomy: [],
+    legalName: [],
+    ageGrade: [],
+    status: [],
+    devStatus: []
 };
 let itemsFilterData = {
+    itemNumber: [],
+    productNumber: [],
     brand: [],
     series: [],
-    taxonomy: []
+    taxonomy: [],
+    legalName: [],
+    ageGrade: [],
+    status: [],
+    devStatus: []
 };
 
 function toggleItemFilter(filterType) {
-    const filterId = filterType === 'brand' ? 'brandFilter' : 
-                     filterType === 'series' ? 'seriesFilter' : 'taxonomyFilter';
+    const filterIdMap = {
+        itemNumber: 'itemNumberFilter',
+        productNumber: 'productNumberFilter',
+        brand: 'brandFilter',
+        series: 'seriesFilter',
+        taxonomy: 'taxonomyFilter',
+        legalName: 'legalNameFilter',
+        ageGrade: 'ageGradeFilter',
+        status: 'statusFilter',
+        devStatus: 'devStatusFilter'
+    };
+    
+    const filterId = filterIdMap[filterType];
     const filterEl = document.getElementById(filterId);
     
     // Close other filters
@@ -359,13 +382,24 @@ function toggleItemFilter(filterType) {
 window.toggleItemFilter = toggleItemFilter;
 
 function filterColumnOptions(filterType, searchTerm) {
-    const optionsId = filterType === 'brand' ? 'brandOptions' :
-                      filterType === 'series' ? 'seriesOptions' : 'taxonomyOptions';
+    const optionsIdMap = {
+        itemNumber: 'itemNumberOptions',
+        productNumber: 'productNumberOptions',
+        brand: 'brandOptions',
+        series: 'seriesOptions',
+        taxonomy: 'taxonomyOptions',
+        legalName: 'legalNameOptions',
+        ageGrade: 'ageGradeOptions',
+        status: 'statusOptions',
+        devStatus: 'devStatusOptions'
+    };
+    
+    const optionsId = optionsIdMap[filterType];
     const optionsEl = document.getElementById(optionsId);
     const data = itemsFilterData[filterType];
     
     const filtered = data.filter(item => 
-        item.toLowerCase().includes(searchTerm.toLowerCase())
+        item && item.toLowerCase().includes(searchTerm.toLowerCase())
     );
     
     renderFilterOptions(filterType, filtered);
@@ -374,8 +408,19 @@ function filterColumnOptions(filterType, searchTerm) {
 window.filterColumnOptions = filterColumnOptions;
 
 function renderFilterOptions(filterType, data) {
-    const optionsId = filterType === 'brand' ? 'brandOptions' :
-                      filterType === 'series' ? 'seriesOptions' : 'taxonomyOptions';
+    const optionsIdMap = {
+        itemNumber: 'itemNumberOptions',
+        productNumber: 'productNumberOptions',
+        brand: 'brandOptions',
+        series: 'seriesOptions',
+        taxonomy: 'taxonomyOptions',
+        legalName: 'legalNameOptions',
+        ageGrade: 'ageGradeOptions',
+        status: 'statusOptions',
+        devStatus: 'devStatusOptions'
+    };
+    
+    const optionsId = optionsIdMap[filterType];
     const optionsEl = document.getElementById(optionsId);
     
     if (!data || data.length === 0) {
@@ -385,18 +430,30 @@ function renderFilterOptions(filterType, data) {
     
     optionsEl.innerHTML = data.map(item => {
         const checked = itemsFilters[filterType].includes(item) ? 'checked' : '';
+        const safeId = `${filterType}-${escapeHtml(item).replace(/[^a-zA-Z0-9]/g, '_')}`;
         return `
             <div class="filter-option">
-                <input type="checkbox" id="${filterType}-${escapeHtml(item)}" value="${escapeHtml(item)}" ${checked}>
-                <label for="${filterType}-${escapeHtml(item)}" style="cursor: pointer; flex: 1;">${escapeHtml(item)}</label>
+                <input type="checkbox" id="${safeId}" value="${escapeHtml(item)}" ${checked}>
+                <label for="${safeId}" style="cursor: pointer; flex: 1;">${escapeHtml(item)}</label>
             </div>
         `;
     }).join('');
 }
 
 function applyItemFilter(filterType) {
-    const optionsId = filterType === 'brand' ? 'brandOptions' :
-                      filterType === 'series' ? 'seriesOptions' : 'taxonomyOptions';
+    const optionsIdMap = {
+        itemNumber: 'itemNumberOptions',
+        productNumber: 'productNumberOptions',
+        brand: 'brandOptions',
+        series: 'seriesOptions',
+        taxonomy: 'taxonomyOptions',
+        legalName: 'legalNameOptions',
+        ageGrade: 'ageGradeOptions',
+        status: 'statusOptions',
+        devStatus: 'devStatusOptions'
+    };
+    
+    const optionsId = optionsIdMap[filterType];
     const optionsEl = document.getElementById(optionsId);
     const checkboxes = optionsEl.querySelectorAll('input[type="checkbox"]:checked');
     
@@ -424,14 +481,20 @@ async function loadItemNumbers() {
         tbody.innerHTML = '<tr><td colspan="12" style="text-align: center; padding: 20px; color: #666;">Loading...</td></tr>';
     }
     
+    const itemNumber = itemsFilters.itemNumber.length > 0 ? itemsFilters.itemNumber.join(',') : 'all';
+    const productNumber = itemsFilters.productNumber.length > 0 ? itemsFilters.productNumber.join(',') : 'all';
     const brand = itemsFilters.brand.length > 0 ? itemsFilters.brand.join(',') : 'all';
     const series = itemsFilters.series.length > 0 ? itemsFilters.series.join(',') : 'all';
     const taxonomy = itemsFilters.taxonomy.length > 0 ? itemsFilters.taxonomy.join(',') : 'all';
+    const legalName = itemsFilters.legalName.length > 0 ? itemsFilters.legalName.join(',') : 'all';
+    const ageGrade = itemsFilters.ageGrade.length > 0 ? itemsFilters.ageGrade.join(',') : 'all';
+    const status = itemsFilters.status.length > 0 ? itemsFilters.status.join(',') : 'all';
+    const devStatus = itemsFilters.devStatus.length > 0 ? itemsFilters.devStatus.join(',') : 'all';
     
-    console.log('[Items] Filters:', { brand, series, taxonomy, page: itemsCurrentPage });
+    console.log('[Items] Filters:', { itemNumber, productNumber, brand, series, taxonomy, legalName, ageGrade, status, devStatus, page: itemsCurrentPage });
     
     try {
-        const url = `${API_BASE}/item-numbers?page=${itemsCurrentPage}&limit=${itemsLimit}&search=&series=${encodeURIComponent(series)}&taxonomy=${encodeURIComponent(taxonomy)}&brand=${encodeURIComponent(brand)}`;
+        const url = `${API_BASE}/item-numbers?page=${itemsCurrentPage}&limit=${itemsLimit}&search=&itemNumber=${encodeURIComponent(itemNumber)}&productNumber=${encodeURIComponent(productNumber)}&series=${encodeURIComponent(series)}&taxonomy=${encodeURIComponent(taxonomy)}&brand=${encodeURIComponent(brand)}&legalName=${encodeURIComponent(legalName)}&ageGrade=${encodeURIComponent(ageGrade)}&status=${encodeURIComponent(status)}&devStatus=${encodeURIComponent(devStatus)}`;
         console.log('[Items] Fetching:', url);
         
         const response = await fetch(url);
@@ -561,14 +624,26 @@ async function loadItemsFilters() {
         const data = await response.json();
         
         // Store filter data
+        itemsFilterData.itemNumber = data.itemNumbers || [];
+        itemsFilterData.productNumber = data.productNumbers || [];
         itemsFilterData.brand = data.brands || [];
         itemsFilterData.series = data.series || [];
         itemsFilterData.taxonomy = data.taxonomies || [];
+        itemsFilterData.legalName = data.legalNames || [];
+        itemsFilterData.ageGrade = data.ageGrades || [];
+        itemsFilterData.status = data.statuses || [];
+        itemsFilterData.devStatus = data.devStatuses || [];
         
         // Render initial options
+        renderFilterOptions('itemNumber', itemsFilterData.itemNumber);
+        renderFilterOptions('productNumber', itemsFilterData.productNumber);
         renderFilterOptions('brand', itemsFilterData.brand);
         renderFilterOptions('series', itemsFilterData.series);
         renderFilterOptions('taxonomy', itemsFilterData.taxonomy);
+        renderFilterOptions('legalName', itemsFilterData.legalName);
+        renderFilterOptions('ageGrade', itemsFilterData.ageGrade);
+        renderFilterOptions('status', itemsFilterData.status);
+        renderFilterOptions('devStatus', itemsFilterData.devStatus);
     } catch (error) {
         console.error('Error loading filters:', error);
     }

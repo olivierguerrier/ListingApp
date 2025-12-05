@@ -3484,6 +3484,102 @@ app.post('/api/sync/pim', (req, res) => {
   }
 });
 
+// Get filter options for item numbers
+app.get('/api/item-numbers/filters', (req, res) => {
+  db.all(`
+    SELECT DISTINCT item_number FROM item_numbers WHERE item_number IS NOT NULL ORDER BY item_number
+  `, [], (err, itemNumbers) => {
+    if (err) {
+      res.status(500).json({ error: err.message });
+      return;
+    }
+    
+    db.all(`
+      SELECT DISTINCT product_number FROM item_numbers WHERE product_number IS NOT NULL ORDER BY product_number
+    `, [], (err, productNumbers) => {
+      if (err) {
+        res.status(500).json({ error: err.message });
+        return;
+      }
+      
+      db.all(`
+        SELECT DISTINCT brand_product_line FROM item_numbers WHERE brand_product_line IS NOT NULL ORDER BY brand_product_line
+      `, [], (err, brands) => {
+        if (err) {
+          res.status(500).json({ error: err.message });
+          return;
+        }
+        
+        db.all(`
+          SELECT DISTINCT series FROM item_numbers WHERE series IS NOT NULL ORDER BY series
+        `, [], (err, series) => {
+          if (err) {
+            res.status(500).json({ error: err.message });
+            return;
+          }
+          
+          db.all(`
+            SELECT DISTINCT product_taxonomy_category FROM item_numbers WHERE product_taxonomy_category IS NOT NULL ORDER BY product_taxonomy_category
+          `, [], (err, taxonomies) => {
+            if (err) {
+              res.status(500).json({ error: err.message });
+              return;
+            }
+            
+            db.all(`
+              SELECT DISTINCT legal_name FROM item_numbers WHERE legal_name IS NOT NULL ORDER BY legal_name
+            `, [], (err, legalNames) => {
+              if (err) {
+                res.status(500).json({ error: err.message });
+                return;
+              }
+              
+              db.all(`
+                SELECT DISTINCT age_grade FROM item_numbers WHERE age_grade IS NOT NULL ORDER BY age_grade
+              `, [], (err, ageGrades) => {
+                if (err) {
+                  res.status(500).json({ error: err.message });
+                  return;
+                }
+                
+                db.all(`
+                  SELECT DISTINCT item_spec_sheet_status FROM item_numbers WHERE item_spec_sheet_status IS NOT NULL ORDER BY item_spec_sheet_status
+                `, [], (err, statuses) => {
+                  if (err) {
+                    res.status(500).json({ error: err.message });
+                    return;
+                  }
+                  
+                  db.all(`
+                    SELECT DISTINCT product_development_status FROM item_numbers WHERE product_development_status IS NOT NULL ORDER BY product_development_status
+                  `, [], (err, devStatuses) => {
+                    if (err) {
+                      res.status(500).json({ error: err.message });
+                      return;
+                    }
+                    
+                    res.json({
+                      itemNumbers: itemNumbers.map(r => r.item_number),
+                      productNumbers: productNumbers.map(r => r.product_number),
+                      brands: brands.map(r => r.brand_product_line),
+                      series: series.map(r => r.series),
+                      taxonomies: taxonomies.map(r => r.product_taxonomy_category),
+                      legalNames: legalNames.map(r => r.legal_name),
+                      ageGrades: ageGrades.map(r => r.age_grade),
+                      statuses: statuses.map(r => r.item_spec_sheet_status),
+                      devStatuses: devStatuses.map(r => r.product_development_status)
+                    });
+                  });
+                });
+              });
+            });
+          });
+        });
+      });
+    });
+  });
+});
+
 // Get all item numbers (Items tab)
 app.get('/api/item-numbers', (req, res) => {
   const page = parseInt(req.query.page) || 1;
@@ -3493,6 +3589,12 @@ app.get('/api/item-numbers', (req, res) => {
   const series = req.query.series || '';
   const taxonomy = req.query.taxonomy || '';
   const brand = req.query.brand || '';
+  const itemNumber = req.query.itemNumber || '';
+  const productNumber = req.query.productNumber || '';
+  const legalName = req.query.legalName || '';
+  const ageGrade = req.query.ageGrade || '';
+  const status = req.query.status || '';
+  const devStatus = req.query.devStatus || '';
   
   let whereConditions = [];
   let params = [];
@@ -3501,6 +3603,20 @@ app.get('/api/item-numbers', (req, res) => {
     whereConditions.push('(item_number LIKE ? OR legal_name LIKE ? OR brand_product_line LIKE ?)');
     const searchPattern = `%${search}%`;
     params.push(searchPattern, searchPattern, searchPattern);
+  }
+  
+  if (itemNumber && itemNumber !== 'all') {
+    const itemNumberList = itemNumber.split(',');
+    const itemNumberPlaceholders = itemNumberList.map(() => '?').join(',');
+    whereConditions.push(`item_number IN (${itemNumberPlaceholders})`);
+    params.push(...itemNumberList);
+  }
+  
+  if (productNumber && productNumber !== 'all') {
+    const productNumberList = productNumber.split(',');
+    const productNumberPlaceholders = productNumberList.map(() => '?').join(',');
+    whereConditions.push(`product_number IN (${productNumberPlaceholders})`);
+    params.push(...productNumberList);
   }
   
   if (series && series !== 'all') {
@@ -3522,6 +3638,34 @@ app.get('/api/item-numbers', (req, res) => {
     const brandPlaceholders = brandList.map(() => '?').join(',');
     whereConditions.push(`brand_product_line IN (${brandPlaceholders})`);
     params.push(...brandList);
+  }
+  
+  if (legalName && legalName !== 'all') {
+    const legalNameList = legalName.split(',');
+    const legalNamePlaceholders = legalNameList.map(() => '?').join(',');
+    whereConditions.push(`legal_name IN (${legalNamePlaceholders})`);
+    params.push(...legalNameList);
+  }
+  
+  if (ageGrade && ageGrade !== 'all') {
+    const ageGradeList = ageGrade.split(',');
+    const ageGradePlaceholders = ageGradeList.map(() => '?').join(',');
+    whereConditions.push(`age_grade IN (${ageGradePlaceholders})`);
+    params.push(...ageGradeList);
+  }
+  
+  if (status && status !== 'all') {
+    const statusList = status.split(',');
+    const statusPlaceholders = statusList.map(() => '?').join(',');
+    whereConditions.push(`item_spec_sheet_status IN (${statusPlaceholders})`);
+    params.push(...statusList);
+  }
+  
+  if (devStatus && devStatus !== 'all') {
+    const devStatusList = devStatus.split(',');
+    const devStatusPlaceholders = devStatusList.map(() => '?').join(',');
+    whereConditions.push(`product_development_status IN (${devStatusPlaceholders})`);
+    params.push(...devStatusList);
   }
   
   const whereClause = whereConditions.length > 0 ? 'WHERE ' + whereConditions.join(' AND ') : '';

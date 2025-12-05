@@ -457,13 +457,29 @@
                 <thead>
                     <tr>
                         <th>
-                            <div style="display: flex; align-items: center; gap: 5px;">
-                                Item Number
+                            <div style="display: flex; align-items: center; gap: 5px; cursor: pointer;" onclick="toggleItemFilter('itemNumber')" title="Click to filter">
+                                Item Number <span style="font-size: 10px;">▼</span>
+                            </div>
+                            <div id="itemNumberFilter" class="column-filter" style="display: none;">
+                                <input type="text" placeholder="Search..." class="filter-search" oninput="filterColumnOptions('itemNumber', this.value)">
+                                <div class="filter-options" id="itemNumberOptions"></div>
+                                <div class="filter-actions">
+                                    <button onclick="applyItemFilter('itemNumber')" class="btn btn-primary btn-sm">Apply</button>
+                                    <button onclick="clearItemFilter('itemNumber')" class="btn btn-secondary btn-sm">Clear</button>
+                                </div>
                             </div>
                         </th>
                         <th>
-                            <div style="display: flex; align-items: center; gap: 5px;">
-                                Product Number
+                            <div style="display: flex; align-items: center; gap: 5px; cursor: pointer;" onclick="toggleItemFilter('productNumber')" title="Click to filter">
+                                Product Number <span style="font-size: 10px;">▼</span>
+                            </div>
+                            <div id="productNumberFilter" class="column-filter" style="display: none;">
+                                <input type="text" placeholder="Search..." class="filter-search" oninput="filterColumnOptions('productNumber', this.value)">
+                                <div class="filter-options" id="productNumberOptions"></div>
+                                <div class="filter-actions">
+                                    <button onclick="applyItemFilter('productNumber')" class="btn btn-primary btn-sm">Apply</button>
+                                    <button onclick="clearItemFilter('productNumber')" class="btn btn-secondary btn-sm">Clear</button>
+                                </div>
                             </div>
                         </th>
                         <th>
@@ -497,7 +513,19 @@
                                 </div>
                             </div>
                         </th>
-                        <th>Legal Name</th>
+                        <th>
+                            <div style="display: flex; align-items: center; gap: 5px; cursor: pointer;" onclick="toggleItemFilter('legalName')" title="Click to filter">
+                                Legal Name <span style="font-size: 10px;">▼</span>
+                            </div>
+                            <div id="legalNameFilter" class="column-filter" style="display: none;">
+                                <input type="text" placeholder="Search..." class="filter-search" oninput="filterColumnOptions('legalName', this.value)">
+                                <div class="filter-options" id="legalNameOptions"></div>
+                                <div class="filter-actions">
+                                    <button onclick="applyItemFilter('legalName')" class="btn btn-primary btn-sm">Apply</button>
+                                    <button onclick="clearItemFilter('legalName')" class="btn btn-secondary btn-sm">Clear</button>
+                                </div>
+                            </div>
+                        </th>
                         <th>
                             <div style="display: flex; align-items: center; gap: 5px; cursor: pointer;" onclick="toggleItemFilter('brand')" title="Click to filter">
                                 Brand <span style="font-size: 10px;">▼</span>
@@ -511,11 +539,55 @@
                                 </div>
                             </div>
                         </th>
-                        <th>Age Grade</th>
-                        <th>Status</th>
-                        <th>Dev Status</th>
-                        <th>UPC</th>
-                        <th>Product Stage</th>
+                        <th>
+                            <div style="display: flex; align-items: center; gap: 5px; cursor: pointer;" onclick="toggleItemFilter('ageGrade')" title="Click to filter">
+                                Age Grade <span style="font-size: 10px;">▼</span>
+                            </div>
+                            <div id="ageGradeFilter" class="column-filter" style="display: none;">
+                                <input type="text" placeholder="Search..." class="filter-search" oninput="filterColumnOptions('ageGrade', this.value)">
+                                <div class="filter-options" id="ageGradeOptions"></div>
+                                <div class="filter-actions">
+                                    <button onclick="applyItemFilter('ageGrade')" class="btn btn-primary btn-sm">Apply</button>
+                                    <button onclick="clearItemFilter('ageGrade')" class="btn btn-secondary btn-sm">Clear</button>
+                                </div>
+                            </div>
+                        </th>
+                        <th>
+                            <div style="display: flex; align-items: center; gap: 5px; cursor: pointer;" onclick="toggleItemFilter('status')" title="Click to filter">
+                                Status <span style="font-size: 10px;">▼</span>
+                            </div>
+                            <div id="statusFilter" class="column-filter" style="display: none;">
+                                <input type="text" placeholder="Search..." class="filter-search" oninput="filterColumnOptions('status', this.value)">
+                                <div class="filter-options" id="statusOptions"></div>
+                                <div class="filter-actions">
+                                    <button onclick="applyItemFilter('status')" class="btn btn-primary btn-sm">Apply</button>
+                                    <button onclick="clearItemFilter('status')" class="btn btn-secondary btn-sm">Clear</button>
+                                </div>
+                            </div>
+                        </th>
+                        <th>
+                            <div style="display: flex; align-items: center; gap: 5px; cursor: pointer;" onclick="toggleItemFilter('devStatus')" title="Click to filter">
+                                Dev Status <span style="font-size: 10px;">▼</span>
+                            </div>
+                            <div id="devStatusFilter" class="column-filter" style="display: none;">
+                                <input type="text" placeholder="Search..." class="filter-search" oninput="filterColumnOptions('devStatus', this.value)">
+                                <div class="filter-options" id="devStatusOptions"></div>
+                                <div class="filter-actions">
+                                    <button onclick="applyItemFilter('devStatus')" class="btn btn-primary btn-sm">Apply</button>
+                                    <button onclick="clearItemFilter('devStatus')" class="btn btn-secondary btn-sm">Clear</button>
+                                </div>
+                            </div>
+                        </th>
+                        <th>
+                            <div style="display: flex; align-items: center; gap: 5px;">
+                                UPC
+                            </div>
+                        </th>
+                        <th>
+                            <div style="display: flex; align-items: center; gap: 5px;">
+                                Product Stage
+                            </div>
+                        </th>
                     </tr>
                 </thead>
                 <tbody id="itemNumbersTableBody">
