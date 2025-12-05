@@ -2166,6 +2166,19 @@ app.post('/api/sync/qpi', (req, res) => {
       if (qpiAsins.size > 0) {
         const asinList = Array.from(qpiAsins);
         
+        // Collect SKUs per ASIN
+        const asinToSkus = new Map();
+        qpiData.forEach(item => {
+          if (item.asin && item.sku) {
+            if (!asinToSkus.has(item.asin)) {
+              asinToSkus.set(item.asin, new Set());
+            }
+            asinToSkus.get(item.asin).add(item.sku);
+          }
+        });
+        
+        console.log(`[QPI] Found SKUs for ${asinToSkus.size} ASINs`);
+        
         // First, create products for ASINs that don't exist yet using a more efficient approach
         console.log(`[QPI] Creating products for ASINs not in products table...`);
         
@@ -2197,24 +2210,93 @@ app.post('/api/sync/qpi', (req, res) => {
             }
           });
           
-          // Then update existing products to mark stage_5
-          const placeholders = asinList.map(() => '?').join(',');
-          db.run(
-            `UPDATE products 
-             SET stage_5_product_ordered = 1,
-                 updated_at = CURRENT_TIMESTAMP
-             WHERE asin IN (${placeholders})`,
-            asinList,
-            function(err) {
+          // Update products with SKU information
+          console.log(`[QPI] Updating products with SKU data...`);
+          const updateStmt = db.prepare(`
+            UPDATE products 
+            SET stage_5_product_ordered = 1,
+                updated_at = CURRENT_TIMESTAMP
+            WHERE asin = ?
+          `);
+          
+          let skusUpdated = 0;
+          asinToSkus.forEach((skus, asin) => {
+            updateStmt.run([asin], function(err) {
               if (err) {
-                console.error('Error updating products stage_5:', err.message);
-                errors++;
-              } else {
-                productsUpdated = this.changes;
-                console.log(`[QPI] Updated stage_5_product_ordered for ${productsUpdated} products`);
+                console.error(`Error updating product ${asin}:`, err.message);
+              } else if (this.changes > 0) {
+                skusUpdated++;
               }
+            });
+          });
+          
+          updateStmt.finalize(() => {
+            console.log(`[QPI] Updated ${skusUpdated} products with stage_5`);
+          });
+          
+          // Insert SKUs into product_skus table
+          console.log(`[QPI] Inserting SKUs into product_skus table...`);
+          
+          // Delete old and insert new in a transaction
+          db.run('BEGIN TRANSACTION', (err) => {
+            if (err) {
+              console.error('Error starting SKU transaction:', err.message);
+              return;
             }
-          );
+            
+            // Clear old SKUs
+            const asinPlaceholders = asinList.map(() => '?').join(',');
+            db.run(`DELETE FROM product_skus WHERE product_id IN (SELECT id FROM products WHERE asin IN (${asinPlaceholders}))`, asinList, (err) => {
+              if (err) {
+                console.error('Error clearing old SKUs:', err.message);
+                db.run('ROLLBACK');
+                return;
+              }
+              
+              console.log(`[QPI] Cleared old SKU mappings`);
+              
+              // Insert new SKU mappings
+              const skuInsertStmt = db.prepare(`
+                INSERT INTO product_skus (product_id, sku, created_at)
+                SELECT p.id, ?, CURRENT_TIMESTAMP
+                FROM products p
+                WHERE p.asin = ?
+              `);
+              
+              let skusInserted = 0;
+              let insertErrors = 0;
+              
+              asinToSkus.forEach((skus, asin) => {
+                skus.forEach(sku => {
+                  skuInsertStmt.run([sku, asin], function(err) {
+                    if (err) {
+                      insertErrors++;
+                      if (insertErrors <= 3) {  // Only log first 3 errors
+                        console.error(`Error inserting SKU ${sku} for ${asin}:`, err.message);
+                      }
+                    } else if (this.changes > 0) {
+                      skusInserted++;
+                    }
+                  });
+                });
+              });
+              
+              skuInsertStmt.finalize((err) => {
+                if (err) {
+                  console.error('Error finalizing SKU insert:', err.message);
+                  db.run('ROLLBACK');
+                } else {
+                  db.run('COMMIT', (err) => {
+                    if (err) {
+                      console.error('Error committing SKU transaction:', err.message);
+                    } else {
+                      console.log(`[QPI] Committed ${skusInserted} SKU mappings (${insertErrors} errors)`);
+                    }
+                  });
+                }
+              });
+            });
+          });
         });
         
         // Track which source files contain each ASIN
