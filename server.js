@@ -3320,7 +3320,7 @@ app.post('/api/sync/pim', (req, res) => {
           itemNumber,
           row['Legal Name'] || null,
           row['UPC Number'] || null,
-          row['Brand (Product Line)'] || null,
+          row['Brand (Product Line) '] || null,  // Note: trailing space in Excel column name
           row['Age Grade'] || null,
           row['Product Description (internal)'] || null,
           row['Item Spec Sheet Status'] || null,

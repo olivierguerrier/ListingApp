@@ -791,7 +791,7 @@ function renderItems(itemsToRender) {
     if (!itemsTableBody) return;
     
     if (!itemsToRender || itemsToRender.length === 0) {
-        itemsTableBody.innerHTML = '<tr><td colspan="11" style="text-align: center; padding: 40px;">No products found. Click "Add New Item" to create one.</td></tr>';
+        itemsTableBody.innerHTML = '<tr><td colspan="12" style="text-align: center; padding: 40px;">No products found. Click "Add New Item" to create one.</td></tr>';
         return;
     }
     
@@ -808,10 +808,15 @@ function renderItems(itemsToRender) {
         const s2Circle = renderTableStageCircle(2, item.stage_2_product_finalized, item.asin, item.stage_2_newly_finalized);
         
         // Stage 2.5: Pricing - show submission and approval status
+        // Skip pricing approval if product is already in Vendor Central (stage_4_product_listed)
         let pricingCircle = '';
         let pricingClickable = '';
         
-        if (!item.stage_2_product_finalized) {
+        if (item.stage_4_product_listed) {
+            // Product is in VC - auto-approve pricing (green checkmark with "VC" label)
+            pricingCircle = `<div style="width: 40px; height: 40px; border-radius: 50%; background: var(--success-color); display: flex; align-items: center; justify-content: center; color: white; font-weight: 600; font-size: 18px; margin: 0 auto;">✓</div>
+            <div style="text-align: center; margin-top: 5px; font-size: 10px; color: var(--success-color); font-weight: 600;">VC</div>`;
+        } else if (!item.stage_2_product_finalized) {
             // Stage 2 not done yet - gray circle
             pricingCircle = `<div style="width: 40px; height: 40px; border-radius: 50%; background: #e5e7eb; display: flex; align-items: center; justify-content: center; color: #9ca3af; font-weight: 600; font-size: 11px; margin: 0 auto;"></div>`;
         } else if (item.stage_3b_pricing_approved) {
@@ -864,6 +869,7 @@ function renderItems(itemsToRender) {
                 </td>
                 <td>${escapeHtml(displayBrand)}</td>
                 <td><strong>${escapeHtml(item.asin)}</strong></td>
+                <td><small>${escapeHtml(item.primary_item_number || '-')}</small></td>
                 <td><small>${escapeHtml(skus)}</small></td>
                 <td style="text-align: center;">${s1Circle}</td>
                 <td style="text-align: center;">${s2Circle}</td>
