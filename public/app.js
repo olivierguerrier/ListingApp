@@ -467,7 +467,14 @@ async function loadProductColumnFilters() {
         const brands = [...new Set(items.map(i => i.brand).filter(Boolean))].sort();
         const asins = [...new Set(items.map(i => i.asin).filter(Boolean))].sort();
         const primaryItems = [...new Set(items.map(i => i.primary_item_number).filter(Boolean))].sort();
-        const skus = [...new Set(items.flatMap(i => i.skus ? i.skus.split(', ') : []).filter(Boolean))].sort();
+        
+        // Handle skus - could be string or array
+        const skus = [...new Set(items.flatMap(i => {
+            if (!i.skus) return [];
+            if (Array.isArray(i.skus)) return i.skus;
+            if (typeof i.skus === 'string') return i.skus.split(', ');
+            return [];
+        }).filter(Boolean))].sort();
         
         console.log('[Product Filters] Filter data:', { names: names.length, brands: brands.length, asins: asins.length, primaryItems: primaryItems.length, skus: skus.length });
         
