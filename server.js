@@ -3503,71 +3503,91 @@ app.get('/api/item-numbers/filters', (req, res) => {
       }
       
       db.all(`
-        SELECT DISTINCT brand_product_line FROM item_numbers WHERE brand_product_line IS NOT NULL ORDER BY brand_product_line
-      `, [], (err, brands) => {
+        SELECT DISTINCT product_description_internal FROM item_numbers WHERE product_description_internal IS NOT NULL ORDER BY product_description_internal
+      `, [], (err, descriptions) => {
         if (err) {
           res.status(500).json({ error: err.message });
           return;
         }
         
         db.all(`
-          SELECT DISTINCT series FROM item_numbers WHERE series IS NOT NULL ORDER BY series
-        `, [], (err, series) => {
+          SELECT DISTINCT brand_product_line FROM item_numbers WHERE brand_product_line IS NOT NULL ORDER BY brand_product_line
+        `, [], (err, brands) => {
           if (err) {
             res.status(500).json({ error: err.message });
             return;
           }
           
           db.all(`
-            SELECT DISTINCT product_taxonomy_category FROM item_numbers WHERE product_taxonomy_category IS NOT NULL ORDER BY product_taxonomy_category
-          `, [], (err, taxonomies) => {
+            SELECT DISTINCT series FROM item_numbers WHERE series IS NOT NULL ORDER BY series
+          `, [], (err, series) => {
             if (err) {
               res.status(500).json({ error: err.message });
               return;
             }
             
             db.all(`
-              SELECT DISTINCT legal_name FROM item_numbers WHERE legal_name IS NOT NULL ORDER BY legal_name
-            `, [], (err, legalNames) => {
+              SELECT DISTINCT product_taxonomy_category FROM item_numbers WHERE product_taxonomy_category IS NOT NULL ORDER BY product_taxonomy_category
+            `, [], (err, taxonomies) => {
               if (err) {
                 res.status(500).json({ error: err.message });
                 return;
               }
               
               db.all(`
-                SELECT DISTINCT age_grade FROM item_numbers WHERE age_grade IS NOT NULL ORDER BY age_grade
-              `, [], (err, ageGrades) => {
+                SELECT DISTINCT legal_name FROM item_numbers WHERE legal_name IS NOT NULL ORDER BY legal_name
+              `, [], (err, legalNames) => {
                 if (err) {
                   res.status(500).json({ error: err.message });
                   return;
                 }
                 
                 db.all(`
-                  SELECT DISTINCT item_spec_sheet_status FROM item_numbers WHERE item_spec_sheet_status IS NOT NULL ORDER BY item_spec_sheet_status
-                `, [], (err, statuses) => {
+                  SELECT DISTINCT age_grade FROM item_numbers WHERE age_grade IS NOT NULL ORDER BY age_grade
+                `, [], (err, ageGrades) => {
                   if (err) {
                     res.status(500).json({ error: err.message });
                     return;
                   }
                   
                   db.all(`
-                    SELECT DISTINCT product_development_status FROM item_numbers WHERE product_development_status IS NOT NULL ORDER BY product_development_status
-                  `, [], (err, devStatuses) => {
+                    SELECT DISTINCT item_spec_sheet_status FROM item_numbers WHERE item_spec_sheet_status IS NOT NULL ORDER BY item_spec_sheet_status
+                  `, [], (err, statuses) => {
                     if (err) {
                       res.status(500).json({ error: err.message });
                       return;
                     }
                     
-                    res.json({
-                      itemNumbers: itemNumbers.map(r => r.item_number),
-                      productNumbers: productNumbers.map(r => r.product_number),
-                      brands: brands.map(r => r.brand_product_line),
-                      series: series.map(r => r.series),
-                      taxonomies: taxonomies.map(r => r.product_taxonomy_category),
-                      legalNames: legalNames.map(r => r.legal_name),
-                      ageGrades: ageGrades.map(r => r.age_grade),
-                      statuses: statuses.map(r => r.item_spec_sheet_status),
-                      devStatuses: devStatuses.map(r => r.product_development_status)
+                    db.all(`
+                      SELECT DISTINCT product_development_status FROM item_numbers WHERE product_development_status IS NOT NULL ORDER BY product_development_status
+                    `, [], (err, devStatuses) => {
+                      if (err) {
+                        res.status(500).json({ error: err.message });
+                        return;
+                      }
+                      
+                      db.all(`
+                        SELECT DISTINCT upc_number FROM item_numbers WHERE upc_number IS NOT NULL ORDER BY upc_number
+                      `, [], (err, upcs) => {
+                        if (err) {
+                          res.status(500).json({ error: err.message });
+                          return;
+                        }
+                        
+                        res.json({
+                          itemNumbers: itemNumbers.map(r => r.item_number),
+                          productNumbers: productNumbers.map(r => r.product_number),
+                          descriptions: descriptions.map(r => r.product_description_internal),
+                          brands: brands.map(r => r.brand_product_line),
+                          series: series.map(r => r.series),
+                          taxonomies: taxonomies.map(r => r.product_taxonomy_category),
+                          legalNames: legalNames.map(r => r.legal_name),
+                          ageGrades: ageGrades.map(r => r.age_grade),
+                          statuses: statuses.map(r => r.item_spec_sheet_status),
+                          devStatuses: devStatuses.map(r => r.product_development_status),
+                          upcs: upcs.map(r => r.upc_number)
+                        });
+                      });
                     });
                   });
                 });
@@ -3591,10 +3611,12 @@ app.get('/api/item-numbers', (req, res) => {
   const brand = req.query.brand || '';
   const itemNumber = req.query.itemNumber || '';
   const productNumber = req.query.productNumber || '';
+  const description = req.query.description || '';
   const legalName = req.query.legalName || '';
   const ageGrade = req.query.ageGrade || '';
   const status = req.query.status || '';
   const devStatus = req.query.devStatus || '';
+  const upc = req.query.upc || '';
   
   let whereConditions = [];
   let params = [];
@@ -3617,6 +3639,13 @@ app.get('/api/item-numbers', (req, res) => {
     const productNumberPlaceholders = productNumberList.map(() => '?').join(',');
     whereConditions.push(`product_number IN (${productNumberPlaceholders})`);
     params.push(...productNumberList);
+  }
+  
+  if (description && description !== 'all') {
+    const descriptionList = description.split(',');
+    const descriptionPlaceholders = descriptionList.map(() => '?').join(',');
+    whereConditions.push(`product_description_internal IN (${descriptionPlaceholders})`);
+    params.push(...descriptionList);
   }
   
   if (series && series !== 'all') {
@@ -3666,6 +3695,13 @@ app.get('/api/item-numbers', (req, res) => {
     const devStatusPlaceholders = devStatusList.map(() => '?').join(',');
     whereConditions.push(`product_development_status IN (${devStatusPlaceholders})`);
     params.push(...devStatusList);
+  }
+  
+  if (upc && upc !== 'all') {
+    const upcList = upc.split(',');
+    const upcPlaceholders = upcList.map(() => '?').join(',');
+    whereConditions.push(`upc_number IN (${upcPlaceholders})`);
+    params.push(...upcList);
   }
   
   const whereClause = whereConditions.length > 0 ? 'WHERE ' + whereConditions.join(' AND ') : '';

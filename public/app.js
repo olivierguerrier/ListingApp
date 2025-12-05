@@ -330,37 +330,43 @@ let itemsLimit = 50;
 let itemsFilters = {
     itemNumber: [],
     productNumber: [],
+    description: [],
     brand: [],
     series: [],
     taxonomy: [],
     legalName: [],
     ageGrade: [],
     status: [],
-    devStatus: []
+    devStatus: [],
+    upc: []
 };
 let itemsFilterData = {
     itemNumber: [],
     productNumber: [],
+    description: [],
     brand: [],
     series: [],
     taxonomy: [],
     legalName: [],
     ageGrade: [],
     status: [],
-    devStatus: []
+    devStatus: [],
+    upc: []
 };
 
 function toggleItemFilter(filterType) {
     const filterIdMap = {
         itemNumber: 'itemNumberFilter',
         productNumber: 'productNumberFilter',
+        description: 'descriptionFilter',
         brand: 'brandFilter',
         series: 'seriesFilter',
         taxonomy: 'taxonomyFilter',
         legalName: 'legalNameFilter',
         ageGrade: 'ageGradeFilter',
         status: 'statusFilter',
-        devStatus: 'devStatusFilter'
+        devStatus: 'devStatusFilter',
+        upc: 'upcFilter'
     };
     
     const filterId = filterIdMap[filterType];
@@ -385,13 +391,15 @@ function filterColumnOptions(filterType, searchTerm) {
     const optionsIdMap = {
         itemNumber: 'itemNumberOptions',
         productNumber: 'productNumberOptions',
+        description: 'descriptionOptions',
         brand: 'brandOptions',
         series: 'seriesOptions',
         taxonomy: 'taxonomyOptions',
         legalName: 'legalNameOptions',
         ageGrade: 'ageGradeOptions',
         status: 'statusOptions',
-        devStatus: 'devStatusOptions'
+        devStatus: 'devStatusOptions',
+        upc: 'upcOptions'
     };
     
     const optionsId = optionsIdMap[filterType];
@@ -411,13 +419,15 @@ function renderFilterOptions(filterType, data) {
     const optionsIdMap = {
         itemNumber: 'itemNumberOptions',
         productNumber: 'productNumberOptions',
+        description: 'descriptionOptions',
         brand: 'brandOptions',
         series: 'seriesOptions',
         taxonomy: 'taxonomyOptions',
         legalName: 'legalNameOptions',
         ageGrade: 'ageGradeOptions',
         status: 'statusOptions',
-        devStatus: 'devStatusOptions'
+        devStatus: 'devStatusOptions',
+        upc: 'upcOptions'
     };
     
     const optionsId = optionsIdMap[filterType];
@@ -444,13 +454,15 @@ function applyItemFilter(filterType) {
     const optionsIdMap = {
         itemNumber: 'itemNumberOptions',
         productNumber: 'productNumberOptions',
+        description: 'descriptionOptions',
         brand: 'brandOptions',
         series: 'seriesOptions',
         taxonomy: 'taxonomyOptions',
         legalName: 'legalNameOptions',
         ageGrade: 'ageGradeOptions',
         status: 'statusOptions',
-        devStatus: 'devStatusOptions'
+        devStatus: 'devStatusOptions',
+        upc: 'upcOptions'
     };
     
     const optionsId = optionsIdMap[filterType];
@@ -483,6 +495,7 @@ async function loadItemNumbers() {
     
     const itemNumber = itemsFilters.itemNumber.length > 0 ? itemsFilters.itemNumber.join(',') : 'all';
     const productNumber = itemsFilters.productNumber.length > 0 ? itemsFilters.productNumber.join(',') : 'all';
+    const description = itemsFilters.description.length > 0 ? itemsFilters.description.join(',') : 'all';
     const brand = itemsFilters.brand.length > 0 ? itemsFilters.brand.join(',') : 'all';
     const series = itemsFilters.series.length > 0 ? itemsFilters.series.join(',') : 'all';
     const taxonomy = itemsFilters.taxonomy.length > 0 ? itemsFilters.taxonomy.join(',') : 'all';
@@ -490,11 +503,12 @@ async function loadItemNumbers() {
     const ageGrade = itemsFilters.ageGrade.length > 0 ? itemsFilters.ageGrade.join(',') : 'all';
     const status = itemsFilters.status.length > 0 ? itemsFilters.status.join(',') : 'all';
     const devStatus = itemsFilters.devStatus.length > 0 ? itemsFilters.devStatus.join(',') : 'all';
+    const upc = itemsFilters.upc.length > 0 ? itemsFilters.upc.join(',') : 'all';
     
-    console.log('[Items] Filters:', { itemNumber, productNumber, brand, series, taxonomy, legalName, ageGrade, status, devStatus, page: itemsCurrentPage });
+    console.log('[Items] Filters:', { itemNumber, productNumber, description, brand, series, taxonomy, legalName, ageGrade, status, devStatus, upc, page: itemsCurrentPage });
     
     try {
-        const url = `${API_BASE}/item-numbers?page=${itemsCurrentPage}&limit=${itemsLimit}&search=&itemNumber=${encodeURIComponent(itemNumber)}&productNumber=${encodeURIComponent(productNumber)}&series=${encodeURIComponent(series)}&taxonomy=${encodeURIComponent(taxonomy)}&brand=${encodeURIComponent(brand)}&legalName=${encodeURIComponent(legalName)}&ageGrade=${encodeURIComponent(ageGrade)}&status=${encodeURIComponent(status)}&devStatus=${encodeURIComponent(devStatus)}`;
+        const url = `${API_BASE}/item-numbers?page=${itemsCurrentPage}&limit=${itemsLimit}&search=&itemNumber=${encodeURIComponent(itemNumber)}&productNumber=${encodeURIComponent(productNumber)}&description=${encodeURIComponent(description)}&series=${encodeURIComponent(series)}&taxonomy=${encodeURIComponent(taxonomy)}&brand=${encodeURIComponent(brand)}&legalName=${encodeURIComponent(legalName)}&ageGrade=${encodeURIComponent(ageGrade)}&status=${encodeURIComponent(status)}&devStatus=${encodeURIComponent(devStatus)}&upc=${encodeURIComponent(upc)}`;
         console.log('[Items] Fetching:', url);
         
         const response = await fetch(url);
@@ -626,6 +640,7 @@ async function loadItemsFilters() {
         // Store filter data
         itemsFilterData.itemNumber = data.itemNumbers || [];
         itemsFilterData.productNumber = data.productNumbers || [];
+        itemsFilterData.description = data.descriptions || [];
         itemsFilterData.brand = data.brands || [];
         itemsFilterData.series = data.series || [];
         itemsFilterData.taxonomy = data.taxonomies || [];
@@ -633,10 +648,12 @@ async function loadItemsFilters() {
         itemsFilterData.ageGrade = data.ageGrades || [];
         itemsFilterData.status = data.statuses || [];
         itemsFilterData.devStatus = data.devStatuses || [];
+        itemsFilterData.upc = data.upcs || [];
         
         // Render initial options
         renderFilterOptions('itemNumber', itemsFilterData.itemNumber);
         renderFilterOptions('productNumber', itemsFilterData.productNumber);
+        renderFilterOptions('description', itemsFilterData.description);
         renderFilterOptions('brand', itemsFilterData.brand);
         renderFilterOptions('series', itemsFilterData.series);
         renderFilterOptions('taxonomy', itemsFilterData.taxonomy);
@@ -644,6 +661,7 @@ async function loadItemsFilters() {
         renderFilterOptions('ageGrade', itemsFilterData.ageGrade);
         renderFilterOptions('status', itemsFilterData.status);
         renderFilterOptions('devStatus', itemsFilterData.devStatus);
+        renderFilterOptions('upc', itemsFilterData.upc);
     } catch (error) {
         console.error('Error loading filters:', error);
     }
