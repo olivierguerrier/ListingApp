@@ -226,6 +226,8 @@ function initializeDatabase() {
     db.run(`CREATE TABLE IF NOT EXISTS item_numbers (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       item_number TEXT UNIQUE NOT NULL,
+      series TEXT,
+      product_taxonomy_category TEXT,
       legal_name TEXT,
       upc_number TEXT,
       brand_product_line TEXT,
@@ -244,7 +246,18 @@ function initializeDatabase() {
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
     )`);
-
+    
+    // Add series and product_taxonomy_category columns if they don't exist (for existing databases)
+    db.run(`ALTER TABLE item_numbers ADD COLUMN series TEXT`, (err) => {
+      if (err && !err.message.includes('duplicate column')) {
+        console.error('Error adding series column:', err.message);
+      }
+    });
+    db.run(`ALTER TABLE item_numbers ADD COLUMN product_taxonomy_category TEXT`, (err) => {
+      if (err && !err.message.includes('duplicate column')) {
+        console.error('Error adding product_taxonomy_category column:', err.message);
+      }
+    });
     // Temp ASIN counter table
     db.run(`CREATE TABLE IF NOT EXISTS temp_asin_counter (
       id INTEGER PRIMARY KEY CHECK (id = 1),
@@ -3283,14 +3296,16 @@ app.post('/api/sync/pim', (req, res) => {
       
       const itemStmt = db.prepare(`
         INSERT INTO item_numbers (
-          item_number, legal_name, upc_number, brand_product_line, age_grade,
+          item_number, series, product_taxonomy_category, legal_name, upc_number, brand_product_line, age_grade,
           product_description_internal, item_spec_sheet_status, product_development_status,
           item_spec_data_last_updated, case_pack, package_length_cm, package_width_cm,
           package_height_cm, package_weight_kg, product_number, last_synced, updated_at
         )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
         ON CONFLICT(item_number)
         DO UPDATE SET
+          series = excluded.series,
+          product_taxonomy_category = excluded.product_taxonomy_category,
           legal_name = excluded.legal_name,
           upc_number = excluded.upc_number,
           brand_product_line = excluded.brand_product_line,
@@ -3318,6 +3333,8 @@ app.post('/api/sync/pim', (req, res) => {
 
         itemStmt.run([
           itemNumber,
+          row['Series'] || null,
+          row['Product Taxonomy (Category)'] || null,
           row['Legal Name'] || null,
           row['UPC Number'] || null,
           row['Brand (Product Line) '] || null,  // Note: trailing space in Excel column name
@@ -3465,6 +3482,99 @@ app.post('/api/sync/pim', (req, res) => {
   } catch (error) {
     res.status(500).json({ error: 'Error reading PIM Extract: ' + error.message });
   }
+});
+
+// Get all item numbers (Items tab)
+app.get('/api/item-numbers', (req, res) => {
+  const page = parseInt(req.query.page) || 1;
+  const limit = parseInt(req.query.limit) || 50;
+  const offset = (page - 1) * limit;
+  const search = req.query.search || '';
+  const series = req.query.series || '';
+  const taxonomy = req.query.taxonomy || '';
+  
+  let whereConditions = [];
+  let params = [];
+  
+  if (search) {
+    whereConditions.push('(item_number LIKE ? OR legal_name LIKE ? OR brand_product_line LIKE ?)');
+    const searchPattern = `%${search}%`;
+    params.push(searchPattern, searchPattern, searchPattern);
+  }
+  
+  if (series && series !== 'all') {
+    whereConditions.push('series = ?');
+    params.push(series);
+  }
+  
+  if (taxonomy && taxonomy !== 'all') {
+    whereConditions.push('product_taxonomy_category = ?');
+    params.push(taxonomy);
+  }
+  
+  const whereClause = whereConditions.length > 0 ? 'WHERE ' + whereConditions.join(' AND ') : '';
+  
+  // Get total count
+  db.get(`SELECT COUNT(*) as total FROM item_numbers ${whereClause}`, params, (err, countResult) => {
+    if (err) {
+      res.status(500).json({ error: err.message });
+      return;
+    }
+    
+    // Get paginated data
+    const paginatedParams = [...params, limit, offset];
+    db.all(`
+      SELECT * FROM item_numbers 
+      ${whereClause}
+      ORDER BY item_number
+      LIMIT ? OFFSET ?
+    `, paginatedParams, (err, rows) => {
+      if (err) {
+        res.status(500).json({ error: err.message });
+        return;
+      }
+      
+      res.json({
+        items: rows,
+        total: countResult.total,
+        page: page,
+        limit: limit,
+        totalPages: Math.ceil(countResult.total / limit)
+      });
+    });
+  });
+});
+
+// Get unique series for filter
+app.get('/api/item-numbers/series', (req, res) => {
+  db.all(`
+    SELECT DISTINCT series 
+    FROM item_numbers 
+    WHERE series IS NOT NULL 
+    ORDER BY series
+  `, [], (err, rows) => {
+    if (err) {
+      res.status(500).json({ error: err.message });
+      return;
+    }
+    res.json(rows.map(r => r.series));
+  });
+});
+
+// Get unique taxonomies for filter
+app.get('/api/item-numbers/taxonomies', (req, res) => {
+  db.all(`
+    SELECT DISTINCT product_taxonomy_category 
+    FROM item_numbers 
+    WHERE product_taxonomy_category IS NOT NULL 
+    ORDER BY product_taxonomy_category
+  `, [], (err, rows) => {
+    if (err) {
+      res.status(500).json({ error: err.message });
+      return;
+    }
+    res.json(rows.map(r => r.product_taxonomy_category));
+  });
 });
 
 // Get item numbers for a product

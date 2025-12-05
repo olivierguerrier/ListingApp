@@ -321,6 +321,110 @@ function logout() {
     window.location.href = '/login.html';
 }
 
+// ========================================
+// Items Tab Functions
+// ========================================
+
+let itemsCurrentPage = 1;
+let itemsLimit = 50;
+
+async function loadItems() {
+    const search = document.getElementById('itemsSearchInput')?.value || '';
+    const series = document.getElementById('itemsSeriesFilter')?.value || 'all';
+    const taxonomy = document.getElementById('itemsTaxonomyFilter')?.value || 'all';
+    
+    try {
+        const response = await fetch(
+            `${API_BASE}/item-numbers?page=${itemsCurrentPage}&limit=${itemsLimit}&search=${encodeURIComponent(search)}&series=${encodeURIComponent(series)}&taxonomy=${encodeURIComponent(taxonomy)}`
+        );
+        
+        if (!response.ok) throw new Error('Failed to load items');
+        
+        const data = await response.json();
+        renderItemsTable(data.items);
+        updateItemsPagination(data);
+    } catch (error) {
+        console.error('Error loading items:', error);
+        document.getElementById('itemsTableBody').innerHTML = '<tr><td colspan="11" style="text-align: center; color: var(--danger-color);">Error loading items</td></tr>';
+    }
+}
+
+function renderItemsTable(items) {
+    const tbody = document.getElementById('itemsTableBody');
+    
+    if (!items || items.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="11" style="text-align: center; padding: 40px;">No items found</td></tr>';
+        return;
+    }
+    
+    tbody.innerHTML = items.map(item => `
+        <tr>
+            <td><strong>${escapeHtml(item.item_number)}</strong></td>
+            <td>${escapeHtml(item.series || '-')}</td>
+            <td>${escapeHtml(item.product_taxonomy_category || '-')}</td>
+            <td>${escapeHtml(item.legal_name || '-')}</td>
+            <td>${escapeHtml(item.brand_product_line || '-')}</td>
+            <td><small>${escapeHtml(item.product_description_internal || '-')}</small></td>
+            <td>${escapeHtml(item.age_grade || '-')}</td>
+            <td><span class="badge ${getStatusBadgeClass(item.item_spec_sheet_status)}">${escapeHtml(item.item_spec_sheet_status || '-')}</span></td>
+            <td><span class="badge ${getDevStatusBadgeClass(item.product_development_status)}">${escapeHtml(item.product_development_status || '-')}</span></td>
+            <td><small>${escapeHtml(item.upc_number || '-')}</small></td>
+            <td>${escapeHtml(item.product_number || '-')}</td>
+        </tr>
+    `).join('');
+}
+
+function getStatusBadgeClass(status) {
+    if (!status) return '';
+    if (status.toLowerCase() === 'finish') return 'badge-success';
+    return 'badge-warning';
+}
+
+function getDevStatusBadgeClass(status) {
+    if (!status) return '';
+    if (status.toLowerCase() === 'finalized') return 'badge-success';
+    if (status.toUpperCase() === 'NCF') return 'badge-danger';
+    return 'badge-info';
+}
+
+function updateItemsPagination(data) {
+    const prevBtn = document.getElementById('itemsPrevBtn');
+    const nextBtn = document.getElementById('itemsNextBtn');
+    const pageInfo = document.getElementById('itemsPageInfo');
+    
+    if (prevBtn) prevBtn.disabled = itemsCurrentPage === 1;
+    if (nextBtn) nextBtn.disabled = itemsCurrentPage >= data.totalPages;
+    if (pageInfo) pageInfo.textContent = `Page ${itemsCurrentPage} of ${data.totalPages} (${data.total} items)`;
+}
+
+async function loadItemsFilters() {
+    try {
+        // Load series filter
+        const seriesResponse = await fetch(`${API_BASE}/item-numbers/series`);
+        if (seriesResponse.ok) {
+            const series = await seriesResponse.json();
+            const seriesFilter = document.getElementById('itemsSeriesFilter');
+            if (seriesFilter) {
+                seriesFilter.innerHTML = '<option value="all">All Series</option>' +
+                    series.map(s => `<option value="${escapeHtml(s)}">${escapeHtml(s)}</option>`).join('');
+            }
+        }
+        
+        // Load taxonomy filter
+        const taxonomyResponse = await fetch(`${API_BASE}/item-numbers/taxonomies`);
+        if (taxonomyResponse.ok) {
+            const taxonomies = await taxonomyResponse.json();
+            const taxonomyFilter = document.getElementById('itemsTaxonomyFilter');
+            if (taxonomyFilter) {
+                taxonomyFilter.innerHTML = '<option value="all">All Taxonomies</option>' +
+                    taxonomies.map(t => `<option value="${escapeHtml(t)}">${escapeHtml(t)}</option>`).join('');
+            }
+        }
+    } catch (error) {
+        console.error('Error loading items filters:', error);
+    }
+}
+
 // Initialize app
 document.addEventListener('DOMContentLoaded', () => {
     if (!checkAuth()) return;
@@ -333,7 +437,54 @@ document.addEventListener('DOMContentLoaded', () => {
     setupFilterSearch();
     setupEventListeners();
     setupCustomerAdminFilters();
+    setupItemsEventListeners();
 });
+
+// Items Event Listeners
+function setupItemsEventListeners() {
+    const itemsSearchInput = document.getElementById('itemsSearchInput');
+    const itemsSeriesFilter = document.getElementById('itemsSeriesFilter');
+    const itemsTaxonomyFilter = document.getElementById('itemsTaxonomyFilter');
+    const itemsPrevBtn = document.getElementById('itemsPrevBtn');
+    const itemsNextBtn = document.getElementById('itemsNextBtn');
+    
+    if (itemsSearchInput) {
+        itemsSearchInput.addEventListener('input', () => {
+            itemsCurrentPage = 1;
+            loadItems();
+        });
+    }
+    
+    if (itemsSeriesFilter) {
+        itemsSeriesFilter.addEventListener('change', () => {
+            itemsCurrentPage = 1;
+            loadItems();
+        });
+    }
+    
+    if (itemsTaxonomyFilter) {
+        itemsTaxonomyFilter.addEventListener('change', () => {
+            itemsCurrentPage = 1;
+            loadItems();
+        });
+    }
+    
+    if (itemsPrevBtn) {
+        itemsPrevBtn.addEventListener('click', () => {
+            if (itemsCurrentPage > 1) {
+                itemsCurrentPage--;
+                loadItems();
+            }
+        });
+    }
+    
+    if (itemsNextBtn) {
+        itemsNextBtn.addEventListener('click', () => {
+            itemsCurrentPage++;
+            loadItems();
+        });
+    }
+}
 
 // Event Listeners
 function setupEventListeners() {
@@ -675,19 +826,21 @@ function switchView(view) {
     
     // Get all view elements
     const productsView = document.getElementById('productsView');
+    const itemsView = document.getElementById('itemsView');
     const pricingApprovalsView = document.getElementById('pricingApprovalsView');
     const customerAdminView = document.getElementById('customerAdminView');
     const databaseView = document.getElementById('databaseView');
     
     console.log('[View] Elements found:', {
         productsView: !!productsView,
+        itemsView: !!itemsView,
         pricingApprovalsView: !!pricingApprovalsView,
         customerAdminView: !!customerAdminView,
         databaseView: !!databaseView
     });
     
     // Remove active from all
-    [productsView, pricingApprovalsView, customerAdminView, databaseView].forEach(v => {
+    [productsView, itemsView, pricingApprovalsView, customerAdminView, databaseView].forEach(v => {
         if (v) {
             v.classList.remove('active');
             v.style.display = 'none';
@@ -698,6 +851,11 @@ function switchView(view) {
     if (view === 'products' && productsView) {
         productsView.classList.add('active');
         productsView.style.display = 'block';
+    } else if (view === 'items' && itemsView) {
+        itemsView.classList.add('active');
+        itemsView.style.display = 'block';
+        loadItems();
+        loadItemsFilters();
     } else if (view === 'pricing-approvals' && pricingApprovalsView) {
         pricingApprovalsView.classList.add('active');
         pricingApprovalsView.style.display = 'block';

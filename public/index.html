@@ -95,6 +95,7 @@
             <button class="tab-btn active" data-view="products">Products (by ASIN)</button>
             <button class="tab-btn" data-view="pricing-approvals" id="pricingApprovalsTab" style="display: none;">💰 Pricing Approvals</button>
             <button class="tab-btn" data-view="customer-admin" id="customerAdminViewTab" style="display: none;">🏢 Customer Admin</button>
+            <button class="tab-btn" data-view="items" id="itemsViewTab">📦 Items</button>
             <button class="tab-btn" data-view="reports">Reports</button>
             <button class="tab-btn" data-view="database">Database Explorer</button>
         </div>
@@ -444,6 +445,55 @@
         </div>
     </div>
     
+    <!-- Items View (PIM Extract Data) -->
+    <div id="itemsView" class="view-container" style="display: none;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+            <h2>📦 Item Numbers (PIM Extract)</h2>
+        </div>
+        
+        <!-- Filters -->
+        <div class="filters" style="margin-bottom: 20px;">
+            <input type="text" id="itemsSearchInput" placeholder="Search by Item #, Name, or Brand..." class="filter-select" style="width: 300px;">
+            <select id="itemsSeriesFilter" class="filter-select">
+                <option value="all">All Series</option>
+            </select>
+            <select id="itemsTaxonomyFilter" class="filter-select">
+                <option value="all">All Taxonomies</option>
+            </select>
+        </div>
+        
+        <!-- Items Table -->
+        <div class="table-wrapper">
+            <table class="products-table">
+                <thead>
+                    <tr>
+                        <th>Item Number</th>
+                        <th>Series</th>
+                        <th>Product Taxonomy</th>
+                        <th>Legal Name</th>
+                        <th>Brand</th>
+                        <th>Description</th>
+                        <th>Age Grade</th>
+                        <th>Status</th>
+                        <th>Dev Status</th>
+                        <th>UPC</th>
+                        <th>Product #</th>
+                    </tr>
+                </thead>
+                <tbody id="itemsTableBody">
+                    <tr><td colspan="11" style="text-align: center; padding: 40px;">Loading items...</td></tr>
+                </tbody>
+            </table>
+        </div>
+        
+        <!-- Pagination -->
+        <div class="pagination" id="itemsPagination">
+            <button id="itemsPrevBtn" class="btn btn-secondary" disabled>Previous</button>
+            <span id="itemsPageInfo">Page 1</span>
+            <button id="itemsNextBtn" class="btn btn-secondary">Next</button>
+        </div>
+    </div>
+
     <!-- Customer Admin View -->
     <div id="customerAdminView" class="view-container" style="display: none; min-height: 500px;">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
