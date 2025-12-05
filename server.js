@@ -3492,6 +3492,7 @@ app.get('/api/item-numbers', (req, res) => {
   const search = req.query.search || '';
   const series = req.query.series || '';
   const taxonomy = req.query.taxonomy || '';
+  const brand = req.query.brand || '';
   
   let whereConditions = [];
   let params = [];
@@ -3503,13 +3504,24 @@ app.get('/api/item-numbers', (req, res) => {
   }
   
   if (series && series !== 'all') {
-    whereConditions.push('series = ?');
-    params.push(series);
+    const seriesList = series.split(',');
+    const seriesPlaceholders = seriesList.map(() => '?').join(',');
+    whereConditions.push(`series IN (${seriesPlaceholders})`);
+    params.push(...seriesList);
   }
   
   if (taxonomy && taxonomy !== 'all') {
-    whereConditions.push('product_taxonomy_category = ?');
-    params.push(taxonomy);
+    const taxonomyList = taxonomy.split(',');
+    const taxonomyPlaceholders = taxonomyList.map(() => '?').join(',');
+    whereConditions.push(`product_taxonomy_category IN (${taxonomyPlaceholders})`);
+    params.push(...taxonomyList);
+  }
+  
+  if (brand && brand !== 'all') {
+    const brandList = brand.split(',');
+    const brandPlaceholders = brandList.map(() => '?').join(',');
+    whereConditions.push(`brand_product_line IN (${brandPlaceholders})`);
+    params.push(...brandList);
   }
   
   const whereClause = whereConditions.length > 0 ? 'WHERE ' + whereConditions.join(' AND ') : '';
@@ -3558,6 +3570,22 @@ app.get('/api/item-numbers/series', (req, res) => {
       return;
     }
     res.json(rows.map(r => r.series));
+  });
+});
+
+// Get unique brands for filter
+app.get('/api/item-numbers/brands', (req, res) => {
+  db.all(`
+    SELECT DISTINCT brand_product_line 
+    FROM item_numbers 
+    WHERE brand_product_line IS NOT NULL 
+    ORDER BY brand_product_line
+  `, [], (err, rows) => {
+    if (err) {
+      res.status(500).json({ error: err.message });
+      return;
+    }
+    res.json(rows.map(r => r.brand_product_line));
   });
 });
 

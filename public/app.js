@@ -335,14 +335,22 @@ async function loadItemNumbers() {
         tbody.innerHTML = '<tr><td colspan="11" style="text-align: center; padding: 20px; color: #666;">Loading...</td></tr>';
     }
     
-    const search = document.getElementById('itemsSearchInput')?.value || '';
-    const series = document.getElementById('itemsSeriesFilter')?.value || 'all';
-    const taxonomy = document.getElementById('itemsTaxonomyFilter')?.value || 'all';
+    const brandFilter = document.getElementById('itemsBrandFilter');
+    const seriesFilter = document.getElementById('itemsSeriesFilter');
+    const taxonomyFilter = document.getElementById('itemsTaxonomyFilter');
     
-    console.log('[Items] Filters:', { search, series, taxonomy, page: itemsCurrentPage });
+    const selectedBrands = Array.from(brandFilter?.selectedOptions || []).map(o => o.value).filter(v => v);
+    const selectedSeries = Array.from(seriesFilter?.selectedOptions || []).map(o => o.value).filter(v => v);
+    const selectedTaxonomies = Array.from(taxonomyFilter?.selectedOptions || []).map(o => o.value).filter(v => v);
+    
+    const brand = selectedBrands.length > 0 ? selectedBrands.join(',') : 'all';
+    const series = selectedSeries.length > 0 ? selectedSeries.join(',') : 'all';
+    const taxonomy = selectedTaxonomies.length > 0 ? selectedTaxonomies.join(',') : 'all';
+    
+    console.log('[Items] Filters:', { brand, series, taxonomy, page: itemsCurrentPage });
     
     try {
-        const url = `${API_BASE}/item-numbers?page=${itemsCurrentPage}&limit=${itemsLimit}&search=${encodeURIComponent(search)}&series=${encodeURIComponent(series)}&taxonomy=${encodeURIComponent(taxonomy)}`;
+        const url = `${API_BASE}/item-numbers?page=${itemsCurrentPage}&limit=${itemsLimit}&search=&series=${encodeURIComponent(series)}&taxonomy=${encodeURIComponent(taxonomy)}&brand=${encodeURIComponent(brand)}`;
         console.log('[Items] Fetching:', url);
         
         const response = await fetch(url);
@@ -387,16 +395,16 @@ function renderItemsTable(items) {
     const html = items.map(item => `
         <tr>
             <td><strong>${escapeHtml(item.item_number)}</strong></td>
+            <td>${escapeHtml(item.product_number || '-')}</td>
+            <td><small>${escapeHtml(item.product_description_internal || '-')}</small></td>
             <td>${escapeHtml(item.series || '-')}</td>
             <td>${escapeHtml(item.product_taxonomy_category || '-')}</td>
             <td>${escapeHtml(item.legal_name || '-')}</td>
             <td>${escapeHtml(item.brand_product_line || '-')}</td>
-            <td><small>${escapeHtml(item.product_description_internal || '-')}</small></td>
             <td>${escapeHtml(item.age_grade || '-')}</td>
             <td><span class="badge ${getStatusBadgeClass(item.item_spec_sheet_status)}">${escapeHtml(item.item_spec_sheet_status || '-')}</span></td>
             <td><span class="badge ${getDevStatusBadgeClass(item.product_development_status)}">${escapeHtml(item.product_development_status || '-')}</span></td>
             <td><small>${escapeHtml(item.upc_number || '-')}</small></td>
-            <td>${escapeHtml(item.product_number || '-')}</td>
         </tr>
     `).join('');
     
@@ -431,13 +439,24 @@ function updateItemsPagination(data) {
 
 async function loadItemsFilters() {
     try {
+        // Load brands filter
+        const brandsResponse = await fetch(`${API_BASE}/item-numbers/brands`);
+        if (brandsResponse.ok) {
+            const brands = await brandsResponse.json();
+            const brandFilter = document.getElementById('itemsBrandFilter');
+            if (brandFilter) {
+                brandFilter.innerHTML = '<option value="">All Brands</option>' +
+                    brands.map(b => `<option value="${escapeHtml(b)}">${escapeHtml(b)}</option>`).join('');
+            }
+        }
+        
         // Load series filter
         const seriesResponse = await fetch(`${API_BASE}/item-numbers/series`);
         if (seriesResponse.ok) {
             const series = await seriesResponse.json();
             const seriesFilter = document.getElementById('itemsSeriesFilter');
             if (seriesFilter) {
-                seriesFilter.innerHTML = '<option value="all">All Series</option>' +
+                seriesFilter.innerHTML = '<option value="">All Series</option>' +
                     series.map(s => `<option value="${escapeHtml(s)}">${escapeHtml(s)}</option>`).join('');
             }
         }
@@ -448,7 +467,7 @@ async function loadItemsFilters() {
             const taxonomies = await taxonomyResponse.json();
             const taxonomyFilter = document.getElementById('itemsTaxonomyFilter');
             if (taxonomyFilter) {
-                taxonomyFilter.innerHTML = '<option value="all">All Taxonomies</option>' +
+                taxonomyFilter.innerHTML = '<option value="">All Taxonomies</option>' +
                     taxonomies.map(t => `<option value="${escapeHtml(t)}">${escapeHtml(t)}</option>`).join('');
             }
         }
@@ -476,19 +495,16 @@ document.addEventListener('DOMContentLoaded', () => {
 let itemsSearchTimeout;
 
 function setupItemsEventListeners() {
-    const itemsSearchInput = document.getElementById('itemsSearchInput');
+    const itemsBrandFilter = document.getElementById('itemsBrandFilter');
     const itemsSeriesFilter = document.getElementById('itemsSeriesFilter');
     const itemsTaxonomyFilter = document.getElementById('itemsTaxonomyFilter');
     const itemsPrevBtn = document.getElementById('itemsPrevBtn');
     const itemsNextBtn = document.getElementById('itemsNextBtn');
     
-    if (itemsSearchInput) {
-        itemsSearchInput.addEventListener('input', () => {
-            clearTimeout(itemsSearchTimeout);
-            itemsSearchTimeout = setTimeout(() => {
-                itemsCurrentPage = 1;
-                loadItemNumbers();
-            }, 500); // Debounce 500ms
+    if (itemsBrandFilter) {
+        itemsBrandFilter.addEventListener('change', () => {
+            itemsCurrentPage = 1;
+            loadItemNumbers();
         });
     }
     

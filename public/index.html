@@ -452,14 +452,25 @@
         </div>
         
         <!-- Filters -->
-        <div class="filters" style="margin-bottom: 20px;">
-            <input type="text" id="itemsSearchInput" placeholder="Search by Item #, Name, or Brand..." class="filter-select" style="width: 300px;">
-            <select id="itemsSeriesFilter" class="filter-select">
-                <option value="all">All Series</option>
-            </select>
-            <select id="itemsTaxonomyFilter" class="filter-select">
-                <option value="all">All Taxonomies</option>
-            </select>
+        <div class="filters" style="margin-bottom: 20px; gap: 15px;">
+            <div style="flex: 1; max-width: 300px;">
+                <label style="display: block; margin-bottom: 5px; font-weight: 600; font-size: 13px;">Brand</label>
+                <select id="itemsBrandFilter" class="filter-select" multiple size="1" style="width: 100%;">
+                    <option value="">All Brands</option>
+                </select>
+            </div>
+            <div style="flex: 1; max-width: 300px;">
+                <label style="display: block; margin-bottom: 5px; font-weight: 600; font-size: 13px;">Series</label>
+                <select id="itemsSeriesFilter" class="filter-select" multiple size="1" style="width: 100%;">
+                    <option value="">All Series</option>
+                </select>
+            </div>
+            <div style="flex: 1; max-width: 300px;">
+                <label style="display: block; margin-bottom: 5px; font-weight: 600; font-size: 13px;">Product Taxonomy</label>
+                <select id="itemsTaxonomyFilter" class="filter-select" multiple size="1" style="width: 100%;">
+                    <option value="">All Taxonomies</option>
+                </select>
+            </div>
         </div>
         
         <!-- Items Table -->
@@ -468,16 +479,16 @@
                 <thead>
                     <tr>
                         <th>Item Number</th>
+                        <th>Product Number</th>
+                        <th>Description</th>
                         <th>Series</th>
                         <th>Product Taxonomy</th>
                         <th>Legal Name</th>
                         <th>Brand</th>
-                        <th>Description</th>
                         <th>Age Grade</th>
                         <th>Status</th>
                         <th>Dev Status</th>
                         <th>UPC</th>
-                        <th>Product #</th>
                     </tr>
                 </thead>
                 <tbody id="itemNumbersTableBody">
