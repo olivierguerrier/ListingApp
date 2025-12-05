@@ -481,6 +481,10 @@ async function loadProductColumnFilters() {
         console.log('[Product Filters] Loading column filter data...');
         console.log('[Product Filters] Current items count:', items.length);
         
+        if (items.length > 0) {
+            console.log('[Product Filters] Sample item:', items[0]);
+        }
+        
         // Get unique values from current items
         const names = [...new Set(items.map(i => i.name).filter(Boolean))].sort();
         const brands = [...new Set(items.map(i => i.brand).filter(Boolean))].sort();
@@ -495,7 +499,16 @@ async function loadProductColumnFilters() {
             return [];
         }).filter(Boolean))].sort();
         
-        console.log('[Product Filters] Filter data:', { names: names.length, brands: brands.length, asins: asins.length, primaryItems: primaryItems.length, skus: skus.length });
+        console.log('[Product Filters] Filter data:', { 
+            names: names.length, 
+            brands: brands.length, 
+            asins: asins.length, 
+            primaryItems: primaryItems.length, 
+            skus: skus.length 
+        });
+        console.log('[Product Filters] Brands:', brands);
+        console.log('[Product Filters] Primary Items:', primaryItems);
+        console.log('[Product Filters] SKUs:', skus);
         
         productsColumnFilterData.name = names;
         productsColumnFilterData.brand = brands;
@@ -1727,13 +1740,13 @@ function renderTableStageCircleWithPercentage(stageNumber, completed, asin, coun
     const pieGradient = percentage > 0 
         ? `conic-gradient(${fillColor} 0deg ${degrees}deg, #e0e0e0 ${degrees}deg 360deg)`
         : '#e0e0e0';
-    
-    return `
+        
+        return `
         <div onclick="openWorkflowModal('${asin}', ${stageNumber})" style="cursor: pointer; display: inline-block;" title="${count} of ${total} (${percentage}%)">
             <div style="width: 40px; height: 40px; border-radius: 50%; background: ${pieGradient}; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 11px; color: #333; margin: 0 auto; position: relative; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
                 <div style="background: white; border-radius: 50%; width: 28px; height: 28px; display: flex; align-items: center; justify-content: center;">
                     ${percentage}%
-                </div>
+                    </div>
             </div>
             <div style="font-size: 9px; margin-top: 2px; color: #666;">
                 ${count}/${total}
@@ -1777,7 +1790,7 @@ function renderSkus(skusToRender) {
         skusList.innerHTML = '<div class="empty-state">No SKUs found</div>';
         return;
     }
-    
+
     // Group SKUs by ASIN
     const skusByAsin = {};
     skusToRender.forEach(sku => {
@@ -1810,7 +1823,7 @@ function renderSkus(skusToRender) {
                         </div>
                     </div>
                 </div>
-                
+
                 <div class="item-stages">
                     ${renderStageDisplay(1, 'Idea', firstSku.stage_1_idea_considered, false)}
                     ${renderStageDisplay(2, 'PIM Done', firstSku.stage_2_product_finalized, false)}
@@ -1865,7 +1878,7 @@ function openItemModal(itemId = null) {
     const modal = document.getElementById('itemModal');
     const form = document.getElementById('itemForm');
     const modalTitle = document.getElementById('modalTitle');
-    
+
     if (itemId) {
         modalTitle.textContent = 'Edit Product';
         // Load item data
@@ -1881,7 +1894,7 @@ function openItemModal(itemId = null) {
         form.reset();
         document.getElementById('itemId').value = '';
     }
-    
+
     modal.style.display = 'block';
 }
 
@@ -2047,7 +2060,7 @@ async function openPricingSubmissionModal(productId) {
         showError('Product not found');
         return;
     }
-    
+
     // Check if user has permission
     if (currentUser.role === 'viewer') {
         showError('You do not have permission to submit pricing');
@@ -2333,7 +2346,7 @@ async function openApprovalsModal() {
                         <p style="color: var(--text-secondary); margin: 5px 0 0 0; font-size: 13px;">
                             Submitted by: ${sub.submitted_by_full_name || sub.submitted_by_name} on ${new Date(sub.submitted_at).toLocaleString()}
                         </p>
-                    </div>
+                </div>
                     <div style="text-align: right;">
                         <span style="background: var(--warning); color: white; padding: 4px 12px; border-radius: 12px; font-size: 12px; font-weight: 600;">
                             PENDING
@@ -2495,9 +2508,9 @@ async function loadPricingApprovalsView() {
                             sub.reviewed_at ? 
                                 `<small style="color: var(--text-secondary);">Reviewed by ${sub.reviewed_by_full_name || sub.reviewed_by_name}<br>${new Date(sub.reviewed_at).toLocaleString()}</small>` : 
                                 '<span style="color: var(--text-secondary);">-</span>'}
-                    </td>
-                </tr>
-            `;
+            </td>
+        </tr>
+    `;
         });
         
         html += `
@@ -2607,7 +2620,7 @@ function initSidebar() {
 // Handle item form submission
 async function handleItemSubmit(e) {
     e.preventDefault();
-    
+
     const itemId = document.getElementById('itemId').value;
     const sku = document.getElementById('sku').value;
     const asin = document.getElementById('asin').value || '';  // Optional
@@ -2637,21 +2650,21 @@ async function handleItemSubmit(e) {
         stage_1_idea_considered: 1,  // Mark as Stage 1
         is_temp_asin: asin ? 0 : 1   // If no ASIN, mark as temp
     };
-    
+
     try {
         let response;
         if (itemId) {
             // Update existing item
             response = await fetch(`${API_BASE}/items/${itemId}`, {
                 method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(itemData)
-            });
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(itemData)
+        });
         } else {
             // Create new item
             response = await fetch(`${API_BASE}/items`, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                    headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(itemData)
             });
         }
@@ -2674,7 +2687,7 @@ async function handleItemSubmit(e) {
 // Handle pricing form submission
 async function handlePricingSubmit(e) {
     e.preventDefault();
-    
+
     const itemId = document.getElementById('pricingItemId').value;
     const countryCode = document.getElementById('countryCode').value;
     const costPrice = document.getElementById('costPrice').value;
@@ -2687,14 +2700,14 @@ async function handlePricingSubmit(e) {
         retail_price: parseFloat(retailPrice),
         currency: currency
     };
-    
+
     try {
         const response = await fetch(`${API_BASE}/items/${itemId}/pricing`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(pricingData)
         });
-        
+
         if (response.ok) {
             document.getElementById('pricingForm').reset();
             openPricingModal(itemId); // Refresh the pricing table
@@ -2769,12 +2782,12 @@ async function deleteItem(itemId) {
     if (!confirm('Are you sure you want to delete this product?')) {
         return;
     }
-    
+
     try {
         const response = await fetch(`${API_BASE}/items/${itemId}`, {
             method: 'DELETE'
         });
-        
+
         if (response.ok) {
             loadItems();
             showSuccess('Product deleted');
@@ -2857,21 +2870,21 @@ async function importQpiData() {
                 method: 'POST',
                 body: formData
             });
-            
-            if (response.ok) {
-                loadItems();
+        
+        if (response.ok) {
+            loadItems();
                 showSuccess('QPI data imported successfully');
-            } else {
+        } else {
                 throw new Error('Failed to import QPI data');
-            }
-        } catch (error) {
+        }
+    } catch (error) {
             console.error('Error importing QPI:', error);
             showError('Failed to import QPI data');
-        }
+    }
     };
-    
+
     fileInput.click();
-}
+    }
 
 async function syncQpiData() {
     try {
@@ -2948,7 +2961,7 @@ async function syncOnlineStatus() {
         console.error('Error syncing online status:', error);
         showError('Failed to sync online status');
     }
-}
+    }
 
 async function syncPimData() {
     try {
