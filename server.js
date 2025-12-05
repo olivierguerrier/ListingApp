@@ -2105,8 +2105,9 @@ app.post('/api/sync/qpi', (req, res) => {
       const sku = data['Item no'];
       const asin = data['ASIN'];
       const sourceFile = data['Source File'];
+      const status = data['Status']; // Get the Status column
       if (sku && asin && sourceFile) {
-        qpiData.push({ sku, asin, sourceFile });
+        qpiData.push({ sku, asin, sourceFile, status });
       }
     })
     .on('end', () => {
@@ -2117,12 +2118,17 @@ app.post('/api/sync/qpi', (req, res) => {
       const qpiAsins = new Set();
       const skuAsinMap = new Map();
       const sourceFiles = new Set();
+      const ncfAsins = new Set(); // Track ASINs with NCF status
       
       qpiData.forEach(item => {
         qpiSkus.add(item.sku);
         if (item.asin) {
           qpiAsins.add(item.asin);
           skuAsinMap.set(item.sku, item.asin);
+          // Check if status is NCF
+          if (item.status && item.status.toUpperCase() === 'NCF') {
+            ncfAsins.add(item.asin);
+          }
         }
         if (item.sourceFile) {
           sourceFiles.add(item.sourceFile);
@@ -2130,6 +2136,7 @@ app.post('/api/sync/qpi', (req, res) => {
       });
       
       console.log(`Collected ${qpiSkus.size} SKUs, ${qpiAsins.size} ASINs, ${sourceFiles.size} source files`);
+      console.log(`Found ${ncfAsins.size} ASINs with NCF (End of Life) status`);
       console.log(`Source files found: ${Array.from(sourceFiles).join(', ')}`);
       console.log(`Sample items with source: ${qpiData.slice(0, 3).map(i => `${i.sku}:${i.sourceFile || 'NULL'}`).join(', ')}`);
       
@@ -2223,23 +2230,31 @@ app.post('/api/sync/qpi', (req, res) => {
           const updateStmt = db.prepare(`
             UPDATE products 
             SET stage_5_product_ordered = 1,
+                stage_7_end_of_life = ?,
                 updated_at = CURRENT_TIMESTAMP
             WHERE asin = ?
           `);
           
           let skusUpdated = 0;
+          let eolMarked = 0;
           asinToSkus.forEach((skus, asin) => {
-            updateStmt.run([asin], function(err) {
+            const isNCF = ncfAsins.has(asin) ? 1 : 0;
+            updateStmt.run([isNCF, asin], function(err) {
               if (err) {
                 console.error(`Error updating product ${asin}:`, err.message);
               } else if (this.changes > 0) {
                 skusUpdated++;
+                if (isNCF) {
+                  eolMarked++;
+                  console.log(`✓ Marked ${asin} as End of Life (NCF status)`);
+                }
               }
             });
           });
           
           updateStmt.finalize(() => {
             console.log(`[QPI] Updated ${skusUpdated} products with stage_5`);
+            console.log(`[QPI] Marked ${eolMarked} products as End of Life (NCF)`);
           });
           
           // Insert SKUs into product_skus table
