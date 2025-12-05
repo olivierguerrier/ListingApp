@@ -329,26 +329,33 @@ let itemsCurrentPage = 1;
 let itemsLimit = 50;
 
 async function loadItems() {
+    console.log('[Items] loadItems() called');
     const search = document.getElementById('itemsSearchInput')?.value || '';
     const series = document.getElementById('itemsSeriesFilter')?.value || 'all';
     const taxonomy = document.getElementById('itemsTaxonomyFilter')?.value || 'all';
     
+    console.log('[Items] Filters:', { search, series, taxonomy, page: itemsCurrentPage });
+    
     try {
-        const response = await fetch(
-            `${API_BASE}/item-numbers?page=${itemsCurrentPage}&limit=${itemsLimit}&search=${encodeURIComponent(search)}&series=${encodeURIComponent(series)}&taxonomy=${encodeURIComponent(taxonomy)}`
-        );
+        const url = `${API_BASE}/item-numbers?page=${itemsCurrentPage}&limit=${itemsLimit}&search=${encodeURIComponent(search)}&series=${encodeURIComponent(series)}&taxonomy=${encodeURIComponent(taxonomy)}`;
+        console.log('[Items] Fetching:', url);
+        
+        const response = await fetch(url);
+        
+        console.log('[Items] Response status:', response.status);
         
         if (!response.ok) {
             const text = await response.text();
-            console.error('Items API error:', text);
+            console.error('[Items] API error:', text);
             throw new Error('Failed to load items');
         }
         
         const data = await response.json();
+        console.log('[Items] Data received:', data);
         renderItemsTable(data.items);
         updateItemsPagination(data);
     } catch (error) {
-        console.error('Error loading items:', error);
+        console.error('[Items] Error loading items:', error);
         const tbody = document.getElementById('itemsTableBody');
         if (tbody) {
             tbody.innerHTML = '<tr><td colspan="11" style="text-align: center; color: var(--danger-color); padding: 40px;">Error loading items. Please try refreshing.</td></tr>';
@@ -859,9 +866,12 @@ function switchView(view) {
         productsView.classList.add('active');
         productsView.style.display = 'block';
     } else if (view === 'items' && itemsView) {
+        console.log('[View] Switching to Items view...');
         itemsView.classList.add('active');
         itemsView.style.display = 'block';
+        console.log('[View] Calling loadItems()...');
         loadItems();
+        console.log('[View] Calling loadItemsFilters()...');
         loadItemsFilters();
     } else if (view === 'pricing-approvals' && pricingApprovalsView) {
         pricingApprovalsView.classList.add('active');
