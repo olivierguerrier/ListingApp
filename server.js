@@ -175,6 +175,7 @@ function initializeDatabase() {
       asin TEXT UNIQUE NOT NULL,
       name TEXT,
       is_temp_asin BOOLEAN DEFAULT 0,
+      primary_item_number TEXT,
       brand TEXT,
       age_grade TEXT,
       product_description TEXT,
@@ -220,6 +221,29 @@ function initializeDatabase() {
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE
     )`);
+    
+    // Item Numbers table - Stores PIM Extract data per Item Number (SKU)
+    db.run(`CREATE TABLE IF NOT EXISTS item_numbers (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      item_number TEXT UNIQUE NOT NULL,
+      legal_name TEXT,
+      upc_number TEXT,
+      brand_product_line TEXT,
+      age_grade TEXT,
+      product_description_internal TEXT,
+      item_spec_sheet_status TEXT,
+      product_development_status TEXT,
+      item_spec_data_last_updated TEXT,
+      case_pack TEXT,
+      package_length_cm REAL,
+      package_width_cm REAL,
+      package_height_cm REAL,
+      package_weight_kg REAL,
+      product_number TEXT,
+      last_synced DATETIME DEFAULT CURRENT_TIMESTAMP,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )`);
 
     // Temp ASIN counter table
     db.run(`CREATE TABLE IF NOT EXISTS temp_asin_counter (
@@ -228,6 +252,13 @@ function initializeDatabase() {
     )`);
     
     db.run(`INSERT OR IGNORE INTO temp_asin_counter (id, counter) VALUES (1, 1)`);
+    
+    // Add primary_item_number column to products if it doesn't exist (for existing databases)
+    db.run(`ALTER TABLE products ADD COLUMN primary_item_number TEXT`, (err) => {
+      if (err && !err.message.includes('duplicate column')) {
+        console.error('Error adding primary_item_number column:', err.message);
+      }
+    });
 
     // Legacy items table - will migrate data from this
     db.run(`CREATE TABLE IF NOT EXISTS items (
@@ -3239,164 +3270,224 @@ app.post('/api/sync/pim', (req, res) => {
     const worksheet = workbook.Sheets[sheetName];
     const data = xlsx.utils.sheet_to_json(worksheet);
 
-    let updated = 0;
-    let notFound = 0;
+    let itemsInserted = 0;
+    let itemsUpdated = 0;
+    let productsUpdated = 0;
     let errors = 0;
 
-    data.forEach((row) => {
-      const itemNumber = row['Item Number'];
-      
-      if (!itemNumber) {
-        return;
-      }
+    console.log(`Found ${data.length} rows in PIM Extract`);
 
-      const updateData = {
-        legal_name: row['Legal Name'] || null,
-        upc_number: row['UPC Number'] || null,
-        brand: row['Brand (Product Line)'] || null,
-        age_grade: row['Age Grade'] || null,
-        product_description: row['Product Description (internal)'] || null,
-        pim_spec_status: row['Item Spec Sheet Status'] || null,
-        product_dev_status: row['Product Development Status'] || null,
-        case_pack: row['Case Pack'] || null,
-        package_length_cm: row['Single Package Size - Length (cm)'] || null,
-        package_width_cm: row['Single Package Size - Width (cm)'] || null,
-        package_height_cm: row['Single Package Size - Height (cm)'] || null,
-        package_weight_kg: row['Single Package Size - Weight (kg)'] || null
-      };
-
-      // Update item with name from Legal Name if available
-      const nameToUse = updateData.legal_name || itemNumber;
+    // Step 1: Insert/Update item_numbers table
+    db.serialize(() => {
+      db.run('BEGIN TRANSACTION');
       
-      // Check if Stage 2 should be marked (Product Finalized)
-      const stage2Finalized = (updateData.product_dev_status && 
-                               updateData.product_dev_status.toLowerCase() === 'finalized') ? 1 : 0;
-      
-      // Check if Stage 7 should be marked (End of Life) - NCF status
-      const stage7EOL = (updateData.product_dev_status && 
-                        updateData.product_dev_status.toUpperCase() === 'NCF') ? 1 : 0;
+      const itemStmt = db.prepare(`
+        INSERT INTO item_numbers (
+          item_number, legal_name, upc_number, brand_product_line, age_grade,
+          product_description_internal, item_spec_sheet_status, product_development_status,
+          item_spec_data_last_updated, case_pack, package_length_cm, package_width_cm,
+          package_height_cm, package_weight_kg, product_number, last_synced, updated_at
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+        ON CONFLICT(item_number)
+        DO UPDATE SET
+          legal_name = excluded.legal_name,
+          upc_number = excluded.upc_number,
+          brand_product_line = excluded.brand_product_line,
+          age_grade = excluded.age_grade,
+          product_description_internal = excluded.product_description_internal,
+          item_spec_sheet_status = excluded.item_spec_sheet_status,
+          product_development_status = excluded.product_development_status,
+          item_spec_data_last_updated = excluded.item_spec_data_last_updated,
+          case_pack = excluded.case_pack,
+          package_length_cm = excluded.package_length_cm,
+          package_width_cm = excluded.package_width_cm,
+          package_height_cm = excluded.package_height_cm,
+          package_weight_kg = excluded.package_weight_kg,
+          product_number = excluded.product_number,
+          last_synced = CURRENT_TIMESTAMP,
+          updated_at = CURRENT_TIMESTAMP
+      `);
 
-      db.run(
-        `UPDATE items 
-         SET name = ?,
-             legal_name = ?,
-             upc_number = ?,
-             brand = ?,
-             age_grade = ?,
-             product_description = ?,
-             pim_spec_status = ?,
-             product_dev_status = ?,
-             case_pack = ?,
-             package_length_cm = ?,
-             package_width_cm = ?,
-             package_height_cm = ?,
-             package_weight_kg = ?,
-             stage_2_product_finalized = ?,
-             updated_at = CURRENT_TIMESTAMP
-         WHERE sku = ?`,
-        [
-          nameToUse,
-          updateData.legal_name,
-          updateData.upc_number,
-          updateData.brand,
-          updateData.age_grade,
-          updateData.product_description,
-          updateData.pim_spec_status,
-          updateData.product_dev_status,
-          updateData.case_pack,
-          updateData.package_length_cm,
-          updateData.package_width_cm,
-          updateData.package_height_cm,
-          updateData.package_weight_kg,
-          stage2Finalized,
-          itemNumber
-        ],
-        function(err) {
+      data.forEach((row) => {
+        const itemNumber = row['Item Number'];
+        
+        if (!itemNumber) {
+          return;
+        }
+
+        itemStmt.run([
+          itemNumber,
+          row['Legal Name'] || null,
+          row['UPC Number'] || null,
+          row['Brand (Product Line)'] || null,
+          row['Age Grade'] || null,
+          row['Product Description (internal)'] || null,
+          row['Item Spec Sheet Status'] || null,
+          row['Product Development Status'] || null,
+          row['Item Spec Data Last Updated'] || null,
+          row['Case Pack'] || null,
+          row['Single Package Size - Length (cm)'] || null,
+          row['Single Package Size - Width (cm)'] || null,
+          row['Single Package Size - Height (cm)'] || null,
+          row['Single Package Size - Weight (kg)'] || null,
+          row['Product Number'] || null
+        ], function(err) {
           if (err) {
             errors++;
-            console.error(`Error updating item ${itemNumber}:`, err.message);
-          } else if (this.changes > 0) {
-            updated++;
+            console.error(`Error upserting item ${itemNumber}:`, err.message);
           } else {
-            notFound++;
+            if (this.changes > 0) {
+              itemsInserted++;
+            } else {
+              itemsUpdated++;
+            }
           }
-        }
-      );
-      
-      // Also update the products table if we have an ASIN for this SKU
-      db.get(
-        `SELECT p.id, p.asin 
-         FROM products p 
-         INNER JOIN product_skus ps ON p.id = ps.product_id 
-         WHERE ps.sku = ?`,
-        [itemNumber],
-        (err, result) => {
+        });
+      });
+
+      itemStmt.finalize(() => {
+        db.run('COMMIT', (err) => {
           if (err) {
-            console.error(`Error finding ASIN for SKU ${itemNumber}:`, err.message);
+            console.error('Error committing item_numbers:', err.message);
+            db.run('ROLLBACK');
             return;
           }
           
-          if (result && result.asin) {
-            db.run(
-              `UPDATE products 
-               SET name = ?,
-                   legal_name = ?,
-                   brand = ?,
-                   age_grade = ?,
-                   product_description = ?,
-                   pim_spec_status = ?,
-                   product_dev_status = ?,
-                   package_length_cm = ?,
-                   package_width_cm = ?,
-                   package_height_cm = ?,
-                   package_weight_kg = ?,
-                   stage_2_product_finalized = ?,
-                   stage_7_end_of_life = ?,
-                   updated_at = CURRENT_TIMESTAMP
-               WHERE asin = ?`,
-              [
-                nameToUse,
-                updateData.legal_name,
-                updateData.brand,
-                updateData.age_grade,
-                updateData.product_description,
-                updateData.pim_spec_status,
-                updateData.product_dev_status,
-                updateData.package_length_cm,
-                updateData.package_width_cm,
-                updateData.package_height_cm,
-                updateData.package_weight_kg,
-                stage2Finalized,
-                stage7EOL,
-                result.asin
-              ],
-              function(err) {
-                if (err) {
-                  console.error(`Error updating product for ASIN ${result.asin}:`, err.message);
-                } else if (this.changes > 0 && stage7EOL) {
-                  console.log(`✓ Marked ${result.asin} (SKU: ${itemNumber}) as End of Life (NCF status)`);
-                }
+          console.log(`✓ Inserted/Updated ${itemsInserted + itemsUpdated} items in item_numbers table`);
+          
+          // Step 2: Set primary_item_number for each product based on most frequent item number
+          console.log('Setting primary_item_number for products...');
+          
+          db.all(`
+            SELECT 
+              p.id as product_id,
+              p.asin,
+              ps.sku,
+              COUNT(*) as sku_count
+            FROM products p
+            INNER JOIN product_skus ps ON p.id = ps.product_id
+            WHERE ps.sku IN (SELECT item_number FROM item_numbers)
+            GROUP BY p.id, ps.sku
+            ORDER BY p.id, sku_count DESC
+          `, [], (err, rows) => {
+            if (err) {
+              console.error('Error finding SKUs for products:', err.message);
+              res.status(500).json({ error: 'Error setting primary item numbers' });
+              return;
+            }
+            
+            // Group by product_id and pick the first (most frequent) SKU
+            const productPrimaryItems = new Map();
+            rows.forEach(row => {
+              if (!productPrimaryItems.has(row.product_id)) {
+                productPrimaryItems.set(row.product_id, row.sku);
               }
-            );
-          }
-        }
-      );
-    });
-
-    // Give it a moment to finish all updates
-    setTimeout(() => {
-      res.json({
-        message: 'PIM sync completed',
-        total_in_pim: data.length,
-        updated: updated,
-        not_found: notFound,
-        errors: errors
+            });
+            
+            console.log(`Found ${productPrimaryItems.size} products with item numbers`);
+            
+            // Update products with primary_item_number and data from item_numbers
+            db.serialize(() => {
+              db.run('BEGIN TRANSACTION');
+              
+              const updateStmt = db.prepare(`
+                UPDATE products
+                SET primary_item_number = ?,
+                    brand = (SELECT brand_product_line FROM item_numbers WHERE item_number = ?),
+                    product_description = (SELECT product_description_internal FROM item_numbers WHERE item_number = ?),
+                    legal_name = (SELECT legal_name FROM item_numbers WHERE item_number = ?),
+                    age_grade = (SELECT age_grade FROM item_numbers WHERE item_number = ?),
+                    pim_spec_status = (SELECT item_spec_sheet_status FROM item_numbers WHERE item_number = ?),
+                    product_dev_status = (SELECT product_development_status FROM item_numbers WHERE item_number = ?),
+                    package_length_cm = (SELECT package_length_cm FROM item_numbers WHERE item_number = ?),
+                    package_width_cm = (SELECT package_width_cm FROM item_numbers WHERE item_number = ?),
+                    package_height_cm = (SELECT package_height_cm FROM item_numbers WHERE item_number = ?),
+                    package_weight_kg = (SELECT package_weight_kg FROM item_numbers WHERE item_number = ?),
+                    stage_2_product_finalized = (
+                      SELECT CASE 
+                        WHEN product_development_status = 'Finalized' THEN 1 
+                        ELSE 0 
+                      END 
+                      FROM item_numbers WHERE item_number = ?
+                    ),
+                    stage_7_end_of_life = (
+                      SELECT CASE 
+                        WHEN product_development_status = 'NCF' THEN 1 
+                        ELSE 0 
+                      END 
+                      FROM item_numbers WHERE item_number = ?
+                    ),
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE id = ?
+              `);
+              
+              productPrimaryItems.forEach((itemNumber, productId) => {
+                updateStmt.run([
+                  itemNumber,  // primary_item_number
+                  itemNumber, itemNumber, itemNumber, itemNumber, itemNumber, itemNumber,
+                  itemNumber, itemNumber, itemNumber, itemNumber, itemNumber, itemNumber,
+                  productId
+                ], function(err) {
+                  if (err) {
+                    errors++;
+                    console.error(`Error updating product ${productId}:`, err.message);
+                  } else if (this.changes > 0) {
+                    productsUpdated++;
+                  }
+                });
+              });
+              
+              updateStmt.finalize(() => {
+                db.run('COMMIT', (err) => {
+                  if (err) {
+                    console.error('Error committing product updates:', err.message);
+                    db.run('ROLLBACK');
+                  } else {
+                    console.log(`✓ Updated ${productsUpdated} products with PIM data`);
+                  }
+                  
+                  res.json({
+                    message: 'PIM sync completed',
+                    total_in_pim: data.length,
+                    items_inserted_updated: itemsInserted + itemsUpdated,
+                    products_updated: productsUpdated,
+                    errors: errors
+                  });
+                });
+              });
+            });
+          });
+        });
       });
-    }, 1000);
+    });
 
   } catch (error) {
     res.status(500).json({ error: 'Error reading PIM Extract: ' + error.message });
   }
+});
+
+// Get item numbers for a product
+app.get('/api/products/:id/item-numbers', (req, res) => {
+  const productId = req.params.id;
+  
+  db.all(`
+    SELECT 
+      i.*,
+      ps.is_primary,
+      CASE WHEN p.primary_item_number = i.item_number THEN 1 ELSE 0 END as is_primary_for_product
+    FROM item_numbers i
+    INNER JOIN product_skus ps ON i.item_number = ps.sku
+    INNER JOIN products p ON ps.product_id = p.id
+    WHERE p.id = ?
+    ORDER BY is_primary_for_product DESC, i.item_number
+  `, [productId], (err, rows) => {
+    if (err) {
+      res.status(500).json({ error: err.message });
+      return;
+    }
+    res.json(rows);
+  });
 });
 
 // Export item list (SKUs and ASINs)
