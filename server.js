@@ -1213,7 +1213,8 @@ app.get('/api/items', (req, res) => {
         'stage_3b': 'stage_3b_pricing_approved',
         'stage_4': 'stage_4_product_listed',
         'stage_5': 'stage_5_product_ordered',
-        'stage_6': 'stage_6_product_online'
+        'stage_6': 'stage_6_product_online',
+        'stage_7': 'stage_7_end_of_life'
       };
       
       const stageColumn = stageMap[stage];
@@ -3206,6 +3207,10 @@ app.post('/api/sync/pim', (req, res) => {
       // Check if Stage 2 should be marked (Product Finalized)
       const stage2Finalized = (updateData.product_dev_status && 
                                updateData.product_dev_status.toLowerCase() === 'finalized') ? 1 : 0;
+      
+      // Check if Stage 7 should be marked (End of Life) - NCF status
+      const stage7EOL = (updateData.product_dev_status && 
+                        updateData.product_dev_status.toUpperCase() === 'NCF') ? 1 : 0;
 
       db.run(
         `UPDATE items 
@@ -3245,11 +3250,70 @@ app.post('/api/sync/pim', (req, res) => {
         function(err) {
           if (err) {
             errors++;
-            console.error(`Error updating ${itemNumber}:`, err.message);
+            console.error(`Error updating item ${itemNumber}:`, err.message);
           } else if (this.changes > 0) {
             updated++;
           } else {
             notFound++;
+          }
+        }
+      );
+      
+      // Also update the products table if we have an ASIN for this SKU
+      db.get(
+        `SELECT p.id, p.asin 
+         FROM products p 
+         INNER JOIN product_skus ps ON p.id = ps.product_id 
+         WHERE ps.sku = ?`,
+        [itemNumber],
+        (err, result) => {
+          if (err) {
+            console.error(`Error finding ASIN for SKU ${itemNumber}:`, err.message);
+            return;
+          }
+          
+          if (result && result.asin) {
+            db.run(
+              `UPDATE products 
+               SET name = ?,
+                   legal_name = ?,
+                   brand = ?,
+                   age_grade = ?,
+                   product_description = ?,
+                   pim_spec_status = ?,
+                   product_dev_status = ?,
+                   package_length_cm = ?,
+                   package_width_cm = ?,
+                   package_height_cm = ?,
+                   package_weight_kg = ?,
+                   stage_2_product_finalized = ?,
+                   stage_7_end_of_life = ?,
+                   updated_at = CURRENT_TIMESTAMP
+               WHERE asin = ?`,
+              [
+                nameToUse,
+                updateData.legal_name,
+                updateData.brand,
+                updateData.age_grade,
+                updateData.product_description,
+                updateData.pim_spec_status,
+                updateData.product_dev_status,
+                updateData.package_length_cm,
+                updateData.package_width_cm,
+                updateData.package_height_cm,
+                updateData.package_weight_kg,
+                stage2Finalized,
+                stage7EOL,
+                result.asin
+              ],
+              function(err) {
+                if (err) {
+                  console.error(`Error updating product for ASIN ${result.asin}:`, err.message);
+                } else if (this.changes > 0 && stage7EOL) {
+                  console.log(`✓ Marked ${result.asin} (SKU: ${itemNumber}) as End of Life (NCF status)`);
+                }
+              }
+            );
           }
         }
       );
