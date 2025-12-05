@@ -1240,6 +1240,21 @@ app.get('/api/items', (req, res) => {
   const bundles = req.query.bundles ? req.query.bundles.split(',') : [];
   const ppgs = req.query.ppgs ? req.query.ppgs.split(',') : [];
   
+  // Column filters
+  const names = req.query.names ? req.query.names.split(',') : [];
+  const columnBrands = req.query.columnBrands ? req.query.columnBrands.split(',') : [];
+  const asins = req.query.asins ? req.query.asins.split(',') : [];
+  const primaryItems = req.query.primaryItems ? req.query.primaryItems.split(',') : [];
+  const skus = req.query.skus ? req.query.skus.split(',') : [];
+  
+  // Item number field filters
+  const series = req.query.series ? req.query.series.split(',') : [];
+  const taxonomies = req.query.taxonomies ? req.query.taxonomies.split(',') : [];
+  const legalNames = req.query.legalNames ? req.query.legalNames.split(',') : [];
+  const ageGrades = req.query.ageGrades ? req.query.ageGrades.split(',') : [];
+  const itemStatuses = req.query.itemStatuses ? req.query.itemStatuses.split(',') : [];
+  const devStatuses = req.query.devStatuses ? req.query.devStatuses.split(',') : [];
+  
   // Helper function to build queries and execute
   const buildAndExecuteQuery = (marketplaceName, marketplaceCountryCodes) => {
     // Build WHERE clauses
@@ -1319,6 +1334,91 @@ app.get('/api/items', (req, res) => {
       whereConditions.push(`vm.ppg IN (${placeholders})`);
       queryParams.push(...ppgs);
       countParams.push(...ppgs);
+    }
+    
+    // Column filters
+    if (names.length > 0) {
+      const placeholders = names.map(() => '?').join(',');
+      whereConditions.push(`p.name IN (${placeholders})`);
+      queryParams.push(...names);
+      countParams.push(...names);
+    }
+    
+    if (columnBrands.length > 0) {
+      const placeholders = columnBrands.map(() => '?').join(',');
+      whereConditions.push(`p.brand IN (${placeholders})`);
+      queryParams.push(...columnBrands);
+      countParams.push(...columnBrands);
+    }
+    
+    if (asins.length > 0) {
+      const placeholders = asins.map(() => '?').join(',');
+      whereConditions.push(`p.asin IN (${placeholders})`);
+      queryParams.push(...asins);
+      countParams.push(...asins);
+    }
+    
+    if (primaryItems.length > 0) {
+      const placeholders = primaryItems.map(() => '?').join(',');
+      whereConditions.push(`p.primary_item_number IN (${placeholders})`);
+      queryParams.push(...primaryItems);
+      countParams.push(...primaryItems);
+    }
+    
+    if (skus.length > 0) {
+      // SKU filtering requires checking the product_skus join
+      const placeholders = skus.map(() => '?').join(',');
+      whereConditions.push(`ps.sku IN (${placeholders})`);
+      queryParams.push(...skus);
+      countParams.push(...skus);
+    }
+    
+    // Item number field filters (requires join with item_numbers table)
+    if (series.length > 0 || taxonomies.length > 0 || legalNames.length > 0 || ageGrades.length > 0 || itemStatuses.length > 0 || devStatuses.length > 0) {
+      // We'll need to join with item_numbers table
+      joinClause += ' LEFT JOIN item_numbers i ON p.primary_item_number = i.item_number';
+      
+      if (series.length > 0) {
+        const placeholders = series.map(() => '?').join(',');
+        whereConditions.push(`i.series IN (${placeholders})`);
+        queryParams.push(...series);
+        countParams.push(...series);
+      }
+      
+      if (taxonomies.length > 0) {
+        const placeholders = taxonomies.map(() => '?').join(',');
+        whereConditions.push(`i.product_taxonomy_category IN (${placeholders})`);
+        queryParams.push(...taxonomies);
+        countParams.push(...taxonomies);
+      }
+      
+      if (legalNames.length > 0) {
+        const placeholders = legalNames.map(() => '?').join(',');
+        whereConditions.push(`i.legal_name IN (${placeholders})`);
+        queryParams.push(...legalNames);
+        countParams.push(...legalNames);
+      }
+      
+      if (ageGrades.length > 0) {
+        const placeholders = ageGrades.map(() => '?').join(',');
+        whereConditions.push(`i.age_grade IN (${placeholders})`);
+        queryParams.push(...ageGrades);
+        countParams.push(...ageGrades);
+      }
+      
+      if (itemStatuses.length > 0) {
+        const placeholders = itemStatuses.map(() => '?').join(',');
+        whereConditions.push(`i.item_spec_sheet_status IN (${placeholders})`);
+        queryParams.push(...itemStatuses);
+        countParams.push(...itemStatuses);
+      }
+      
+      if (devStatuses.length > 0) {
+        const placeholders = devStatuses.map(() => '?').join(',');
+        whereConditions.push(`i.product_development_status IN (${placeholders})`);
+        queryParams.push(...devStatuses);
+        countParams.push(...devStatuses);
+      }
     }
     
     const whereClause = whereConditions.length > 0 ? 'WHERE ' + whereConditions.join(' AND ') : '';

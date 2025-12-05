@@ -105,6 +105,7 @@
             <!-- Filters - Only for Products View -->
             <div class="filters">
                 <input type="text" id="searchInput" placeholder="Search by ASIN, SKU or name..." class="search-input">
+                
                 <select id="productStatusFilter" class="filter-select">
                     <option value="all">All Stages</option>
                     <option value="stage_1">Stage 1: Ideation</option>
@@ -114,19 +115,47 @@
                     <option value="stage_6">Stage 5: Available Online</option>
                     <option value="stage_7">Stage 6: End of Life</option>
                 </select>
+                
                 <select id="countryFilter" class="filter-select">
                     <option value="all">All Countries</option>
                     <option value="loading">Loading countries...</option>
                 </select>
+                
                 <select id="tempFilter" class="filter-select">
                     <option value="all">All ASINs</option>
                     <option value="temp">Temp ASINs Only</option>
                     <option value="permanent">Permanent ASINs Only</option>
                 </select>
+                
                 <select id="missingFilter" class="filter-select">
                     <option value="all">All Products</option>
                     <option value="missing">Missing from VM</option>
                     <option value="present">Present in VM</option>
+                </select>
+                
+                <!-- Item Number Filters (based on primary_item_number) -->
+                <select id="productSeriesFilter" class="filter-select" multiple size="1">
+                    <option value="">All Series</option>
+                </select>
+                
+                <select id="productTaxonomyFilter" class="filter-select" multiple size="1">
+                    <option value="">All Taxonomies</option>
+                </select>
+                
+                <select id="productLegalNameFilter" class="filter-select" multiple size="1">
+                    <option value="">All Legal Names</option>
+                </select>
+                
+                <select id="productAgeGradeFilter" class="filter-select" multiple size="1">
+                    <option value="">All Age Grades</option>
+                </select>
+                
+                <select id="productItemStatusFilter" class="filter-select" multiple size="1">
+                    <option value="">All Item Statuses</option>
+                </select>
+                
+                <select id="productDevStatusFilter" class="filter-select" multiple size="1">
+                    <option value="">All Dev Statuses</option>
                 </select>
                 
                 <!-- Brand Filter with Search -->
@@ -157,19 +186,79 @@
                 <table class="products-table">
                     <thead>
                         <tr>
-                            <th>Name</th>
-                            <th>Brand</th>
-                            <th>ASIN</th>
-                            <th>Primary Item #</th>
-                            <th>SKU(s)</th>
-                            <th title="Stage 1: Idea Considered">S1: Ideation</th>
-                            <th title="Stage 2: Product Finalized">S2: PIM</th>
-                            <th title="Stage 2.5: Pricing Approved">S2.5: Pricing</th>
-                            <th title="Stage 3: VC Listed">S3: VC Listed</th>
-                            <th title="Stage 4: Product Ordered">S4: QPI</th>
-                            <th title="Stage 5: Online">S5: Online</th>
-                            <th title="Stage 6: End of Life">S6: EOL</th>
-                            <th>Actions</th>
+                            <th style="text-align: center; cursor: pointer;" onclick="toggleProductFilter('name')" title="Click to filter">
+                                <div style="display: flex; align-items: center; justify-content: center; gap: 5px;">
+                                    Name <span style="font-size: 10px;">▼</span>
+                                </div>
+                                <div id="productNameFilter" class="column-filter" style="display: none;" onclick="event.stopPropagation()">
+                                    <input type="text" placeholder="Search..." class="filter-search" oninput="filterProductColumnOptions('name', this.value)">
+                                    <div class="filter-options" id="productNameOptions"></div>
+                                    <div class="filter-actions">
+                                        <button onclick="applyProductFilter('name')" class="btn btn-primary btn-sm">Apply</button>
+                                        <button onclick="clearProductFilter('name')" class="btn btn-secondary btn-sm">Clear</button>
+                                    </div>
+                                </div>
+                            </th>
+                            <th style="text-align: center; cursor: pointer;" onclick="toggleProductFilter('brand')" title="Click to filter">
+                                <div style="display: flex; align-items: center; justify-content: center; gap: 5px;">
+                                    Brand <span style="font-size: 10px;">▼</span>
+                                </div>
+                                <div id="productBrandColumnFilter" class="column-filter" style="display: none;" onclick="event.stopPropagation()">
+                                    <input type="text" placeholder="Search..." class="filter-search" oninput="filterProductColumnOptions('brand', this.value)">
+                                    <div class="filter-options" id="productBrandColumnOptions"></div>
+                                    <div class="filter-actions">
+                                        <button onclick="applyProductFilter('brand')" class="btn btn-primary btn-sm">Apply</button>
+                                        <button onclick="clearProductFilter('brand')" class="btn btn-secondary btn-sm">Clear</button>
+                                    </div>
+                                </div>
+                            </th>
+                            <th style="text-align: center; cursor: pointer;" onclick="toggleProductFilter('asin')" title="Click to filter">
+                                <div style="display: flex; align-items: center; justify-content: center; gap: 5px;">
+                                    ASIN <span style="font-size: 10px;">▼</span>
+                                </div>
+                                <div id="productAsinFilter" class="column-filter" style="display: none;" onclick="event.stopPropagation()">
+                                    <input type="text" placeholder="Search..." class="filter-search" oninput="filterProductColumnOptions('asin', this.value)">
+                                    <div class="filter-options" id="productAsinOptions"></div>
+                                    <div class="filter-actions">
+                                        <button onclick="applyProductFilter('asin')" class="btn btn-primary btn-sm">Apply</button>
+                                        <button onclick="clearProductFilter('asin')" class="btn btn-secondary btn-sm">Clear</button>
+                                    </div>
+                                </div>
+                            </th>
+                            <th style="text-align: center; cursor: pointer;" onclick="toggleProductFilter('primaryItem')" title="Click to filter">
+                                <div style="display: flex; align-items: center; justify-content: center; gap: 5px;">
+                                    Primary Item # <span style="font-size: 10px;">▼</span>
+                                </div>
+                                <div id="productPrimaryItemFilter" class="column-filter" style="display: none;" onclick="event.stopPropagation()">
+                                    <input type="text" placeholder="Search..." class="filter-search" oninput="filterProductColumnOptions('primaryItem', this.value)">
+                                    <div class="filter-options" id="productPrimaryItemOptions"></div>
+                                    <div class="filter-actions">
+                                        <button onclick="applyProductFilter('primaryItem')" class="btn btn-primary btn-sm">Apply</button>
+                                        <button onclick="clearProductFilter('primaryItem')" class="btn btn-secondary btn-sm">Clear</button>
+                                    </div>
+                                </div>
+                            </th>
+                            <th style="text-align: center; cursor: pointer;" onclick="toggleProductFilter('sku')" title="Click to filter">
+                                <div style="display: flex; align-items: center; justify-content: center; gap: 5px;">
+                                    SKU(s) <span style="font-size: 10px;">▼</span>
+                                </div>
+                                <div id="productSkuFilter" class="column-filter" style="display: none;" onclick="event.stopPropagation()">
+                                    <input type="text" placeholder="Search..." class="filter-search" oninput="filterProductColumnOptions('sku', this.value)">
+                                    <div class="filter-options" id="productSkuOptions"></div>
+                                    <div class="filter-actions">
+                                        <button onclick="applyProductFilter('sku')" class="btn btn-primary btn-sm">Apply</button>
+                                        <button onclick="clearProductFilter('sku')" class="btn btn-secondary btn-sm">Clear</button>
+                                    </div>
+                                </div>
+                            </th>
+                            <th style="text-align: center;" title="Stage 1: Idea Considered">S1: Ideation</th>
+                            <th style="text-align: center;" title="Stage 2: Product Finalized">S2: PIM</th>
+                            <th style="text-align: center;" title="Stage 2.5: Pricing Approved">S2.5: Pricing</th>
+                            <th style="text-align: center;" title="Stage 3: VC Listed">S3: VC Listed</th>
+                            <th style="text-align: center;" title="Stage 4: Product Ordered">S4: QPI</th>
+                            <th style="text-align: center;" title="Stage 5: Online">S5: Online</th>
+                            <th style="text-align: center;" title="Stage 6: End of Life">S6: EOL</th>
+                            <th style="text-align: center;">Actions</th>
                         </tr>
                     </thead>
                     <tbody id="itemsTableBody">
