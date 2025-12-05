@@ -338,14 +338,21 @@ async function loadItems() {
             `${API_BASE}/item-numbers?page=${itemsCurrentPage}&limit=${itemsLimit}&search=${encodeURIComponent(search)}&series=${encodeURIComponent(series)}&taxonomy=${encodeURIComponent(taxonomy)}`
         );
         
-        if (!response.ok) throw new Error('Failed to load items');
+        if (!response.ok) {
+            const text = await response.text();
+            console.error('Items API error:', text);
+            throw new Error('Failed to load items');
+        }
         
         const data = await response.json();
         renderItemsTable(data.items);
         updateItemsPagination(data);
     } catch (error) {
         console.error('Error loading items:', error);
-        document.getElementById('itemsTableBody').innerHTML = '<tr><td colspan="11" style="text-align: center; color: var(--danger-color);">Error loading items</td></tr>';
+        const tbody = document.getElementById('itemsTableBody');
+        if (tbody) {
+            tbody.innerHTML = '<tr><td colspan="11" style="text-align: center; color: var(--danger-color); padding: 40px;">Error loading items. Please try refreshing.</td></tr>';
+        }
     }
 }
 
@@ -433,7 +440,7 @@ document.addEventListener('DOMContentLoaded', () => {
     loadItems();
     loadSkus();
     loadCountries();
-    loadVariationFilters();
+    // loadVariationFilters(); // TODO: Create this endpoint
     setupFilterSearch();
     setupEventListeners();
     setupCustomerAdminFilters();
