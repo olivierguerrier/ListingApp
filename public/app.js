@@ -878,6 +878,11 @@ function switchView(view) {
         console.log('[View] Switching to Items view...');
         itemsView.classList.add('active');
         itemsView.style.display = 'block';
+        itemsView.style.visibility = 'visible';
+        itemsView.style.opacity = '1';
+        console.log('[View] itemsView display:', itemsView.style.display);
+        console.log('[View] itemsView has active class:', itemsView.classList.contains('active'));
+        console.log('[View] itemsView offsetHeight:', itemsView.offsetHeight);
         console.log('[View] Calling loadItemNumbers()...');
         loadItemNumbers();
         console.log('[View] Calling loadItemsFilters()...');
