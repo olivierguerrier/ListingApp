@@ -2202,18 +2202,7 @@ document.getElementById('productsNextBtn').addEventListener('click', () => {
     }
 });
 
-// SKUs pagination
-document.getElementById('skusPrevBtn').addEventListener('click', () => {
-    if (skusPage > 1) {
-        loadSkus(skusPage - 1);
-    }
-});
-
-document.getElementById('skusNextBtn').addEventListener('click', () => {
-    if (skusPage < skusTotalPages) {
-        loadSkus(skusPage + 1);
-    }
-});
+// Removed SKU pagination - not needed anymore
 
 // Workflow Modal
 async function openWorkflowModal(asin, stageNumber) {

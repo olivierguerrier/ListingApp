@@ -1538,9 +1538,9 @@ app.put('/api/vendor-mapping/:id', authenticateToken, requireRole('sales person'
 // Get list of marketplaces from vendor mapping (legacy)
 app.get('/api/countries', (req, res) => {
   db.all(`
-    SELECT DISTINCT marketplace, country_code
+    SELECT DISTINCT keepa_marketplace as marketplace, customer_code as country_code
     FROM vendor_mapping
-    ORDER BY marketplace
+    ORDER BY keepa_marketplace
   `, [], (err, rows) => {
     if (err) {
       res.status(500).json({ error: err.message });
