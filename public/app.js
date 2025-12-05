@@ -330,6 +330,11 @@ let itemsLimit = 50;
 
 async function loadItemNumbers() {
     console.log('[Items] loadItemNumbers() called');
+    const tbody = document.getElementById('itemsTableBody');
+    if (tbody) {
+        tbody.innerHTML = '<tr><td colspan="11" style="text-align: center; padding: 20px; color: #666;">Loading...</td></tr>';
+    }
+    
     const search = document.getElementById('itemsSearchInput')?.value || '';
     const series = document.getElementById('itemsSeriesFilter')?.value || 'all';
     const taxonomy = document.getElementById('itemsTaxonomyFilter')?.value || 'all';
@@ -464,6 +469,8 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 // Items Event Listeners
+let itemsSearchTimeout;
+
 function setupItemsEventListeners() {
     const itemsSearchInput = document.getElementById('itemsSearchInput');
     const itemsSeriesFilter = document.getElementById('itemsSeriesFilter');
@@ -473,8 +480,11 @@ function setupItemsEventListeners() {
     
     if (itemsSearchInput) {
         itemsSearchInput.addEventListener('input', () => {
-            itemsCurrentPage = 1;
-            loadItemNumbers();
+            clearTimeout(itemsSearchTimeout);
+            itemsSearchTimeout = setTimeout(() => {
+                itemsCurrentPage = 1;
+                loadItemNumbers();
+            }, 500); // Debounce 500ms
         });
     }
     
