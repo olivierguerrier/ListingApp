@@ -364,13 +364,21 @@ async function loadItemNumbers() {
 }
 
 function renderItemsTable(items) {
+    console.log('[Items] renderItemsTable() called with', items?.length, 'items');
     const tbody = document.getElementById('itemsTableBody');
+    console.log('[Items] tbody element:', tbody);
+    
+    if (!tbody) {
+        console.error('[Items] itemsTableBody not found!');
+        return;
+    }
     
     if (!items || items.length === 0) {
         tbody.innerHTML = '<tr><td colspan="11" style="text-align: center; padding: 40px;">No items found</td></tr>';
         return;
     }
     
+    console.log('[Items] Rendering', items.length, 'rows...');
     tbody.innerHTML = items.map(item => `
         <tr>
             <td><strong>${escapeHtml(item.item_number)}</strong></td>
@@ -386,6 +394,7 @@ function renderItemsTable(items) {
             <td>${escapeHtml(item.product_number || '-')}</td>
         </tr>
     `).join('');
+    console.log('[Items] Rendered successfully');
 }
 
 function getStatusBadgeClass(status) {
