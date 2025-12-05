@@ -886,6 +886,7 @@ document.addEventListener('DOMContentLoaded', () => {
     setupEventListeners();
     setupCustomerAdminFilters();
     setupItemsEventListeners();
+    setupProductColumnFilterListeners(); // Setup product column filter click handlers
     
     // Close filters when clicking outside
     document.addEventListener('click', (e) => {
@@ -923,6 +924,40 @@ function setupItemsEventListeners() {
 }
 
 // Event Listeners
+function setupProductColumnFilterListeners() {
+    console.log('[Product Filters] Setting up column filter listeners...');
+    
+    // Add click listeners to each filterable column header
+    const filterMappings = [
+        { selector: 'th[onclick*="toggleProductFilter(\'name\')"]', type: 'name' },
+        { selector: 'th[onclick*="toggleProductFilter(\'brand\')"]', type: 'brand' },
+        { selector: 'th[onclick*="toggleProductFilter(\'asin\')"]', type: 'asin' },
+        { selector: 'th[onclick*="toggleProductFilter(\'primaryItem\')"]', type: 'primaryItem' },
+        { selector: 'th[onclick*="toggleProductFilter(\'sku\')"]', type: 'sku' }
+    ];
+    
+    filterMappings.forEach(({ selector, type }) => {
+        const element = document.querySelector(selector);
+        if (element) {
+            console.log('[Product Filters] Adding listener to:', type, element);
+            // Remove inline onclick to avoid conflicts
+            element.removeAttribute('onclick');
+            // Add event listener
+            element.addEventListener('click', (e) => {
+                console.log('[Product Filters] Column clicked:', type);
+                e.stopPropagation();
+                toggleProductFilter(type);
+            });
+            // Make sure cursor shows it's clickable
+            element.style.cursor = 'pointer';
+        } else {
+            console.warn('[Product Filters] Column not found:', type, selector);
+        }
+    });
+    
+    console.log('[Product Filters] Column filter listeners set up');
+}
+
 function setupEventListeners() {
     // View Tab Switching
     document.querySelectorAll('.tab-btn').forEach(btn => {
