@@ -358,22 +358,32 @@ function toggleProductFilter(filterType) {
     const filterEl = document.getElementById(filterId);
     console.log('[Product Filter] Found element:', filterEl);
     
+    if (!filterEl) {
+        console.error('[Product Filter] Element not found:', filterId);
+        return;
+    }
+    
     // Close other filters
     document.querySelectorAll('.column-filter').forEach(f => {
         if (f.id !== filterId) f.style.display = 'none';
     });
     
     // Toggle this filter
-    if (filterEl) {
-        if (filterEl.style.display === 'none' || !filterEl.style.display) {
-            filterEl.style.display = 'block';
-            console.log('[Product Filter] Showing filter:', filterId);
-        } else {
-            filterEl.style.display = 'none';
-            console.log('[Product Filter] Hiding filter:', filterId);
-        }
+    if (filterEl.style.display === 'none' || !filterEl.style.display) {
+        filterEl.style.display = 'block';
+        filterEl.style.visibility = 'visible';
+        filterEl.style.opacity = '1';
+        console.log('[Product Filter] Showing filter:', filterId);
+        console.log('[Product Filter] Filter dimensions:', {
+            width: filterEl.offsetWidth,
+            height: filterEl.offsetHeight,
+            display: window.getComputedStyle(filterEl).display,
+            position: window.getComputedStyle(filterEl).position,
+            zIndex: window.getComputedStyle(filterEl).zIndex
+        });
     } else {
-        console.error('[Product Filter] Element not found:', filterId);
+        filterEl.style.display = 'none';
+        console.log('[Product Filter] Hiding filter:', filterId);
     }
 }
 
@@ -412,6 +422,13 @@ function renderProductFilterOptions(filterType, data) {
     const optionsId = optionsIdMap[filterType];
     const optionsEl = document.getElementById(optionsId);
     
+    console.log('[Product Filter Render]', filterType, '- Options element:', optionsEl, '- Data count:', data?.length);
+    
+    if (!optionsEl) {
+        console.error('[Product Filter Render] Options element not found:', optionsId);
+        return;
+    }
+    
     if (!data || data.length === 0) {
         optionsEl.innerHTML = '<div style="padding: 8px; color: #9ca3af; font-size: 13px;">No options</div>';
         return;
@@ -427,6 +444,8 @@ function renderProductFilterOptions(filterType, data) {
             </div>
         `;
     }).join('');
+    
+    console.log('[Product Filter Render]', filterType, '- Rendered', data.length, 'options');
 }
 
 function applyProductFilter(filterType) {
