@@ -2202,12 +2202,23 @@ app.post('/api/sync/qpi', (req, res) => {
           db.run('BEGIN TRANSACTION');
           
           const insertStmt = db.prepare(`
-            INSERT OR IGNORE INTO products (asin, name, stage_5_product_ordered, created_at, updated_at)
-            VALUES (?, ?, 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+            INSERT OR IGNORE INTO products (asin, name, stage_5_product_ordered, stage_7_end_of_life, created_at, updated_at)
+            VALUES (?, ?, 1, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
           `);
           
+          let newProductsInserted = 0;
           asinList.forEach(asin => {
-            insertStmt.run([asin, `Product ${asin}`]);
+            const isNCF = ncfAsins.has(asin) ? 1 : 0;
+            insertStmt.run([asin, `Product ${asin}`, isNCF], function(err) {
+              if (err) {
+                console.error(`Error inserting product ${asin}:`, err.message);
+              } else if (this.changes > 0) {
+                newProductsInserted++;
+                if (isNCF) {
+                  console.log(`✓ Created ${asin} and marked as End of Life (NCF)`);
+                }
+              }
+            });
           });
           
           insertStmt.finalize();
@@ -2225,36 +2236,57 @@ app.post('/api/sync/qpi', (req, res) => {
             }
           });
           
-          // Update products with SKU information
-          console.log(`[QPI] Updating products with SKU data...`);
-          const updateStmt = db.prepare(`
-            UPDATE products 
-            SET stage_5_product_ordered = 1,
-                stage_7_end_of_life = ?,
-                updated_at = CURRENT_TIMESTAMP
-            WHERE asin = ?
-          `);
+          // Update products with SKU information and EOL status
+          console.log(`[QPI] Updating products with SKU data and EOL status...`);
           
-          let skusUpdated = 0;
-          let eolMarked = 0;
-          asinToSkus.forEach((skus, asin) => {
-            const isNCF = ncfAsins.has(asin) ? 1 : 0;
-            updateStmt.run([isNCF, asin], function(err) {
-              if (err) {
-                console.error(`Error updating product ${asin}:`, err.message);
-              } else if (this.changes > 0) {
-                skusUpdated++;
-                if (isNCF) {
-                  eolMarked++;
-                  console.log(`✓ Marked ${asin} as End of Life (NCF status)`);
+          db.run('BEGIN TRANSACTION', (err) => {
+            if (err) {
+              console.error('Error starting product update transaction:', err.message);
+              return;
+            }
+            
+            const updateStmt = db.prepare(`
+              UPDATE products 
+              SET stage_5_product_ordered = 1,
+                  stage_7_end_of_life = ?,
+                  updated_at = CURRENT_TIMESTAMP
+              WHERE asin = ?
+            `);
+            
+            let skusUpdated = 0;
+            let eolMarked = 0;
+            
+            asinToSkus.forEach((skus, asin) => {
+              const isNCF = ncfAsins.has(asin) ? 1 : 0;
+              updateStmt.run([isNCF, asin], function(err) {
+                if (err) {
+                  console.error(`Error updating product ${asin}:`, err.message);
+                } else if (this.changes > 0) {
+                  skusUpdated++;
+                  if (isNCF) {
+                    eolMarked++;
+                    console.log(`✓ Marked ${asin} as End of Life (NCF status)`);
+                  }
                 }
-              }
+              });
             });
-          });
-          
-          updateStmt.finalize(() => {
-            console.log(`[QPI] Updated ${skusUpdated} products with stage_5`);
-            console.log(`[QPI] Marked ${eolMarked} products as End of Life (NCF)`);
+            
+            updateStmt.finalize((err) => {
+              if (err) {
+                console.error('Error finalizing product updates:', err.message);
+                db.run('ROLLBACK');
+                return;
+              }
+              
+              db.run('COMMIT', (err) => {
+                if (err) {
+                  console.error('Error committing product updates:', err.message);
+                } else {
+                  console.log(`[QPI] Updated ${skusUpdated} products with stage_5`);
+                  console.log(`[QPI] Marked ${eolMarked} products as End of Life (NCF)`);
+                }
+              });
+            });
           });
           
           // Insert SKUs into product_skus table
