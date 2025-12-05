@@ -1,11 +1,17 @@
 const API_BASE = '/api';
 let currentUser = null;
 let users = [];
+let customerGroups = [];
+let customers = [];
+let fxRatesData = [];
+const changedFxRates = new Set();
 
 // Check authentication on page load
 document.addEventListener('DOMContentLoaded', () => {
     checkAuth();
     loadUsers();
+    loadCustomerGroups();
+    loadCustomers();
     loadFxRates();
     
     // Setup tab switching
@@ -16,13 +22,15 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     });
     
-    // Setup modal close handlers
-    document.querySelector('.close').addEventListener('click', closeUserModal);
+    // Setup form handlers
     document.getElementById('userForm').addEventListener('submit', handleUserSubmit);
+    document.getElementById('customerGroupForm').addEventListener('submit', handleCustomerGroupSubmit);
+    document.getElementById('customerForm').addEventListener('submit', handleCustomerSubmit);
     
+    // Close modals on outside click
     window.addEventListener('click', (e) => {
         if (e.target.classList.contains('modal')) {
-            closeUserModal();
+            e.target.style.display = 'none';
         }
     });
 });
@@ -30,16 +38,25 @@ document.addEventListener('DOMContentLoaded', () => {
 function switchTab(tab) {
     // Update tab buttons
     document.querySelectorAll('.tab-btn').forEach(btn => {
-        if (btn.dataset.tab === tab) {
-            btn.classList.add('active');
-        } else {
-            btn.classList.remove('active');
-        }
+        btn.classList.toggle('active', btn.dataset.tab === tab);
     });
     
     // Show/hide content
-    document.getElementById('usersTab').style.display = tab === 'users' ? 'block' : 'none';
-    document.getElementById('fxRatesTab').style.display = tab === 'fx-rates' ? 'block' : 'none';
+    document.querySelectorAll('.admin-tab-content').forEach(content => {
+        content.classList.remove('active');
+    });
+    
+    const tabMap = {
+        'users': 'usersTab',
+        'customer-groups': 'customerGroupsTab',
+        'customers': 'customersTab',
+        'fx-rates': 'fxRatesTab'
+    };
+    
+    const tabElement = document.getElementById(tabMap[tab]);
+    if (tabElement) {
+        tabElement.classList.add('active');
+    }
 }
 
 async function checkAuth() {
@@ -61,15 +78,21 @@ async function checkAuth() {
     document.getElementById('currentUser').textContent = user.full_name || user.username;
 }
 
+function getAuthHeaders() {
+    return {
+        'Authorization': `Bearer ${localStorage.getItem('token')}`,
+        'Content-Type': 'application/json'
+    };
+}
+
+// ============ USER MANAGEMENT ============
+
 async function loadUsers() {
-    const token = localStorage.getItem('token');
     const tableBody = document.getElementById('usersTableBody');
     
     try {
         const response = await fetch(`${API_BASE}/users`, {
-            headers: {
-                'Authorization': `Bearer ${token}`
-            }
+            headers: getAuthHeaders()
         });
         
         if (response.status === 401) {
@@ -81,7 +104,7 @@ async function loadUsers() {
         users = await response.json();
         renderUsers();
     } catch (error) {
-        tableBody.innerHTML = '<tr><td colspan="7" style="text-align: center; color: var(--danger);">Error loading users</td></tr>';
+        tableBody.innerHTML = '<tr><td colspan="7" style="text-align: center; color: #dc2626;">Error loading users</td></tr>';
     }
 }
 
@@ -112,7 +135,7 @@ function renderUsers() {
 }
 
 function openAddUserModal() {
-    document.getElementById('modalTitle').textContent = 'Add New User';
+    document.getElementById('userModalTitle').textContent = 'Add New User';
     document.getElementById('userForm').reset();
     document.getElementById('userId').value = '';
     document.getElementById('passwordHint').textContent = '*';
@@ -125,7 +148,7 @@ function editUser(userId) {
     const user = users.find(u => u.id === userId);
     if (!user) return;
     
-    document.getElementById('modalTitle').textContent = 'Edit User';
+    document.getElementById('userModalTitle').textContent = 'Edit User';
     document.getElementById('userId').value = user.id;
     document.getElementById('userUsername').value = user.username;
     document.getElementById('userEmail').value = user.email;
@@ -159,18 +182,13 @@ async function handleUserSubmit(e) {
     if (password) userData.password = password;
     if (userId) userData.is_active = is_active;
     
-    const token = localStorage.getItem('token');
-    
     try {
         const url = userId ? `${API_BASE}/users/${userId}` : `${API_BASE}/users`;
         const method = userId ? 'PUT' : 'POST';
         
         const response = await fetch(url, {
             method,
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${token}`
-            },
+            headers: getAuthHeaders(),
             body: JSON.stringify(userData)
         });
         
@@ -181,10 +199,10 @@ async function handleUserSubmit(e) {
             loadUsers();
             showSuccess(userId ? 'User updated successfully' : 'User created successfully');
         } else {
-            alert(data.error || 'Operation failed');
+            showError(data.error || 'Operation failed');
         }
     } catch (error) {
-        alert('Error: ' + error.message);
+        showError('Error: ' + error.message);
     }
 }
 
@@ -193,14 +211,10 @@ async function deleteUser(userId, username) {
         return;
     }
     
-    const token = localStorage.getItem('token');
-    
     try {
         const response = await fetch(`${API_BASE}/users/${userId}`, {
             method: 'DELETE',
-            headers: {
-                'Authorization': `Bearer ${token}`
-            }
+            headers: getAuthHeaders()
         });
         
         if (response.ok) {
@@ -208,42 +222,257 @@ async function deleteUser(userId, username) {
             showSuccess('User deleted successfully');
         } else {
             const data = await response.json();
-            alert(data.error || 'Delete failed');
+            showError(data.error || 'Delete failed');
         }
     } catch (error) {
-        alert('Error: ' + error.message);
+        showError('Error: ' + error.message);
     }
 }
 
-function logout() {
-    fetch(`${API_BASE}/auth/logout`, { method: 'POST' });
-    localStorage.clear();
-    window.location.href = '/login.html';
+// ============ CUSTOMER GROUPS ============
+
+async function loadCustomerGroups() {
+    try {
+        const response = await fetch(`${API_BASE}/customer-groups`, {
+            headers: getAuthHeaders()
+        });
+        
+        if (!response.ok) throw new Error('Failed to load customer groups');
+        
+        customerGroups = await response.json();
+        renderCustomerGroups();
+        populateCustomerGroupSelect();
+    } catch (error) {
+        console.error('Error loading customer groups:', error);
+    }
 }
 
-// ============ FX RATES MANAGEMENT ============
+function renderCustomerGroups() {
+    const tbody = document.getElementById('customerGroupsTableBody');
+    
+    if (customerGroups.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="5" style="text-align: center;">No customer groups found</td></tr>';
+        return;
+    }
+    
+    tbody.innerHTML = customerGroups.map(g => `
+        <tr>
+            <td><strong>${g.name}</strong></td>
+            <td>${g.customer_count}</td>
+            <td>${g.product_count}</td>
+            <td>${formatDate(g.created_at)}</td>
+            <td class="action-buttons">
+                <button class="btn btn-secondary btn-sm" onclick="editCustomerGroup(${g.id}, '${escapeHtml(g.name)}')">Edit</button>
+                <button class="btn btn-danger btn-sm" onclick="deleteCustomerGroup(${g.id}, '${escapeHtml(g.name)}')">Delete</button>
+            </td>
+        </tr>
+    `).join('');
+}
 
-let fxRatesData = [];
+function populateCustomerGroupSelect() {
+    const select = document.getElementById('customerGroupSelect');
+    select.innerHTML = '<option value="">Select Customer Group</option>';
+    customerGroups.forEach(g => {
+        select.innerHTML += `<option value="${g.id}">${g.name}</option>`;
+    });
+}
 
-async function loadFxRates() {
-    const token = localStorage.getItem('token');
+function openAddCustomerGroupModal() {
+    document.getElementById('customerGroupModalTitle').textContent = 'Add Customer Group';
+    document.getElementById('customerGroupForm').reset();
+    document.getElementById('customerGroupId').value = '';
+    document.getElementById('customerGroupModal').style.display = 'block';
+}
+
+function editCustomerGroup(id, name) {
+    document.getElementById('customerGroupModalTitle').textContent = 'Edit Customer Group';
+    document.getElementById('customerGroupId').value = id;
+    document.getElementById('customerGroupName').value = name;
+    document.getElementById('customerGroupModal').style.display = 'block';
+}
+
+function closeCustomerGroupModal() {
+    document.getElementById('customerGroupModal').style.display = 'none';
+}
+
+async function handleCustomerGroupSubmit(e) {
+    e.preventDefault();
+    
+    const id = document.getElementById('customerGroupId').value;
+    const name = document.getElementById('customerGroupName').value;
     
     try {
-        const response = await fetch(`${API_BASE}/fx-rates`, {
-            headers: {
-                'Authorization': `Bearer ${token}`
-            }
+        const url = id ? `${API_BASE}/customer-groups/${id}` : `${API_BASE}/customer-groups`;
+        const method = id ? 'PUT' : 'POST';
+        
+        const response = await fetch(url, {
+            method,
+            headers: getAuthHeaders(),
+            body: JSON.stringify({ name })
         });
         
         if (!response.ok) {
-            throw new Error('Failed to load FX rates');
+            const data = await response.json();
+            throw new Error(data.error || 'Operation failed');
         }
+        
+        closeCustomerGroupModal();
+        loadCustomerGroups();
+        showSuccess(id ? 'Customer group updated' : 'Customer group created');
+    } catch (error) {
+        showError(error.message);
+    }
+}
+
+async function deleteCustomerGroup(id, name) {
+    if (!confirm(`Are you sure you want to delete customer group "${name}"? This will delete all associated customers and products.`)) {
+        return;
+    }
+    
+    try {
+        const response = await fetch(`${API_BASE}/customer-groups/${id}`, {
+            method: 'DELETE',
+            headers: getAuthHeaders()
+        });
+        
+        if (response.ok) {
+            loadCustomerGroups();
+            loadCustomers();
+            showSuccess('Customer group deleted');
+        } else {
+            const data = await response.json();
+            showError(data.error || 'Delete failed');
+        }
+    } catch (error) {
+        showError(error.message);
+    }
+}
+
+// ============ CUSTOMERS ============
+
+async function loadCustomers() {
+    try {
+        const response = await fetch(`${API_BASE}/customers`, {
+            headers: getAuthHeaders()
+        });
+        
+        if (!response.ok) throw new Error('Failed to load customers');
+        
+        customers = await response.json();
+        renderCustomers();
+    } catch (error) {
+        console.error('Error loading customers:', error);
+    }
+}
+
+function renderCustomers() {
+    const tbody = document.getElementById('customersTableBody');
+    
+    if (customers.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="5" style="text-align: center;">No customers found</td></tr>';
+        return;
+    }
+    
+    tbody.innerHTML = customers.map(c => `
+        <tr>
+            <td><strong>${c.name}</strong></td>
+            <td>${c.customer_group_name}</td>
+            <td>${c.product_count}</td>
+            <td>${formatDate(c.created_at)}</td>
+            <td class="action-buttons">
+                <button class="btn btn-secondary btn-sm" onclick="editCustomer(${c.id}, '${escapeHtml(c.name)}', ${c.customer_group_id})">Edit</button>
+                <button class="btn btn-danger btn-sm" onclick="deleteCustomer(${c.id}, '${escapeHtml(c.name)}')">Delete</button>
+            </td>
+        </tr>
+    `).join('');
+}
+
+function openAddCustomerModal() {
+    document.getElementById('customerModalTitle').textContent = 'Add Customer';
+    document.getElementById('customerForm').reset();
+    document.getElementById('customerId').value = '';
+    document.getElementById('customerModal').style.display = 'block';
+}
+
+function editCustomer(id, name, customerGroupId) {
+    document.getElementById('customerModalTitle').textContent = 'Edit Customer';
+    document.getElementById('customerId').value = id;
+    document.getElementById('customerName').value = name;
+    document.getElementById('customerGroupSelect').value = customerGroupId;
+    document.getElementById('customerModal').style.display = 'block';
+}
+
+function closeCustomerModal() {
+    document.getElementById('customerModal').style.display = 'none';
+}
+
+async function handleCustomerSubmit(e) {
+    e.preventDefault();
+    
+    const id = document.getElementById('customerId').value;
+    const name = document.getElementById('customerName').value;
+    const customer_group_id = document.getElementById('customerGroupSelect').value;
+    
+    try {
+        const url = id ? `${API_BASE}/customers/${id}` : `${API_BASE}/customers`;
+        const method = id ? 'PUT' : 'POST';
+        
+        const response = await fetch(url, {
+            method,
+            headers: getAuthHeaders(),
+            body: JSON.stringify({ name, customer_group_id })
+        });
+        
+        if (!response.ok) {
+            const data = await response.json();
+            throw new Error(data.error || 'Operation failed');
+        }
+        
+        closeCustomerModal();
+        loadCustomers();
+        showSuccess(id ? 'Customer updated' : 'Customer created');
+    } catch (error) {
+        showError(error.message);
+    }
+}
+
+async function deleteCustomer(id, name) {
+    if (!confirm(`Are you sure you want to delete customer "${name}"? This will delete all associated products.`)) {
+        return;
+    }
+    
+    try {
+        const response = await fetch(`${API_BASE}/customers/${id}`, {
+            method: 'DELETE',
+            headers: getAuthHeaders()
+        });
+        
+        if (response.ok) {
+            loadCustomers();
+            showSuccess('Customer deleted');
+        } else {
+            const data = await response.json();
+            showError(data.error || 'Delete failed');
+        }
+    } catch (error) {
+        showError(error.message);
+    }
+}
+
+// ============ FX RATES ============
+
+async function loadFxRates() {
+    try {
+        const response = await fetch(`${API_BASE}/fx-rates`, {
+            headers: getAuthHeaders()
+        });
+        
+        if (!response.ok) throw new Error('Failed to load FX rates');
         
         fxRatesData = await response.json();
         renderFxRates();
     } catch (error) {
         console.error('Error loading FX rates:', error);
-        showMessage('Error loading FX rates: ' + error.message, 'error');
     }
 }
 
@@ -251,7 +480,7 @@ function renderFxRates() {
     const tbody = document.getElementById('fxRatesTableBody');
     
     if (fxRatesData.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="5" style="text-align: center; padding: 40px; color: var(--text-secondary);">No FX rates found</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="4" style="text-align: center; padding: 40px;">No FX rates found</td></tr>';
         return;
     }
     
@@ -270,12 +499,9 @@ function renderFxRates() {
                 />
             </td>
             <td>${rate.updated_at ? new Date(rate.updated_at).toLocaleString() : 'Never'}</td>
-            <td>${rate.updated_by || '-'}</td>
         </tr>
     `).join('');
 }
-
-const changedFxRates = new Set();
 
 function markFxRateChanged(rateId, newValue) {
     const rate = fxRatesData.find(r => r.id === rateId);
@@ -288,11 +514,10 @@ function markFxRateChanged(rateId, newValue) {
 
 async function saveFxRates() {
     if (changedFxRates.size === 0) {
-        showMessage('No changes to save', 'info');
+        showInfo('No changes to save');
         return;
     }
     
-    const token = localStorage.getItem('token');
     const ratesToUpdate = [];
     
     changedFxRates.forEach(rateId => {
@@ -300,56 +525,102 @@ async function saveFxRates() {
         const newRate = parseFloat(input.value);
         
         if (newRate > 0) {
-            ratesToUpdate.push({
-                id: rateId,
-                rate_to_usd: newRate
-            });
+            ratesToUpdate.push({ id: rateId, rate_to_usd: newRate });
         }
     });
     
     try {
         const response = await fetch(`${API_BASE}/fx-rates/bulk-update`, {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${token}`
-            },
+            headers: getAuthHeaders(),
             body: JSON.stringify({ rates: ratesToUpdate })
         });
         
         const result = await response.json();
         
         if (response.ok) {
-            showMessage(result.message || 'FX rates updated successfully!', 'success');
+            showSuccess(result.message || 'FX rates updated successfully!');
             changedFxRates.clear();
-            loadFxRates(); // Reload to show updated timestamps
+            loadFxRates();
         } else {
-            showMessage('Error: ' + (result.error || 'Failed to update FX rates'), 'error');
+            showError('Error: ' + (result.error || 'Failed to update FX rates'));
         }
     } catch (error) {
-        showMessage('Error updating FX rates: ' + error.message, 'error');
+        showError('Error updating FX rates: ' + error.message);
     }
 }
 
+// ============ UTILITIES ============
+
+function logout() {
+    fetch(`${API_BASE}/auth/logout`, { method: 'POST' });
+    localStorage.clear();
+    window.location.href = '/login.html';
+}
+
+function formatDate(dateStr) {
+    if (!dateStr) return '-';
+    return new Date(dateStr).toLocaleDateString();
+}
+
+function escapeHtml(str) {
+    if (!str) return '';
+    return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+}
+
 function showSuccess(message) {
-    // Simple success notification
-    const notification = document.createElement('div');
-    notification.style.cssText = `
+    showToast(message, 'success');
+}
+
+function showError(message) {
+    showToast(message, 'error');
+}
+
+function showInfo(message) {
+    showToast(message, 'info');
+}
+
+function showToast(message, type = 'info') {
+    const toast = document.createElement('div');
+    toast.style.cssText = `
         position: fixed;
         top: 20px;
         right: 20px;
-        background: #10b981;
-        color: white;
-        padding: 15px 20px;
+        padding: 15px 25px;
         border-radius: 8px;
-        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        color: white;
+        font-weight: 500;
         z-index: 10000;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        animation: slideIn 0.3s ease;
     `;
-    notification.textContent = message;
-    document.body.appendChild(notification);
-    
+    toast.style.background = type === 'success' ? '#10b981' : type === 'error' ? '#ef4444' : '#3b82f6';
+    toast.textContent = message;
+    document.body.appendChild(toast);
     setTimeout(() => {
-        notification.remove();
+        toast.style.animation = 'slideOut 0.3s ease';
+        setTimeout(() => toast.remove(), 300);
     }, 3000);
 }
 
+// Expose functions globally for onclick handlers
+window.openAddUserModal = openAddUserModal;
+window.editUser = editUser;
+window.closeUserModal = closeUserModal;
+window.deleteUser = deleteUser;
+window.openAddCustomerGroupModal = openAddCustomerGroupModal;
+window.editCustomerGroup = editCustomerGroup;
+window.closeCustomerGroupModal = closeCustomerGroupModal;
+window.deleteCustomerGroup = deleteCustomerGroup;
+window.openAddCustomerModal = openAddCustomerModal;
+window.editCustomer = editCustomer;
+window.closeCustomerModal = closeCustomerModal;
+window.deleteCustomer = deleteCustomer;
+window.saveFxRates = saveFxRates;
+window.markFxRateChanged = markFxRateChanged;
+window.logout = logout;

@@ -1528,3 +1528,226 @@ th > div {
 #productsView th {
     position: relative;
 }
+
+/* Status badges for product status */
+.status-badge {
+    padding: 4px 12px;
+    border-radius: 12px;
+    font-size: 12px;
+    font-weight: 600;
+    display: inline-block;
+}
+
+.status-existing {
+    background: #d1fae5;
+    color: #065f46;
+}
+
+.status-new {
+    background: #dbeafe;
+    color: #1e40af;
+}
+
+.status-ncf {
+    background: #fee2e2;
+    color: #991b1b;
+}
+
+/* PIM badges */
+.pim-badge {
+    padding: 3px 8px;
+    border-radius: 4px;
+    font-size: 11px;
+    background: #f3f4f6;
+    color: #4b5563;
+}
+
+.pim-finalized {
+    background: #d1fae5;
+    color: #065f46;
+}
+
+/* Product detail modal */
+.product-detail-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 30px;
+}
+
+@media (max-width: 768px) {
+    .product-detail-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+.detail-section {
+    background: var(--background);
+    padding: 20px;
+    border-radius: 8px;
+}
+
+.detail-section h3 {
+    margin-bottom: 15px;
+    color: var(--text-primary);
+    border-bottom: 2px solid var(--primary-color);
+    padding-bottom: 8px;
+}
+
+.detail-table {
+    width: 100%;
+}
+
+.detail-table td {
+    padding: 8px 0;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.detail-table td:first-child {
+    color: var(--text-secondary);
+    font-size: 13px;
+    width: 40%;
+}
+
+.detail-table td:last-child {
+    font-weight: 500;
+}
+
+/* Admin tables */
+.admin-table {
+    width: 100%;
+    border-collapse: collapse;
+    background: var(--card-background);
+    border-radius: 8px;
+    overflow: hidden;
+}
+
+.admin-table th,
+.admin-table td {
+    padding: 12px 15px;
+    text-align: left;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.admin-table th {
+    background: var(--background);
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.admin-table tr:hover {
+    background: #f9fafb;
+}
+
+/* Button small variants */
+.btn-sm {
+    padding: 6px 12px;
+    font-size: 12px;
+    border-radius: 6px;
+    cursor: pointer;
+    border: none;
+    transition: all 0.2s;
+}
+
+.btn-sm.btn-primary {
+    background: var(--primary-color);
+    color: var(--text-primary);
+}
+
+.btn-sm.btn-secondary {
+    background: #e5e7eb;
+    color: var(--text-primary);
+}
+
+.btn-sm.btn-danger {
+    background: #ef4444;
+    color: white;
+}
+
+.btn-sm:hover {
+    opacity: 0.9;
+    transform: translateY(-1px);
+}
+
+/* Spinner */
+.spinner {
+    width: 40px;
+    height: 40px;
+    border: 4px solid #e5e7eb;
+    border-top-color: var(--primary-color);
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+    margin: 0 auto 15px;
+}
+
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
+
+@keyframes slideIn {
+    from { transform: translateX(100%); opacity: 0; }
+    to { transform: translateX(0); opacity: 1; }
+}
+
+@keyframes slideOut {
+    from { transform: translateX(0); opacity: 1; }
+    to { transform: translateX(100%); opacity: 0; }
+}
+
+/* Card header */
+.card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+    padding-bottom: 15px;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.card-header h2 {
+    margin: 0;
+}
+
+/* Stage circles for lifecycle */
+.stage-circle {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    font-size: 12px;
+    font-weight: 600;
+    transition: all 0.2s ease;
+}
+
+.stage-complete {
+    background: #10b981;
+    color: white;
+}
+
+.stage-incomplete {
+    background: #e5e7eb;
+    color: #6b7280;
+}
+
+.stage-clickable {
+    cursor: pointer;
+}
+
+.stage-clickable:hover {
+    transform: scale(1.15);
+    box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+}
+
+.stage-clickable.stage-incomplete:hover {
+    background: #d1d5db;
+}
+
+.stage-clickable.stage-complete:hover {
+    background: #059669;
+}
+
+/* Stage 6 (EOL) special styling */
+.stage-circle[title="End of Life"].stage-complete {
+    background: #ef4444;
+}

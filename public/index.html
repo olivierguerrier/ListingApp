@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Amazon Vendor Central Tracker</title>
+    <title>Product Listing Manager</title>
     <link rel="stylesheet" href="styles.css">
 </head>
 <body>
@@ -31,6 +31,14 @@
                 </a>
             </div>
             
+            <!-- Upload -->
+            <div class="sidebar-section">
+                <button class="sidebar-item" id="sidebarUploadBtn">
+                    <span class="sidebar-icon">📤</span>
+                    <span>Upload Products</span>
+                </button>
+            </div>
+            
             <!-- Export -->
             <div class="sidebar-section">
                 <button class="sidebar-item" id="sidebarExportBtn">
@@ -51,26 +59,6 @@
                         <span class="sidebar-icon">📊</span>
                         <span>Sync PIM Data</span>
                     </button>
-                    <button class="sidebar-subitem" id="sidebarSyncVcBtn">
-                        <span class="sidebar-icon">🏪</span>
-                        <span>Sync VC Data</span>
-                    </button>
-                    <button class="sidebar-subitem" id="sidebarSyncQpiBtn">
-                        <span class="sidebar-icon">📦</span>
-                        <span>Sync QPI Data</span>
-                    </button>
-                    <button class="sidebar-subitem" id="sidebarImportQpiBtn">
-                        <span class="sidebar-icon">📥</span>
-                        <span>Import from QPI</span>
-                    </button>
-                    <button class="sidebar-subitem" id="sidebarSyncVariationsBtn">
-                        <span class="sidebar-icon">🔗</span>
-                        <span>Sync Variations</span>
-                    </button>
-                    <button class="sidebar-subitem" id="sidebarSyncOnlineBtn">
-                        <span class="sidebar-icon">🌐</span>
-                        <span>Sync Online Status</span>
-                    </button>
                 </div>
             </div>
         </nav>
@@ -83,925 +71,305 @@
         <header>
             <div style="display: flex; align-items: center; gap: 20px;">
                 <button id="sidebarToggle" class="btn btn-secondary">☰ Menu</button>
-                <h1>Amazon Vendor Central Item Tracker</h1>
+                <h1>Product Listing Manager</h1>
             </div>
             <div style="display: flex; gap: 10px;">
-                <button id="addItemBtn" class="btn btn-primary">+ Add New Item</button>
+                <button id="uploadBtn" class="btn btn-primary">📤 Upload Products</button>
             </div>
         </header>
 
         <!-- View Tabs -->
         <div class="view-tabs">
-            <button class="tab-btn active" data-view="products">Products (by ASIN)</button>
-            <button class="tab-btn" data-view="pricing-approvals" id="pricingApprovalsTab" style="display: none;">💰 Pricing Approvals</button>
+            <button class="tab-btn active" data-view="products">📦 Products</button>
+            <button class="tab-btn" data-view="items" id="itemsViewTab">📋 Item Numbers (PIM)</button>
             <button class="tab-btn" data-view="customer-admin" id="customerAdminViewTab" style="display: none;">🏢 Customer Admin</button>
-            <button class="tab-btn" data-view="items" id="itemsViewTab">📦 Items</button>
-            <button class="tab-btn" data-view="reports">Reports</button>
-            <button class="tab-btn" data-view="database">Database Explorer</button>
+            <button class="tab-btn" data-view="database">🗄️ Database Explorer</button>
         </div>
 
         <!-- Products View -->
         <div id="productsView" class="view-container active">
-            <!-- Filters - Only for Products View -->
+            <!-- Filters -->
             <div class="filters">
-                <input type="text" id="searchInput" placeholder="Search by ASIN, SKU or name..." class="search-input">
+                <input type="text" id="searchInput" placeholder="Search by Customer Number, Item Number, or Description..." class="search-input">
                 
-                <select id="productStatusFilter" class="filter-select">
-                    <option value="all">All Stages</option>
-                    <option value="stage_1">Stage 1: Ideation</option>
-                    <option value="stage_2">Stage 2: PIM Finalized</option>
-                    <option value="stage_4">Stage 3: VC Listed</option>
-                    <option value="stage_5">Stage 4: Ordered [In QPI]</option>
-                    <option value="stage_6">Stage 5: Available Online</option>
-                    <option value="stage_7">Stage 6: End of Life</option>
+                <select id="customerGroupFilter" class="filter-select">
+                    <option value="">All Customer Groups</option>
                 </select>
                 
-                <select id="countryFilter" class="filter-select">
-                    <option value="all">All Countries</option>
-                    <option value="loading">Loading countries...</option>
+                <select id="customerFilter" class="filter-select">
+                    <option value="">All Customers</option>
                 </select>
                 
-                <select id="tempFilter" class="filter-select">
-                    <option value="all">All ASINs</option>
-                    <option value="temp">Temp ASINs Only</option>
-                    <option value="permanent">Permanent ASINs Only</option>
+                <select id="statusFilter" class="filter-select">
+                    <option value="">All Statuses</option>
+                    <option value="Existing">Existing</option>
+                    <option value="New">New</option>
+                    <option value="NCF">NCF</option>
                 </select>
                 
-                <select id="missingFilter" class="filter-select">
-                    <option value="all">All Products</option>
-                    <option value="missing">Missing from VM</option>
-                    <option value="present">Present in VM</option>
+                <select id="stageFilter" class="filter-select">
+                    <option value="">All Stages</option>
+                    <option value="1">Stage 1: Ideation</option>
+                    <option value="2">Stage 2: PIM Listed</option>
+                    <option value="2.5">Stage 2.5: Pricing Approved</option>
+                    <option value="3">Stage 3: In QPI</option>
+                    <option value="4">Stage 4: Listed with Customer</option>
+                    <option value="5">Stage 5: Available</option>
+                    <option value="6">Stage 6: End of Life</option>
                 </select>
                 
-                <!-- Item Number Filters (based on primary_item_number) -->
-                <select id="productSeriesFilter" class="filter-select" multiple size="1">
-                    <option value="">All Series</option>
-                </select>
-                
-                <select id="productTaxonomyFilter" class="filter-select" multiple size="1">
-                    <option value="">All Taxonomies</option>
-                </select>
-                
-                <select id="productLegalNameFilter" class="filter-select" multiple size="1">
-                    <option value="">All Legal Names</option>
-                </select>
-                
-                <select id="productAgeGradeFilter" class="filter-select" multiple size="1">
-                    <option value="">All Age Grades</option>
-                </select>
-                
-                <select id="productItemStatusFilter" class="filter-select" multiple size="1">
-                    <option value="">All Item Statuses</option>
-                </select>
-                
-                <select id="productDevStatusFilter" class="filter-select" multiple size="1">
-                    <option value="">All Dev Statuses</option>
-                </select>
-                
-                <!-- Brand Filter with Search -->
-                <div class="multi-select-wrapper">
-                    <input type="text" id="brandSearch" class="filter-search" placeholder="🔍 Search Brands..." />
-                    <select id="productBrandFilter" class="filter-select" multiple size="5" style="min-width: 180px;">
-                        <option value="">All Brands</option>
-                    </select>
-                </div>
-                
-                <!-- Bundle Filter with Search -->
-                <div class="multi-select-wrapper">
-                    <input type="text" id="bundleSearch" class="filter-search" placeholder="🔍 Search Bundles..." />
-                    <select id="bundleFilter" class="filter-select" multiple size="5" style="min-width: 180px;">
-                        <option value="">All Bundles</option>
-                    </select>
-                </div>
-                
-                <!-- PPG Filter with Search -->
-                <div class="multi-select-wrapper">
-                    <input type="text" id="ppgSearch" class="filter-search" placeholder="🔍 Search PPG..." />
-                    <select id="ppgFilter" class="filter-select" multiple size="5" style="min-width: 180px;">
-                        <option value="">All PPG</option>
-                    </select>
-                </div>
+                <button id="applyFiltersBtn" class="btn btn-primary">Apply Filters</button>
+                <button id="clearFiltersBtn" class="btn btn-secondary">Clear</button>
             </div>
-            <div class="table-wrapper">
-                <table class="products-table">
+
+            <!-- Products Table -->
+            <div class="table-container">
+                <table id="productsTable">
                     <thead>
                         <tr>
-                            <th style="text-align: center; cursor: pointer;" onclick="toggleProductFilter('name')" title="Click to filter">
-                                <div style="display: flex; align-items: center; justify-content: center; gap: 5px;">
-                                    Name <span style="font-size: 10px;">▼</span>
-                                </div>
-                                <div id="productNameFilter" class="column-filter" style="display: none;" onclick="event.stopPropagation()">
-                                    <input type="text" placeholder="Search..." class="filter-search" oninput="filterProductColumnOptions('name', this.value)">
-                                    <div class="filter-options" id="productNameOptions"></div>
-                                    <div class="filter-actions">
-                                        <button onclick="applyProductFilter('name')" class="btn btn-primary btn-sm">Apply</button>
-                                        <button onclick="clearProductFilter('name')" class="btn btn-secondary btn-sm">Clear</button>
-                                    </div>
-                                </div>
-                            </th>
-                            <th style="text-align: center; cursor: pointer;" onclick="toggleProductFilter('brand')" title="Click to filter">
-                                <div style="display: flex; align-items: center; justify-content: center; gap: 5px;">
-                                    Brand <span style="font-size: 10px;">▼</span>
-                                </div>
-                                <div id="productBrandColumnFilter" class="column-filter" style="display: none;" onclick="event.stopPropagation()">
-                                    <input type="text" placeholder="Search..." class="filter-search" oninput="filterProductColumnOptions('brand', this.value)">
-                                    <div class="filter-options" id="productBrandColumnOptions"></div>
-                                    <div class="filter-actions">
-                                        <button onclick="applyProductFilter('brand')" class="btn btn-primary btn-sm">Apply</button>
-                                        <button onclick="clearProductFilter('brand')" class="btn btn-secondary btn-sm">Clear</button>
-                                    </div>
-                                </div>
-                            </th>
-                            <th style="text-align: center; cursor: pointer;" onclick="toggleProductFilter('asin')" title="Click to filter">
-                                <div style="display: flex; align-items: center; justify-content: center; gap: 5px;">
-                                    ASIN <span style="font-size: 10px;">▼</span>
-                                </div>
-                                <div id="productAsinFilter" class="column-filter" style="display: none;" onclick="event.stopPropagation()">
-                                    <input type="text" placeholder="Search..." class="filter-search" oninput="filterProductColumnOptions('asin', this.value)">
-                                    <div class="filter-options" id="productAsinOptions"></div>
-                                    <div class="filter-actions">
-                                        <button onclick="applyProductFilter('asin')" class="btn btn-primary btn-sm">Apply</button>
-                                        <button onclick="clearProductFilter('asin')" class="btn btn-secondary btn-sm">Clear</button>
-                                    </div>
-                                </div>
-                            </th>
-                            <th style="text-align: center; cursor: pointer;" onclick="toggleProductFilter('primaryItem')" title="Click to filter">
-                                <div style="display: flex; align-items: center; justify-content: center; gap: 5px;">
-                                    Primary Item # <span style="font-size: 10px;">▼</span>
-                                </div>
-                                <div id="productPrimaryItemFilter" class="column-filter" style="display: none;" onclick="event.stopPropagation()">
-                                    <input type="text" placeholder="Search..." class="filter-search" oninput="filterProductColumnOptions('primaryItem', this.value)">
-                                    <div class="filter-options" id="productPrimaryItemOptions"></div>
-                                    <div class="filter-actions">
-                                        <button onclick="applyProductFilter('primaryItem')" class="btn btn-primary btn-sm">Apply</button>
-                                        <button onclick="clearProductFilter('primaryItem')" class="btn btn-secondary btn-sm">Clear</button>
-                                    </div>
-                                </div>
-                            </th>
-                            <th style="text-align: center; cursor: pointer;" onclick="toggleProductFilter('sku')" title="Click to filter">
-                                <div style="display: flex; align-items: center; justify-content: center; gap: 5px;">
-                                    SKU(s) <span style="font-size: 10px;">▼</span>
-                                </div>
-                                <div id="productSkuFilter" class="column-filter" style="display: none;" onclick="event.stopPropagation()">
-                                    <input type="text" placeholder="Search..." class="filter-search" oninput="filterProductColumnOptions('sku', this.value)">
-                                    <div class="filter-options" id="productSkuOptions"></div>
-                                    <div class="filter-actions">
-                                        <button onclick="applyProductFilter('sku')" class="btn btn-primary btn-sm">Apply</button>
-                                        <button onclick="clearProductFilter('sku')" class="btn btn-secondary btn-sm">Clear</button>
-                                    </div>
-                                </div>
-                            </th>
-                            <th style="text-align: center;" title="Stage 1: Idea Considered">S1: Ideation</th>
-                            <th style="text-align: center;" title="Stage 2: Product Finalized">S2: PIM</th>
-                            <th style="text-align: center;" title="Stage 2.5: Pricing Approved">S2.5: Pricing</th>
-                            <th style="text-align: center;" title="Stage 3: VC Listed">S3: VC Listed</th>
-                            <th style="text-align: center;" title="Stage 4: Product Ordered">S4: QPI</th>
-                            <th style="text-align: center;" title="Stage 5: Online">S5: Online</th>
-                            <th style="text-align: center;" title="Stage 6: End of Life">S6: EOL</th>
-                            <th style="text-align: center;">Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody id="itemsTableBody">
-                        <!-- Products will be dynamically loaded here -->
-                    </tbody>
-                </table>
-            </div>
-            <div class="pagination-controls">
-                <button id="productsPrevBtn" class="btn btn-secondary">← Previous</button>
-                <span id="productsPageInfo">Page 1 of 1</span>
-                <button id="productsNextBtn" class="btn btn-secondary">Next →</button>
-            </div>
-        </div>
-        <!-- Reports View -->
-        <div id="reportsView" class="view-container" style="display: none;">
-            <div style="margin-bottom: 30px;">
-                <h2 style="margin-bottom: 10px;">📊 Reports</h2>
-                <p style="color: var(--text-secondary);">Generate reports to identify gaps in your workflow</p>
-            </div>
-
-            <div class="reports-grid">
-                <!-- Report 1: Temporary ASINs not in PIM -->
-                <div class="report-card">
-                    <div class="report-header">
-                        <h3>🔴 Temporary ASINs Not in PIM</h3>
-                        <p>ASINs that don't have an Item Number assigned yet</p>
-                    </div>
-                    <div class="report-actions">
-                        <button class="btn btn-primary" onclick="generateReport('temp-asins')">
-                            Generate Report
-                        </button>
-                    </div>
-                    <div id="tempAsinsReport" class="report-results" style="display: none;">
-                        <!-- Results will be loaded here -->
-                    </div>
-                </div>
-
-                <!-- Report 2: PIM SKUs not in VC -->
-                <div class="report-card">
-                    <div class="report-header">
-                        <h3>🟡 PIM SKUs Not in VC</h3>
-                        <p>Products with Item Numbers but not yet listed in Vendor Central</p>
-                    </div>
-                    <div class="report-actions">
-                        <button class="btn btn-primary" onclick="generateReport('pim-not-vc')">
-                            Generate Report
-                        </button>
-                    </div>
-                    <div id="pimNotVcReport" class="report-results" style="display: none;">
-                        <!-- Results will be loaded here -->
-                    </div>
-                </div>
-
-                <!-- Report 3: VC SKUs not in QPI -->
-                <div class="report-card">
-                    <div class="report-header">
-                        <h3>🟠 VC Listed Products Not in QPI</h3>
-                        <p>Products listed in Vendor Central but not yet ordered</p>
-                    </div>
-                    <div class="report-actions">
-                        <button class="btn btn-primary" onclick="generateReport('vc-not-qpi')">
-                            Generate Report
-                        </button>
-                    </div>
-                    <div id="vcNotQpiReport" class="report-results" style="display: none;">
-                        <!-- Results will be loaded here -->
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Database View -->
-        <div id="databaseView" class="view-container" style="display: none;">
-            <div class="database-container">
-                <div class="db-sidebar">
-                    <h3>Tables</h3>
-                    <div class="table-list">
-                        <button class="table-btn active" data-table="products">products</button>
-                        <button class="table-btn" data-table="product_skus">product_skus</button>
-                        <button class="table-btn" data-table="product_country_pricing">product_country_pricing</button>
-                        <button class="table-btn" data-table="flow_stage_history">flow_stage_history</button>
-                        <button class="table-btn" data-table="temp_asin_counter">temp_asin_counter</button>
-                    </div>
-                </div>
-                <div class="db-content">
-                    <div class="db-header">
-                        <h2 id="dbTableName">products</h2>
-                        <div class="db-stats">
-                            <span id="dbRowCount">Loading...</span>
-                        </div>
-                    </div>
-                    <div class="db-table-wrapper">
-                        <table id="dbTable" class="db-table">
-                            <thead id="dbTableHead"></thead>
-                            <tbody id="dbTableBody"></tbody>
-                        </table>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Add/Edit Item Modal -->
-    <div id="itemModal" class="modal">
-        <div class="modal-content">
-            <span class="close">&times;</span>
-            <h2 id="modalTitle">Add New Item</h2>
-            <form id="itemForm">
-                <input type="hidden" id="itemId">
-                
-                <div class="form-group">
-                    <label for="sku">Ideation ID / SKU *</label>
-                    <input type="text" id="sku" required placeholder="e.g., IDEA-2025-001">
-                </div>
-
-                <div class="form-group">
-                    <label for="country">Country * (Hold Ctrl/Cmd to select multiple)</label>
-                    <select id="country" multiple required style="height: 150px;">
-                        <option value="US">United States</option>
-                        <option value="CA">Canada</option>
-                        <option value="MX">Mexico</option>
-                        <option value="UK">United Kingdom</option>
-                        <option value="DE">Germany</option>
-                        <option value="FR">France</option>
-                        <option value="IT">Italy</option>
-                        <option value="ES">Spain</option>
-                        <option value="JP">Japan</option>
-                        <option value="AU">Australia</option>
-                    </select>
-                    <small style="color: var(--text-secondary); font-size: 12px; display: block; margin-top: 5px;">
-                        You can select multiple countries for this product
-                    </small>
-                </div>
-
-                <div class="form-group">
-                    <label for="itemNumber">Item Number (if known)</label>
-                    <input type="text" id="itemNumber" placeholder="e.g., BX2445Z">
-                    <small style="color: var(--text-secondary); font-size: 12px;">Link to existing SKU when available</small>
-                </div>
-
-                <div class="form-group">
-                    <label for="brand">Brand</label>
-                    <input type="text" id="brand" placeholder="e.g., Battat">
-                </div>
-
-                <div class="form-group">
-                    <label for="description">Description</label>
-                    <textarea id="description" rows="3" placeholder="Product description or notes"></textarea>
-                </div>
-
-                <div class="form-group">
-                    <label for="seasonLaunch">First Order Date</label>
-                    <input type="date" id="seasonLaunch" placeholder="Select expected order date">
-                </div>
-
-                <!-- Advanced fields - hidden by default for new items -->
-                <div id="advancedFields" style="display: none;">
-                    <hr style="margin: 20px 0; border: none; border-top: 1px solid var(--border-color);">
-                    <h3 style="margin-bottom: 15px;">Additional Details</h3>
-                    
-                    <div class="form-group">
-                        <label for="asin">ASIN</label>
-                        <input type="text" id="asin" placeholder="e.g., B07SVVPV34">
-                    </div>
-
-                    <div class="form-group">
-                        <label for="name">Product Name</label>
-                        <input type="text" id="name">
-                    </div>
-                </div>
-
-                <div class="form-actions">
-                    <button type="button" class="btn btn-secondary" id="toggleAdvancedBtn" style="display: none;">Show Advanced Fields</button>
-                    <button type="button" class="btn btn-secondary" id="cancelBtn">Cancel</button>
-                    <button type="submit" class="btn btn-primary">Save Item</button>
-                </div>
-            </form>
-        </div>
-    </div>
-
-    <!-- Pricing Modal -->
-    <div id="pricingModal" class="modal">
-        <div class="modal-content modal-large">
-            <span class="close">&times;</span>
-            <h2>Manage Pricing - <span id="pricingItemName"></span></h2>
-            <p class="sku-display">SKU: <span id="pricingSku"></span></p>
-
-            <div class="pricing-form">
-                <h3>Add Country Pricing</h3>
-                <form id="pricingForm">
-                    <input type="hidden" id="pricingItemId">
-                    
-                    <div class="form-row">
-                        <div class="form-group">
-                            <label for="countryCode">Country *</label>
-                            <select id="countryCode" required>
-                                <option value="">Select Country</option>
-                                <option value="US" data-currency="USD">United States</option>
-                                <option value="CA" data-currency="CAD">Canada</option>
-                                <option value="MX" data-currency="MXN">Mexico</option>
-                                <option value="UK" data-currency="GBP">United Kingdom</option>
-                                <option value="DE" data-currency="EUR">Germany</option>
-                                <option value="FR" data-currency="EUR">France</option>
-                                <option value="IT" data-currency="EUR">Italy</option>
-                                <option value="ES" data-currency="EUR">Spain</option>
-                                <option value="JP" data-currency="JPY">Japan</option>
-                                <option value="AU" data-currency="AUD">Australia</option>
-                            </select>
-                        </div>
-
-                        <div class="form-group">
-                            <label for="currency">Local Currency *</label>
-                            <select id="currency" required>
-                                <option value="">Auto-filled from country</option>
-                                <option value="USD">USD</option>
-                                <option value="CAD">CAD</option>
-                                <option value="MXN">MXN</option>
-                                <option value="GBP">GBP</option>
-                                <option value="EUR">EUR</option>
-                                <option value="JPY">JPY</option>
-                                <option value="AUD">AUD</option>
-                            </select>
-                        </div>
-                    </div>
-
-                    <div class="form-row">
-                        <div class="form-group">
-                            <label for="sellPrice">Sell Price (USD) *</label>
-                            <input type="number" id="sellPrice" step="0.01" min="0" required>
-                            <small style="color: var(--text-secondary); font-size: 12px;">Always in USD</small>
-                        </div>
-                        
-                        <div class="form-group">
-                            <label for="retailPrice">Retail Price (Local Currency) *</label>
-                            <input type="number" id="retailPrice" step="0.01" min="0" required>
-                            <small style="color: var(--text-secondary); font-size: 12px;" id="retailCurrencyHint">In local currency</small>
-                        </div>
-                    </div>
-
-                    <button type="submit" class="btn btn-primary">Submit for Approval</button>
-                </form>
-            </div>
-
-            <div class="pricing-table">
-                <h3>Current Pricing & VC Listing Status</h3>
-                <table id="pricingTable">
-                    <thead>
-                        <tr>
-                            <th>Country</th>
-                            <th>Sell Price (USD)</th>
-                            <th>Retail Price</th>
-                            <th>Approval Status</th>
-                            <th>VC Listed</th>
+                            <th>Customer Group</th>
+                            <th>Customer</th>
+                            <th>Customer #</th>
+                            <th>Item #</th>
+                            <th>Description</th>
+                            <th style="text-align: center; font-size: 11px; white-space: nowrap;">Ideation</th>
+                            <th style="text-align: center; font-size: 11px; white-space: nowrap;">PIM</th>
+                            <th style="text-align: center; font-size: 11px; white-space: nowrap;">Pricing</th>
+                            <th style="text-align: center; font-size: 11px; white-space: nowrap;">QPI</th>
+                            <th style="text-align: center; font-size: 11px; white-space: nowrap;">Listed</th>
+                            <th style="text-align: center; font-size: 11px; white-space: nowrap;">Available</th>
+                            <th style="text-align: center; font-size: 11px; white-space: nowrap;">EOL</th>
+                            <th>Sell Price</th>
                             <th>Actions</th>
                         </tr>
                     </thead>
-                    <tbody id="pricingTableBody">
-                        <!-- Pricing rows will be added here -->
+                    <tbody id="productsTableBody">
+                        <tr>
+                            <td colspan="14" style="text-align: center; padding: 40px;">Loading...</td>
+                        </tr>
                     </tbody>
                 </table>
             </div>
-        </div>
-    </div>
 
-    <!-- Pricing Approvals View -->
-    <div id="pricingApprovalsView" class="view-container" style="display: none;">
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
-            <h2>💰 Pricing Approvals</h2>
+            <!-- Pagination -->
+            <div class="pagination" id="productsPagination">
+                <button id="prevPage" class="btn btn-secondary" disabled>← Previous</button>
+                <span id="pageInfo">Page 1 of 1</span>
+                <button id="nextPage" class="btn btn-secondary" disabled>Next →</button>
+            </div>
         </div>
-        
-        <div id="pricingApprovalsContainer">
-            <p style="text-align: center; padding: 40px;">Loading pricing submissions...</p>
-        </div>
-    </div>
-    
-    <!-- Items View (PIM Extract Data) -->
-    <div id="itemsView" class="view-container" style="display: none;">
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
-            <h2>📦 Item Numbers (PIM Extract)</h2>
-        </div>
-        
-        <!-- Items Table -->
-        <div class="table-wrapper">
-            <table class="products-table">
-                <thead>
-                    <tr>
-                        <th style="text-align: center; cursor: pointer;" onclick="toggleItemFilter('itemNumber')" title="Click to filter">
-                            <div style="display: flex; align-items: center; justify-content: center; gap: 5px;">
-                                Item Number <span style="font-size: 10px;">▼</span>
-                            </div>
-                            <div id="itemNumberFilter" class="column-filter" style="display: none;" onclick="event.stopPropagation()">
-                                <input type="text" placeholder="Search..." class="filter-search" oninput="filterColumnOptions('itemNumber', this.value)">
-                                <div class="filter-options" id="itemNumberOptions"></div>
-                                <div class="filter-actions">
-                                    <button onclick="applyItemFilter('itemNumber')" class="btn btn-primary btn-sm">Apply</button>
-                                    <button onclick="clearItemFilter('itemNumber')" class="btn btn-secondary btn-sm">Clear</button>
-                                </div>
-                            </div>
-                        </th>
-                        <th style="text-align: center; cursor: pointer;" onclick="toggleItemFilter('productNumber')" title="Click to filter">
-                            <div style="display: flex; align-items: center; justify-content: center; gap: 5px;">
-                                Product Number <span style="font-size: 10px;">▼</span>
-                            </div>
-                            <div id="productNumberFilter" class="column-filter" style="display: none;" onclick="event.stopPropagation()">
-                                <input type="text" placeholder="Search..." class="filter-search" oninput="filterColumnOptions('productNumber', this.value)">
-                                <div class="filter-options" id="productNumberOptions"></div>
-                                <div class="filter-actions">
-                                    <button onclick="applyItemFilter('productNumber')" class="btn btn-primary btn-sm">Apply</button>
-                                    <button onclick="clearItemFilter('productNumber')" class="btn btn-secondary btn-sm">Clear</button>
-                                </div>
-                            </div>
-                        </th>
-                        <th style="text-align: center; cursor: pointer;" onclick="toggleItemFilter('description')" title="Click to filter">
-                            <div style="display: flex; align-items: center; justify-content: center; gap: 5px;">
-                                Description <span style="font-size: 10px;">▼</span>
-                            </div>
-                            <div id="descriptionFilter" class="column-filter" style="display: none;" onclick="event.stopPropagation()">
-                                <input type="text" placeholder="Search..." class="filter-search" oninput="filterColumnOptions('description', this.value)">
-                                <div class="filter-options" id="descriptionOptions"></div>
-                                <div class="filter-actions">
-                                    <button onclick="applyItemFilter('description')" class="btn btn-primary btn-sm">Apply</button>
-                                    <button onclick="clearItemFilter('description')" class="btn btn-secondary btn-sm">Clear</button>
-                                </div>
-                            </div>
-                        </th>
-                        <th style="text-align: center; cursor: pointer;" onclick="toggleItemFilter('series')" title="Click to filter">
-                            <div style="display: flex; align-items: center; justify-content: center; gap: 5px;">
-                                Series <span style="font-size: 10px;">▼</span>
-                            </div>
-                            <div id="seriesFilter" class="column-filter" style="display: none;" onclick="event.stopPropagation()">
-                                <input type="text" placeholder="Search..." class="filter-search" oninput="filterColumnOptions('series', this.value)">
-                                <div class="filter-options" id="seriesOptions"></div>
-                                <div class="filter-actions">
-                                    <button onclick="applyItemFilter('series')" class="btn btn-primary btn-sm">Apply</button>
-                                    <button onclick="clearItemFilter('series')" class="btn btn-secondary btn-sm">Clear</button>
-                                </div>
-                            </div>
-                        </th>
-                        <th style="text-align: center; cursor: pointer;" onclick="toggleItemFilter('taxonomy')" title="Click to filter">
-                            <div style="display: flex; align-items: center; justify-content: center; gap: 5px;">
-                                Product Taxonomy <span style="font-size: 10px;">▼</span>
-                            </div>
-                            <div id="taxonomyFilter" class="column-filter" style="display: none;" onclick="event.stopPropagation()">
-                                <input type="text" placeholder="Search..." class="filter-search" oninput="filterColumnOptions('taxonomy', this.value)">
-                                <div class="filter-options" id="taxonomyOptions"></div>
-                                <div class="filter-actions">
-                                    <button onclick="applyItemFilter('taxonomy')" class="btn btn-primary btn-sm">Apply</button>
-                                    <button onclick="clearItemFilter('taxonomy')" class="btn btn-secondary btn-sm">Clear</button>
-                                </div>
-                            </div>
-                        </th>
-                        <th style="text-align: center; cursor: pointer;" onclick="toggleItemFilter('legalName')" title="Click to filter">
-                            <div style="display: flex; align-items: center; justify-content: center; gap: 5px;">
-                                Legal Name <span style="font-size: 10px;">▼</span>
-                            </div>
-                            <div id="legalNameFilter" class="column-filter" style="display: none;" onclick="event.stopPropagation()">
-                                <input type="text" placeholder="Search..." class="filter-search" oninput="filterColumnOptions('legalName', this.value)">
-                                <div class="filter-options" id="legalNameOptions"></div>
-                                <div class="filter-actions">
-                                    <button onclick="applyItemFilter('legalName')" class="btn btn-primary btn-sm">Apply</button>
-                                    <button onclick="clearItemFilter('legalName')" class="btn btn-secondary btn-sm">Clear</button>
-                                </div>
-                            </div>
-                        </th>
-                        <th style="text-align: center; cursor: pointer;" onclick="toggleItemFilter('brand')" title="Click to filter">
-                            <div style="display: flex; align-items: center; justify-content: center; gap: 5px;">
-                                Brand <span style="font-size: 10px;">▼</span>
-                            </div>
-                            <div id="brandFilter" class="column-filter" style="display: none;" onclick="event.stopPropagation()">
-                                <input type="text" placeholder="Search..." class="filter-search" oninput="filterColumnOptions('brand', this.value)">
-                                <div class="filter-options" id="brandOptions"></div>
-                                <div class="filter-actions">
-                                    <button onclick="applyItemFilter('brand')" class="btn btn-primary btn-sm">Apply</button>
-                                    <button onclick="clearItemFilter('brand')" class="btn btn-secondary btn-sm">Clear</button>
-                                </div>
-                            </div>
-                        </th>
-                        <th style="text-align: center; cursor: pointer;" onclick="toggleItemFilter('ageGrade')" title="Click to filter">
-                            <div style="display: flex; align-items: center; justify-content: center; gap: 5px;">
-                                Age Grade <span style="font-size: 10px;">▼</span>
-                            </div>
-                            <div id="ageGradeFilter" class="column-filter" style="display: none;" onclick="event.stopPropagation()">
-                                <input type="text" placeholder="Search..." class="filter-search" oninput="filterColumnOptions('ageGrade', this.value)">
-                                <div class="filter-options" id="ageGradeOptions"></div>
-                                <div class="filter-actions">
-                                    <button onclick="applyItemFilter('ageGrade')" class="btn btn-primary btn-sm">Apply</button>
-                                    <button onclick="clearItemFilter('ageGrade')" class="btn btn-secondary btn-sm">Clear</button>
-                                </div>
-                            </div>
-                        </th>
-                        <th style="text-align: center; cursor: pointer;" onclick="toggleItemFilter('status')" title="Click to filter">
-                            <div style="display: flex; align-items: center; justify-content: center; gap: 5px;">
-                                Status <span style="font-size: 10px;">▼</span>
-                            </div>
-                            <div id="statusFilter" class="column-filter" style="display: none;" onclick="event.stopPropagation()">
-                                <input type="text" placeholder="Search..." class="filter-search" oninput="filterColumnOptions('status', this.value)">
-                                <div class="filter-options" id="statusOptions"></div>
-                                <div class="filter-actions">
-                                    <button onclick="applyItemFilter('status')" class="btn btn-primary btn-sm">Apply</button>
-                                    <button onclick="clearItemFilter('status')" class="btn btn-secondary btn-sm">Clear</button>
-                                </div>
-                            </div>
-                        </th>
-                        <th style="text-align: center; cursor: pointer;" onclick="toggleItemFilter('devStatus')" title="Click to filter">
-                            <div style="display: flex; align-items: center; justify-content: center; gap: 5px;">
-                                Dev Status <span style="font-size: 10px;">▼</span>
-                            </div>
-                            <div id="devStatusFilter" class="column-filter" style="display: none;" onclick="event.stopPropagation()">
-                                <input type="text" placeholder="Search..." class="filter-search" oninput="filterColumnOptions('devStatus', this.value)">
-                                <div class="filter-options" id="devStatusOptions"></div>
-                                <div class="filter-actions">
-                                    <button onclick="applyItemFilter('devStatus')" class="btn btn-primary btn-sm">Apply</button>
-                                    <button onclick="clearItemFilter('devStatus')" class="btn btn-secondary btn-sm">Clear</button>
-                                </div>
-                            </div>
-                        </th>
-                        <th style="text-align: center; cursor: pointer;" onclick="toggleItemFilter('upc')" title="Click to filter">
-                            <div style="display: flex; align-items: center; justify-content: center; gap: 5px;">
-                                UPC <span style="font-size: 10px;">▼</span>
-                            </div>
-                            <div id="upcFilter" class="column-filter" style="display: none;" onclick="event.stopPropagation()">
-                                <input type="text" placeholder="Search..." class="filter-search" oninput="filterColumnOptions('upc', this.value)">
-                                <div class="filter-options" id="upcOptions"></div>
-                                <div class="filter-actions">
-                                    <button onclick="applyItemFilter('upc')" class="btn btn-primary btn-sm">Apply</button>
-                                    <button onclick="clearItemFilter('upc')" class="btn btn-secondary btn-sm">Clear</button>
-                                </div>
-                            </div>
-                        </th>
-                        <th style="text-align: center;">
-                            <div style="display: flex; align-items: center; justify-content: center; gap: 5px;">
-                                Product Stage
-                            </div>
-                        </th>
-                    </tr>
-                </thead>
-                <tbody id="itemNumbersTableBody">
-                    <tr><td colspan="12" style="text-align: center; padding: 40px;">Loading items...</td></tr>
-                </tbody>
-            </table>
-        </div>
-        
-        <!-- Pagination -->
-        <div class="pagination" id="itemsPagination">
-            <button id="itemsPrevBtn" class="btn btn-secondary" disabled>Previous</button>
-            <span id="itemsPageInfo">Page 1</span>
-            <button id="itemsNextBtn" class="btn btn-secondary">Next</button>
-        </div>
-    </div>
 
-    <!-- Customer Admin View -->
-    <div id="customerAdminView" class="view-container" style="display: none; min-height: 500px;">
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
-            <h2>🏢 Customer/Marketplace Mapping</h2>
-            <button class="btn btn-primary" onclick="syncVendorMappingFromMain()">📥 Re-Sync from File</button>
-        </div>
-        
-        <p style="color: var(--text-secondary); margin-bottom: 20px;">
-            View vendor codes, QPIs, and marketplace mappings for all countries.
-        </p>
-        
-            <div class="table-wrapper" style="width: 100%; overflow-x: auto;">
-                <table class="products-table" id="mainVendorMappingTable" style="width: 100%; border-collapse: collapse; background: white;">
+        <!-- Item Numbers View -->
+        <div id="itemsView" class="view-container">
+            <div class="filters">
+                <input type="text" id="itemSearchInput" placeholder="Search item numbers..." class="search-input">
+                
+                <select id="itemSeriesFilter" class="filter-select">
+                    <option value="">All Series</option>
+                </select>
+                
+                <select id="itemBrandFilter" class="filter-select">
+                    <option value="">All Brands</option>
+                </select>
+                
+                <select id="itemDevStatusFilter" class="filter-select">
+                    <option value="">All Dev Statuses</option>
+                </select>
+                
+                <button id="applyItemFiltersBtn" class="btn btn-primary">Apply</button>
+                <button id="clearItemFiltersBtn" class="btn btn-secondary">Clear</button>
+            </div>
+
+            <div class="table-container">
+                <table id="itemsTable">
                     <thead>
-                        <tr style="background: #f3f4f6;">
-                            <th style="padding: 12px; border: 1px solid #e5e7eb; text-align: left;">Customer</th>
-                            <th style="padding: 12px; border: 1px solid #e5e7eb; text-align: left;">Country</th>
-                            <th style="padding: 12px; border: 1px solid #e5e7eb; text-align: left;">Keepa Marketplace</th>
-                            <th style="padding: 12px; border: 1px solid #e5e7eb; text-align: left;">Customer Code</th>
-                            <th style="padding: 12px; border: 1px solid #e5e7eb; text-align: left;">Vendor Code</th>
-                            <th style="padding: 12px; border: 1px solid #e5e7eb; text-align: left;">QPI Source File</th>
-                            <th style="padding: 12px; border: 1px solid #e5e7eb; text-align: left;">Language</th>
-                            <th style="padding: 12px; border: 1px solid #e5e7eb; text-align: left;">Currency</th>
-                            <th style="padding: 12px; border: 1px solid #e5e7eb; text-align: center;">Actions</th>
+                        <tr>
+                            <th>Item Number</th>
+                            <th>Legal Name</th>
+                            <th>Brand</th>
+                            <th>Series</th>
+                            <th>Taxonomy</th>
+                            <th>Age Grade</th>
+                            <th>Dev Status</th>
+                            <th>Spec Status</th>
+                            <th>UPC</th>
                         </tr>
                     </thead>
-                    <tbody id="mainVendorMappingTableBody">
+                    <tbody id="itemsTableBody">
                         <tr>
-                            <td colspan="9" style="text-align: center; padding: 40px; border: 1px solid #e5e7eb;">Loading mappings...</td>
+                            <td colspan="9" style="text-align: center; padding: 40px;">Loading...</td>
                         </tr>
                     </tbody>
                 </table>
             </div>
-        
-        <div id="mainMappingStats" style="margin-top: 20px; padding: 15px; background: var(--bg-secondary); border-radius: 8px;">
-            <strong>Statistics:</strong>
-            <span id="mainMappingStatsContent">Loading...</span>
-        </div>
-    </div>
-    </div>
 
-    <!-- Flow Stages Modal -->
-    <div id="flowModal" class="modal">
-        <div class="modal-content">
-            <span class="close">&times;</span>
-            <h2>Flow Progress - <span id="flowItemName"></span></h2>
-            <p class="sku-display">SKU: <span id="flowSku"></span></p>
-
-            <input type="hidden" id="flowItemId">
-
-            <div class="flow-stages">
-                <div class="stage-item">
-                    <label class="stage-checkbox">
-                        <input type="checkbox" class="stage-check" data-stage="stage_1_idea_considered">
-                        <span class="stage-number">1</span>
-                        <span class="stage-name">Ideation</span>
-                        <span class="optional-badge">Optional</span>
-                    </label>
-                </div>
-
-                <div class="stage-item">
-                    <label class="stage-checkbox">
-                        <input type="checkbox" class="stage-check" data-stage="stage_2_product_finalized">
-                        <span class="stage-number">2</span>
-                        <span class="stage-name">PIM Finalized</span>
-                    </label>
-                </div>
-
-                <div class="stage-item">
-                    <label class="stage-checkbox">
-                        <input type="checkbox" class="stage-check" data-stage="stage_3a_pricing_submitted">
-                        <span class="stage-number">3a</span>
-                        <span class="stage-name">Pricing Submitted</span>
-                    </label>
-                </div>
-
-                <div class="stage-item">
-                    <label class="stage-checkbox">
-                        <input type="checkbox" class="stage-check" data-stage="stage_3b_pricing_approved">
-                        <span class="stage-number">3b</span>
-                        <span class="stage-name">Pricing Approved</span>
-                    </label>
-                </div>
-
-                <div class="stage-item">
-                    <label class="stage-checkbox">
-                        <input type="checkbox" class="stage-check" data-stage="stage_4_product_listed">
-                        <span class="stage-number">4</span>
-                        <span class="stage-name">VC Listed</span>
-                    </label>
-                </div>
-
-                <div class="stage-item">
-                    <label class="stage-checkbox">
-                        <input type="checkbox" class="stage-check" data-stage="stage_5_product_ordered">
-                        <span class="stage-number">5</span>
-                        <span class="stage-name">Ordered [In QPI]</span>
-                    </label>
-                </div>
-
-                <div class="stage-item">
-                    <label class="stage-checkbox">
-                        <input type="checkbox" class="stage-check" data-stage="stage_6_product_online">
-                        <span class="stage-number">6</span>
-                        <span class="stage-name">Available Online</span>
-                    </label>
-                </div>
+            <div class="pagination" id="itemsPagination">
+                <button id="itemPrevPage" class="btn btn-secondary" disabled>← Previous</button>
+                <span id="itemPageInfo">Page 1 of 1</span>
+                <button id="itemNextPage" class="btn btn-secondary" disabled>Next →</button>
             </div>
         </div>
-    </div>
 
-    <!-- Export Modal -->
-    <div id="exportModal" class="modal">
-        <div class="modal-content" style="max-width: 500px;">
-            <span class="close" id="exportModalClose">&times;</span>
-            <h2>Export Items List</h2>
+        <!-- Customer Admin View -->
+        <div id="customerAdminView" class="view-container">
+            <div class="card">
+                <div class="card-header">
+                    <h2>🏢 Customer Groups</h2>
+                    <button class="btn btn-primary" onclick="openAddCustomerGroupModal()">+ Add Customer Group</button>
+                </div>
+                <table class="admin-table" id="customerGroupsTable">
+                    <thead>
+                        <tr>
+                            <th>Name</th>
+                            <th>Customers</th>
+                            <th>Products</th>
+                            <th>Created</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="customerGroupsTableBody">
+                        <tr><td colspan="5" style="text-align: center;">Loading...</td></tr>
+                    </tbody>
+                </table>
+            </div>
             
-            <div class="form-group">
-                <label>Select Fields to Export:</label>
-                <div style="margin-top: 10px;">
-                    <label style="display: block; margin: 8px 0;">
-                        <input type="checkbox" id="exportSku" checked> SKU / Item Number
-                    </label>
-                    <label style="display: block; margin: 8px 0;">
-                        <input type="checkbox" id="exportAsin" checked> ASIN
-                    </label>
-                    <label style="display: block; margin: 8px 0;">
-                        <input type="checkbox" id="exportName"> Item Name
-                    </label>
-                    <label style="display: block; margin: 8px 0;">
-                        <input type="checkbox" id="exportVcStatus"> VC Setup Status
-                    </label>
-                    <label style="display: block; margin: 8px 0;">
-                        <input type="checkbox" id="exportOrderStatus"> Order Received Status
-                    </label>
+            <div class="card" style="margin-top: 30px;">
+                <div class="card-header">
+                    <h2>👤 Customers</h2>
+                    <button class="btn btn-primary" onclick="openAddCustomerModal()">+ Add Customer</button>
                 </div>
+                <table class="admin-table" id="customersTable">
+                    <thead>
+                        <tr>
+                            <th>Name</th>
+                            <th>Customer Group</th>
+                            <th>Products</th>
+                            <th>Created</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="customersTableBody">
+                        <tr><td colspan="5" style="text-align: center;">Loading...</td></tr>
+                    </tbody>
+                </table>
             </div>
+        </div>
 
-            <div class="form-group">
-                <label>Export Format:</label>
-                <select id="exportFormat" style="width: 100%; padding: 8px; margin-top: 5px;">
-                    <option value="csv">CSV (Excel compatible)</option>
-                    <option value="txt">Text (Tab separated)</option>
-                    <option value="json">JSON</option>
+        <!-- Database Explorer View -->
+        <div id="databaseView" class="view-container">
+            <div class="filters">
+                <select id="tableSelect" class="filter-select">
+                    <option value="products">products</option>
+                    <option value="customers">customers</option>
+                    <option value="customer_groups">customer_groups</option>
+                    <option value="item_numbers">item_numbers</option>
                 </select>
+                <button id="loadTableBtn" class="btn btn-primary">Load Table</button>
             </div>
 
-            <div style="display: flex; gap: 10px; margin-top: 20px;">
-                <button type="button" class="btn btn-primary" id="downloadExportBtn">📥 Download</button>
-                <button type="button" class="btn btn-secondary" id="cancelExportBtn">Cancel</button>
-            </div>
-        </div>
-    </div>
-
-    <!-- Workflow Details Modal -->
-    <div id="workflowModal" class="modal">
-        <div class="modal-content" style="max-width: 800px;">
-            <span class="close" id="workflowModalClose">&times;</span>
-            <h2 id="workflowModalTitle">Workflow Details</h2>
-            <div id="workflowModalContent">
-                <!-- Content will be dynamically loaded -->
-            </div>
-        </div>
-    </div>
-
-    <!-- Product Details Modal -->
-    <div id="productDetailsModal" class="modal">
-        <div class="modal-content modal-large" style="max-width: 1200px;">
-            <span class="close">&times;</span>
-            <h2>Product Details</h2>
-            
-            <!-- Product Information Section -->
-            <div class="product-info-section" style="background: var(--card-bg); padding: 20px; border-radius: 8px; margin-bottom: 20px;">
-                <h3 style="margin-top: 0;">Product Information</h3>
-                <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 15px;">
-                    <div><strong>ASIN:</strong> <span id="detailAsin"></span></div>
-                    <div><strong>SKU(s):</strong> <span id="detailSku"></span></div>
-                    <div><strong>Brand:</strong> <span id="detailBrand"></span></div>
-                    <div><strong>Name:</strong> <span id="detailName"></span></div>
-                    <div><strong>Item Number:</strong> <span id="detailItemNumber"></span></div>
-                    <div><strong>Countries:</strong> <span id="detailCountries"></span></div>
-                    <div><strong>Description:</strong> <span id="detailDescription"></span></div>
-                    <div><strong>First Order Date:</strong> <span id="detailSeasonLaunch"></span></div>
-                    <div><strong>Is Temp ASIN:</strong> <span id="detailIsTempAsin"></span></div>
-                    <div><strong>Created:</strong> <span id="detailCreatedAt"></span></div>
-                </div>
+            <div class="table-container">
+                <table id="databaseTable">
+                    <thead id="databaseTableHead">
+                        <tr><th>Select a table to view</th></tr>
+                    </thead>
+                    <tbody id="databaseTableBody">
+                        <tr><td style="text-align: center; padding: 40px;">Select a table and click Load</td></tr>
+                    </tbody>
+                </table>
             </div>
 
-            <!-- Country Status Table -->
-            <div class="country-status-section">
-                <h3>Status by Country</h3>
-                <div style="overflow-x: auto;">
-                    <table class="data-table" style="width: 100%;">
-                        <thead>
-                            <tr>
-                                <th>Country</th>
-                                <th>VC Listed</th>
-                                <th>VC Status</th>
-                                <th>In QPI</th>
-                                <th>Online</th>
-                                <th>Last Price</th>
-                                <th>Last Seen Online</th>
-                            </tr>
-                        </thead>
-                        <tbody id="countryStatusTableBody">
-                            <!-- Will be populated dynamically -->
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-
-            <div class="form-actions" style="margin-top: 20px;">
-                <button type="button" class="btn btn-secondary" onclick="closeProductDetailsModal()">Close</button>
+            <div class="pagination" id="databasePagination" style="display: none;">
+                <button id="dbPrevPage" class="btn btn-secondary" disabled>← Previous</button>
+                <span id="dbPageInfo">Page 1 of 1</span>
+                <button id="dbNextPage" class="btn btn-secondary" disabled>Next →</button>
             </div>
         </div>
     </div>
 
-    <!-- Multi-Country Pricing Submission Modal -->
-    <div id="pricingSubmissionModal" class="modal">
-        <div class="modal-content modal-large" style="max-width: 1400px;">
-            <span class="close">&times;</span>
-            <h2>📊 Submit Multi-Country Pricing for Approval</h2>
+    <!-- Upload Modal -->
+    <div id="uploadModal" class="modal">
+        <div class="modal-content" style="max-width: 600px;">
+            <span class="close" onclick="closeUploadModal()">&times;</span>
+            <h2>📤 Upload Products</h2>
             <p style="color: var(--text-secondary); margin-bottom: 20px;">
-                Product: <strong id="pricingProductName"></strong>
+                Upload an Excel or CSV file with product data. The file should have the following columns:
             </p>
-            
-            <form id="pricingSubmissionForm">
-                <input type="hidden" id="pricingProductId">
-                <input type="hidden" id="pricingAsin">
-                
-                <!-- USD Pricing Section -->
-                <div style="background: var(--bg-secondary); padding: 20px; border-radius: 8px; margin-bottom: 20px;">
-                    <h3 style="margin-top: 0;">💵 Global Product Cost (USD)</h3>
-                    <div style="display: grid; grid-template-columns: 1fr; gap: 15px; max-width: 400px;">
-                        <div class="form-group">
-                            <label for="pricingProductCost">Product Cost * (USD - applies to all countries)</label>
-                            <input type="number" id="pricingProductCost" step="0.01" required placeholder="0.00">
-                            <small style="color: var(--text-secondary); font-size: 12px;">Your cost from supplier</small>
-                        </div>
-                    </div>
-                </div>
-                
-                <!-- Country-by-Country Pricing Table -->
-                <div style="margin-bottom: 20px;">
-                    <h3>🌍 Country-Specific Pricing</h3>
-                    <p style="color: var(--text-secondary); font-size: 14px; margin-bottom: 15px;">
-                        Enter sell price (USD) and retail price (local currency) for each country. Margins will be calculated automatically.
-                    </p>
-                    
-                    <div style="overflow-x: auto;">
-                        <table class="products-table" id="countryPricingTable">
-                            <thead>
-                                <tr>
-                                    <th>Country</th>
-                                    <th>Currency</th>
-                                    <th>FX Rate</th>
-                                    <th>Sell Price (USD)*</th>
-                                    <th>Company Margin</th>
-                                    <th>Retail Price (Local)*</th>
-                                    <th>Retail Price (USD)</th>
-                                    <th>Customer Margin</th>
-                                </tr>
-                            </thead>
-                            <tbody id="countryPricingTableBody">
-                                <tr>
-                                    <td colspan="8" style="text-align: center; padding: 40px;">Loading countries...</td>
-                                </tr>
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-                
+            <div style="background: var(--bg-secondary); padding: 15px; border-radius: 8px; margin-bottom: 20px; font-family: monospace; font-size: 13px;">
+                Customer Group | Customer | Customer Number | Item Number | Description | FCL/LCL | Status | SellPrice
+            </div>
+            <div style="margin-bottom: 20px;">
+                <strong>Status values:</strong> Existing, New, NCF<br>
+                <strong>FCL/LCL values:</strong> FCL, LCL, Both
+            </div>
+            <form id="uploadForm">
                 <div class="form-group">
-                    <label for="pricingNotes">Notes (optional)</label>
-                    <textarea id="pricingNotes" rows="3" placeholder="Add any additional notes about this pricing..."></textarea>
+                    <label for="uploadFile">Select File (.xlsx, .xls, .csv)</label>
+                    <input type="file" id="uploadFile" accept=".xlsx,.xls,.csv" required style="padding: 10px; border: 2px dashed var(--border-color); border-radius: 8px; width: 100%;">
                 </div>
-                
                 <div class="form-actions">
-                    <button type="button" class="btn btn-secondary" onclick="closePricingSubmissionModal()">Cancel</button>
-                    <button type="submit" class="btn btn-primary">Submit for Approval</button>
+                    <button type="button" class="btn btn-secondary" onclick="closeUploadModal()">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Upload</button>
+                </div>
+            </form>
+            <div id="uploadProgress" style="display: none; margin-top: 20px;">
+                <div style="text-align: center; padding: 20px;">
+                    <div class="spinner"></div>
+                    <p>Uploading and processing...</p>
+                </div>
+            </div>
+            <div id="uploadResult" style="display: none; margin-top: 20px;"></div>
+        </div>
+    </div>
+
+    <!-- Add Customer Group Modal -->
+    <div id="customerGroupModal" class="modal">
+        <div class="modal-content" style="max-width: 400px;">
+            <span class="close" onclick="closeCustomerGroupModal()">&times;</span>
+            <h2 id="customerGroupModalTitle">Add Customer Group</h2>
+            <form id="customerGroupForm">
+                <input type="hidden" id="customerGroupId">
+                <div class="form-group">
+                    <label for="customerGroupName">Name *</label>
+                    <input type="text" id="customerGroupName" required>
+                </div>
+                <div class="form-actions">
+                    <button type="button" class="btn btn-secondary" onclick="closeCustomerGroupModal()">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Save</button>
                 </div>
             </form>
         </div>
     </div>
-    
-    <!-- Pricing Approvals Modal (for Approvers) -->
-    <div id="approvalsModal" class="modal">
-        <div class="modal-content modal-large" style="max-width: 1000px;">
-            <span class="close">&times;</span>
-            <h2>💰 Pending Pricing Approvals</h2>
-            
-            <div id="approvalsList" style="margin-top: 20px;">
-                <p style="text-align: center; padding: 40px;">Loading...</p>
+
+    <!-- Add Customer Modal -->
+    <div id="customerModal" class="modal">
+        <div class="modal-content" style="max-width: 400px;">
+            <span class="close" onclick="closeCustomerModal()">&times;</span>
+            <h2 id="customerModalTitle">Add Customer</h2>
+            <form id="customerForm">
+                <input type="hidden" id="customerId">
+                <div class="form-group">
+                    <label for="customerGroupSelect">Customer Group *</label>
+                    <select id="customerGroupSelect" required></select>
+                </div>
+                <div class="form-group">
+                    <label for="customerName">Name *</label>
+                    <input type="text" id="customerName" required>
+                </div>
+                <div class="form-actions">
+                    <button type="button" class="btn btn-secondary" onclick="closeCustomerModal()">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Save</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Product Detail Modal -->
+    <div id="productModal" class="modal">
+        <div class="modal-content" style="max-width: 800px;">
+            <span class="close" onclick="closeProductModal()">&times;</span>
+            <h2>Product Details</h2>
+            <div id="productDetailContent">
+                Loading...
             </div>
         </div>
     </div>
@@ -1009,4 +377,3 @@
     <script src="app.js"></script>
 </body>
 </html>
-

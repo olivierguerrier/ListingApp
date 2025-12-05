@@ -20,7 +20,7 @@
         }
         
         .user-badge {
-            background: var(--primary);
+            background: var(--primary-color);
             color: white;
             padding: 8px 16px;
             border-radius: 20px;
@@ -43,7 +43,7 @@
         .users-table {
             width: 100%;
             border-collapse: collapse;
-            background: var(--card-bg);
+            background: var(--card-background);
             border-radius: 8px;
             overflow: hidden;
         }
@@ -56,17 +56,17 @@
         }
         
         .users-table th {
-            background: var(--bg-secondary);
+            background: var(--background);
             font-weight: 600;
             color: var(--text-primary);
         }
         
         .users-table tr:hover {
-            background: var(--bg-secondary);
+            background: #f9fafb;
         }
         
         .status-active {
-            color: var(--success);
+            color: var(--success-color);
             font-weight: 600;
         }
         
@@ -83,6 +83,35 @@
             display: grid;
             grid-template-columns: 1fr 1fr;
             gap: 15px;
+        }
+        
+        .admin-tab-content {
+            display: none;
+        }
+        
+        .admin-tab-content.active {
+            display: block;
+        }
+        
+        .card {
+            background: var(--card-background);
+            border-radius: 12px;
+            padding: 25px;
+            box-shadow: var(--shadow);
+            margin-bottom: 20px;
+        }
+        
+        .card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            padding-bottom: 15px;
+            border-bottom: 1px solid var(--border-color);
+        }
+        
+        .card-header h2 {
+            margin: 0;
         }
     </style>
 </head>
@@ -102,45 +131,100 @@
         
         <!-- Admin Tabs -->
         <div class="view-tabs" style="margin-bottom: 30px;">
-            <button class="tab-btn active" data-tab="users">👥 User Management</button>
+            <button class="tab-btn active" data-tab="users">👥 Users</button>
+            <button class="tab-btn" data-tab="customer-groups">🏢 Customer Groups</button>
+            <button class="tab-btn" data-tab="customers">👤 Customers</button>
             <button class="tab-btn" data-tab="fx-rates">💱 FX Rates</button>
         </div>
         
         <!-- User Management Tab -->
-        <div id="usersTab" class="admin-tab-content">
-        <div class="card">
-            <div class="card-header">
-                <h2>Users</h2>
-                <button class="btn btn-primary" onclick="openAddUserModal()">+ Add User</button>
+        <div id="usersTab" class="admin-tab-content active">
+            <div class="card">
+                <div class="card-header">
+                    <h2>👥 User Management</h2>
+                    <button class="btn btn-primary" onclick="openAddUserModal()">+ Add User</button>
+                </div>
+                
+                <table class="users-table">
+                    <thead>
+                        <tr>
+                            <th>Username</th>
+                            <th>Full Name</th>
+                            <th>Email</th>
+                            <th>Role</th>
+                            <th>Status</th>
+                            <th>Last Login</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="usersTableBody">
+                        <tr>
+                            <td colspan="7" style="text-align: center; padding: 40px;">Loading...</td>
+                        </tr>
+                    </tbody>
+                </table>
             </div>
-            
-            <table class="users-table">
-                <thead>
-                    <tr>
-                        <th>Username</th>
-                        <th>Full Name</th>
-                        <th>Email</th>
-                        <th>Role</th>
-                        <th>Status</th>
-                        <th>Last Login</th>
-                        <th>Actions</th>
-                    </tr>
-                </thead>
-                <tbody id="usersTableBody">
-                    <tr>
-                        <td colspan="7" style="text-align: center; padding: 40px;">Loading...</td>
-                    </tr>
-                </tbody>
-            </table>
         </div>
+        
+        <!-- Customer Groups Tab -->
+        <div id="customerGroupsTab" class="admin-tab-content">
+            <div class="card">
+                <div class="card-header">
+                    <h2>🏢 Customer Groups</h2>
+                    <button class="btn btn-primary" onclick="openAddCustomerGroupModal()">+ Add Customer Group</button>
+                </div>
+                
+                <table class="users-table">
+                    <thead>
+                        <tr>
+                            <th>Name</th>
+                            <th>Customers</th>
+                            <th>Products</th>
+                            <th>Created</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="customerGroupsTableBody">
+                        <tr>
+                            <td colspan="5" style="text-align: center; padding: 40px;">Loading...</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
         </div>
+        
+        <!-- Customers Tab -->
+        <div id="customersTab" class="admin-tab-content">
+            <div class="card">
+                <div class="card-header">
+                    <h2>👤 Customers</h2>
+                    <button class="btn btn-primary" onclick="openAddCustomerModal()">+ Add Customer</button>
+                </div>
+                
+                <table class="users-table">
+                    <thead>
+                        <tr>
+                            <th>Name</th>
+                            <th>Customer Group</th>
+                            <th>Products</th>
+                            <th>Created</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="customersTableBody">
+                        <tr>
+                            <td colspan="5" style="text-align: center; padding: 40px;">Loading...</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
         </div>
         
         <!-- FX Rates Tab -->
-        <div id="fxRatesTab" class="admin-tab-content" style="display: none;">
+        <div id="fxRatesTab" class="admin-tab-content">
             <div class="card">
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
-                    <h2>💱 Exchange Rates Management</h2>
+                <div class="card-header">
+                    <h2>💱 Exchange Rates</h2>
                     <button class="btn btn-primary" onclick="saveFxRates()">💾 Save All Changes</button>
                 </div>
                 <p style="color: var(--text-secondary); margin-bottom: 20px;">
@@ -156,12 +240,11 @@
                                 <th>Currency</th>
                                 <th>Rate to USD</th>
                                 <th>Last Updated</th>
-                                <th>Updated By</th>
                             </tr>
                         </thead>
                         <tbody id="fxRatesTableBody">
                             <tr>
-                                <td colspan="5" style="text-align: center; padding: 40px;">Loading FX rates...</td>
+                                <td colspan="4" style="text-align: center; padding: 40px;">Loading FX rates...</td>
                             </tr>
                         </tbody>
                     </table>
@@ -173,8 +256,8 @@
     <!-- Add/Edit User Modal -->
     <div id="userModal" class="modal">
         <div class="modal-content">
-            <span class="close">&times;</span>
-            <h2 id="modalTitle">Add New User</h2>
+            <span class="close" onclick="closeUserModal()">&times;</span>
+            <h2 id="userModalTitle">Add New User</h2>
             <form id="userForm" class="modal-form">
                 <input type="hidden" id="userId">
                 
@@ -227,7 +310,53 @@
         </div>
     </div>
     
+    <!-- Add/Edit Customer Group Modal -->
+    <div id="customerGroupModal" class="modal">
+        <div class="modal-content" style="max-width: 400px;">
+            <span class="close" onclick="closeCustomerGroupModal()">&times;</span>
+            <h2 id="customerGroupModalTitle">Add Customer Group</h2>
+            <form id="customerGroupForm" class="modal-form">
+                <input type="hidden" id="customerGroupId">
+                
+                <div class="form-group">
+                    <label for="customerGroupName">Name *</label>
+                    <input type="text" id="customerGroupName" required>
+                </div>
+                
+                <div class="form-actions">
+                    <button type="button" class="btn btn-secondary" onclick="closeCustomerGroupModal()">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Save</button>
+                </div>
+            </form>
+        </div>
+    </div>
+    
+    <!-- Add/Edit Customer Modal -->
+    <div id="customerModal" class="modal">
+        <div class="modal-content" style="max-width: 400px;">
+            <span class="close" onclick="closeCustomerModal()">&times;</span>
+            <h2 id="customerModalTitle">Add Customer</h2>
+            <form id="customerForm" class="modal-form">
+                <input type="hidden" id="customerId">
+                
+                <div class="form-group">
+                    <label for="customerGroupSelect">Customer Group *</label>
+                    <select id="customerGroupSelect" required></select>
+                </div>
+                
+                <div class="form-group">
+                    <label for="customerName">Name *</label>
+                    <input type="text" id="customerName" required>
+                </div>
+                
+                <div class="form-actions">
+                    <button type="button" class="btn btn-secondary" onclick="closeCustomerModal()">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Save</button>
+                </div>
+            </form>
+        </div>
+    </div>
+    
     <script src="admin.js"></script>
 </body>
 </html>
-

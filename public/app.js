@@ -1,180 +1,33 @@
 const API_BASE = '/api';
 
 // State management
-let items = [];
-let skus = [];
-let vendorMappingData = [];
-let currentItem = null;
-let currentView = 'products'; // 'products', 'skus', or 'database'
-let currentTable = 'products';
 let currentUser = null;
+let currentView = 'products';
 
-// Pagination state
+// Products state
 let productsPage = 1;
 let productsLimit = 50;
 let productsTotalPages = 1;
 
-let skusPage = 1;
-let skusLimit = 50;
-let skusTotalPages = 1;
+// Item Numbers state
+let itemsPage = 1;
+let itemsLimit = 50;
+let itemsTotalPages = 1;
+
+// Database explorer state
+let dbPage = 1;
+let dbLimit = 100;
+let dbTotalPages = 1;
+let currentTable = 'products';
+
+// Filter data
+let customerGroups = [];
+let customers = [];
 
 // ============================================================================
-// Global Functions for Customer Admin (must be at top for onclick handlers)
+// AUTHENTICATION
 // ============================================================================
 
-// Store available QPI files for dropdowns
-let availableQPIFiles = [];
-
-// Edit vendor mapping row - enables editing mode
-window.editVendorMappingRow = async function(id) {
-    // Load QPI files if not already loaded
-    if (availableQPIFiles.length === 0) {
-        try {
-            const response = await fetch('/api/qpi-files', {
-                headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
-            });
-            if (response.ok) {
-                availableQPIFiles = await response.json();
-                console.log('[Customer Admin] Loaded', availableQPIFiles.length, 'QPI files');
-            }
-        } catch (error) {
-            console.error('[Customer Admin] Error loading QPI files:', error);
-        }
-    }
-    
-    const row = document.querySelector(`tr[data-id="${id}"]`);
-    if (!row) {
-        alert('Row not found');
-        return;
-    }
-    
-    const cells = row.querySelectorAll('td');
-    
-    // Country (cell 1) - text input
-    const countryCell = cells[1];
-    const countryValue = countryCell.textContent.trim().replace('-', '');
-    countryCell.innerHTML = `<input type="text" value="${countryValue}" style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;" data-field="country">`;
-    
-    // Keepa Marketplace (cell 2) - text input
-    const keepaCell = cells[2];
-    const keepaValue = keepaCell.textContent.trim().replace(/<\/?strong>/g, '').replace('-', '');
-    keepaCell.innerHTML = `<input type="text" value="${keepaValue}" style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;" data-field="keepa_marketplace">`;
-    
-    // Customer Code (cell 3) - text input
-    const customerCodeCell = cells[3];
-    const customerCodeValue = customerCodeCell.textContent.trim().replace(/<\/?code>/g, '').replace('-', '');
-    customerCodeCell.innerHTML = `<input type="text" value="${customerCodeValue}" style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;" data-field="customer_code">`;
-    
-    // QPI Source File (cell 5) - dropdown
-    const qpiCell = cells[5];
-    const qpiValue = qpiCell.textContent.trim().replace(/<\/?small>/g, '').replace('-', '');
-    let qpiOptions = '<option value="">(None)</option>';
-    availableQPIFiles.forEach(file => {
-        const selected = file === qpiValue ? 'selected' : '';
-        qpiOptions += `<option value="${file}" ${selected}>${file}</option>`;
-    });
-    qpiCell.innerHTML = `<select style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;" data-field="qpi_source_file">${qpiOptions}</select>`;
-    
-    // Language (cell 6) - text input
-    const languageCell = cells[6];
-    const languageValue = languageCell.textContent.trim().replace('-', '');
-    languageCell.innerHTML = `<input type="text" value="${languageValue}" style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;" data-field="language">`;
-    
-    // Currency (cell 7) - text input
-    const currencyCell = cells[7];
-    const currencyValue = currencyCell.textContent.trim().replace('-', '');
-    currencyCell.innerHTML = `<input type="text" value="${currencyValue}" style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;" data-field="currency">`;
-    
-    // Replace Edit button with Save and Cancel buttons
-    const actionCell = cells[8];
-    actionCell.innerHTML = `
-        <button onclick="saveVendorMappingRow(${id})" class="btn-sm" style="padding: 4px 8px; font-size: 12px; background: #10b981; color: white; margin-right: 4px;">💾 Save</button>
-        <button onclick="loadVendorMappingFromMain()" class="btn-sm" style="padding: 4px 8px; font-size: 12px; background: #6b7280; color: white;">✖ Cancel</button>
-    `;
-};
-
-// Save vendor mapping row
-window.saveVendorMappingRow = async function(id) {
-    const row = document.querySelector(`tr[data-id="${id}"]`);
-    if (!row) {
-        alert('Row not found');
-        return;
-    }
-    
-    const cells = row.querySelectorAll('td');
-    
-    // Get values from inputs/selects if in edit mode, otherwise from text
-    const getFieldValue = (cell, fallbackText) => {
-        const input = cell.querySelector('input');
-        const select = cell.querySelector('select');
-        if (input) return input.value.trim();
-        if (select) return select.value.trim();
-        return fallbackText.replace(/<\/?code>/g, '').replace(/<\/?small>/g, '').replace(/<\/?strong>/g, '').trim();
-    };
-    
-    const country = getFieldValue(cells[1], cells[1].textContent);
-    const keepaMarketplace = getFieldValue(cells[2], cells[2].textContent);
-    const customerCode = getFieldValue(cells[3], cells[3].textContent);
-    const vendorCode = cells[4].textContent.trim();
-    const qpiSourceFile = getFieldValue(cells[5], cells[5].textContent);
-    const language = getFieldValue(cells[6], cells[6].textContent);
-    const currency = getFieldValue(cells[7], cells[7].textContent);
-    
-    const data = {
-        country: country === '-' ? null : country,
-        keepa_marketplace: keepaMarketplace === '-' ? null : keepaMarketplace,
-        customer_code: customerCode === '-' ? null : customerCode,
-        vendor_code: vendorCode === '-' ? null : vendorCode,
-        qpi_source_file: qpiSourceFile === '-' ? null : qpiSourceFile,
-        language: language === '-' ? null : language,
-        currency: currency === '-' ? null : currency
-    };
-    
-    try {
-        const response = await fetch(`/api/vendor-mapping/${id}`, {
-            method: 'PUT',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${localStorage.getItem('token')}`
-            },
-            body: JSON.stringify(data)
-        });
-        
-        if (response.ok) {
-            const result = await response.json();
-            // Show success toast
-            const toast = document.createElement('div');
-            toast.style.position = 'fixed';
-            toast.style.top = '20px';
-            toast.style.right = '20px';
-            toast.style.padding = '12px 24px';
-            toast.style.borderRadius = '8px';
-            toast.style.backgroundColor = '#10b981';
-            toast.style.color = 'white';
-            toast.style.fontWeight = 'bold';
-            toast.style.zIndex = '10000';
-            toast.style.boxShadow = '0 4px 6px rgba(0,0,0,0.1)';
-            toast.textContent = `✓ Updated ${result.changes} record(s) for ${result.country}`;
-            document.body.appendChild(toast);
-            setTimeout(() => toast.remove(), 3000);
-            
-            // Reload data
-            loadVendorMappingFromMain();
-        } else {
-            const error = await response.json();
-            alert('Error updating: ' + error.error);
-        }
-    } catch (error) {
-        console.error('Error saving vendor mapping:', error);
-        alert('Error saving changes');
-    }
-};
-
-// ============================================================================
-// End Global Functions
-// ============================================================================
-
-// Check authentication
 function checkAuth() {
     const token = localStorage.getItem('token');
     const user = JSON.parse(localStorage.getItem('user') || '{}');
@@ -189,3508 +42,1064 @@ function checkAuth() {
     return true;
 }
 
-// Setup user interface based on role
 function setupUserUI() {
-    // Show user info
-    const userInfoHTML = `
-        <div style="display: flex; align-items: center; gap: 10px; margin-left: auto;">
-            ${currentUser.role === 'approver' || currentUser.role === 'admin' ? 
-                '<button class="btn btn-warning btn-sm" onclick="openApprovalsModal()" id="approvalsBtn" style="position: relative;">💰 Approvals <span id="approvalsBadge" class="badge" style="display: none;"></span></button>' : ''}
-            <span style="color: var(--text-secondary); font-size: 14px;">${currentUser.full_name || currentUser.username}</span>
-            <span style="background: var(--primary); color: white; padding: 4px 12px; border-radius: 12px; font-size: 12px; font-weight: 600;">
-                ${currentUser.role.toUpperCase()}
-            </span>
-            ${currentUser.role === 'admin' ? '<button class="btn btn-secondary btn-sm" onclick="window.location.href=\'/admin.html\'">👥 Admin</button>' : ''}
-            <button class="btn btn-secondary btn-sm" onclick="logout()">Logout</button>
-        </div>
-    `;
-    
+    // Show user info in header
     const header = document.querySelector('header');
-    if (header) {
-        const userDiv = document.createElement('div');
-        userDiv.innerHTML = userInfoHTML;
-        header.appendChild(userDiv.firstElementChild);
+    const userInfoDiv = document.createElement('div');
+    userInfoDiv.style.cssText = 'display: flex; align-items: center; gap: 10px; margin-left: auto;';
+    userInfoDiv.innerHTML = `
+        <span style="color: var(--text-secondary); font-size: 14px;">${currentUser.full_name || currentUser.username}</span>
+        <span style="background: var(--primary); color: white; padding: 4px 12px; border-radius: 12px; font-size: 12px; font-weight: 600;">
+            ${currentUser.role.toUpperCase()}
+        </span>
+        <button class="btn btn-secondary btn-sm" onclick="logout()">Logout</button>
+    `;
+    header.querySelector('div:last-child').appendChild(userInfoDiv);
+    
+    // Show admin sections based on role
+    if (['salesperson', 'approver', 'admin'].includes(currentUser.role)) {
+        document.getElementById('customerAdminSection').style.display = 'block';
+        document.getElementById('customerAdminViewTab').style.display = 'inline-block';
     }
     
-    // Load notifications count for approvers
-    if (currentUser.role === 'approver' || currentUser.role === 'admin') {
-        loadPendingApprovalsCount();
-    }
-    
-    // Show pricing approvals tab for approvers/admins
-    if (currentUser.role === 'approver' || currentUser.role === 'admin') {
-        const pricingTab = document.getElementById('pricingApprovalsTab');
-        if (pricingTab) {
-            pricingTab.style.display = 'inline-block';
-        }
-    }
-    
-    // Show Customer Admin for Sales Person, Approver, and Admin
-    if (currentUser.role === 'sales person' || currentUser.role === 'approver' || currentUser.role === 'admin') {
-        const customerAdminSection = document.getElementById('customerAdminSection');
-        const customerAdminViewTab = document.getElementById('customerAdminViewTab');
-        if (customerAdminSection) {
-            customerAdminSection.style.display = 'block';
-        }
-        if (customerAdminViewTab) {
-            customerAdminViewTab.style.display = 'inline-block';
-        }
-    }
-    
-    // Show Admin Console only for Admins
     if (currentUser.role === 'admin') {
-        const adminConsoleSection = document.getElementById('adminConsoleSection');
-        if (adminConsoleSection) {
-            adminConsoleSection.style.display = 'block';
-        }
+        document.getElementById('adminConsoleSection').style.display = 'block';
     }
-    
-    // Hide features based on role
-    if (currentUser.role === 'viewer') {
-        // Viewers can only view and export
-        hideElement('addItemBtn');
-        hideElement('syncPimBtn');
-        hideElement('importQpiBtn');
-        hideElement('syncQpiBtn');
-        hideElement('syncVcBtn');
-        hideElement('syncVariationsBtn');
-        hideElement('syncOnlineBtn');
-        disableEditing();
-    }
-}
-
-async function loadPendingApprovalsCount() {
-    const token = localStorage.getItem('token');
-    
-    try {
-        const response = await fetch(`${API_BASE}/pricing/submissions?status=pending`, {
-            headers: {
-                'Authorization': `Bearer ${token}`
-            }
-        });
-        
-        const submissions = await response.json();
-        const badge = document.getElementById('approvalsBadge');
-        
-        if (badge && submissions.length > 0) {
-            badge.textContent = submissions.length;
-            badge.style.display = 'inline-block';
-            badge.style.cssText = `
-                display: inline-block;
-                position: absolute;
-                top: -8px;
-                right: -8px;
-                background: var(--danger);
-                color: white;
-                border-radius: 50%;
-                padding: 2px 6px;
-                font-size: 11px;
-                font-weight: 600;
-                min-width: 18px;
-                text-align: center;
-            `;
-        }
-    } catch (error) {
-        console.error('Error loading approvals count:', error);
-    }
-}
-
-function hideElement(id) {
-    const element = document.getElementById(id);
-    if (element) element.style.display = 'none';
-}
-
-function disableEditing() {
-    // Disable delete and edit buttons for viewers
-    document.addEventListener('click', (e) => {
-        if (currentUser.role === 'viewer' && 
-            (e.target.classList.contains('btn-danger') || 
-             e.target.textContent.includes('Delete') ||
-             e.target.textContent.includes('Edit'))) {
-            e.preventDefault();
-            e.stopPropagation();
-            alert('You do not have permission to perform this action.');
-            return false;
-        }
-    }, true);
 }
 
 function logout() {
     fetch(`${API_BASE}/auth/logout`, { method: 'POST' });
-    localStorage.clear();
+    localStorage.removeItem('token');
+    localStorage.removeItem('user');
     window.location.href = '/login.html';
 }
 
-// ========================================
-// Products Tab Column Filters
-// ========================================
-
-let productsColumnFilters = {
-    name: [],
-    brand: [],
-    asin: [],
-    primaryItem: [],
-    sku: []
-};
-
-let productsColumnFilterData = {
-    name: [],
-    brand: [],
-    asin: [],
-    primaryItem: [],
-    sku: []
-};
-
-function toggleProductFilter(filterType) {
-    console.log('[Product Filter] toggleProductFilter called with type:', filterType);
-    
-    const filterIdMap = {
-        name: 'productNameFilter',
-        brand: 'productBrandColumnFilter',
-        asin: 'productAsinFilter',
-        primaryItem: 'productPrimaryItemFilter',
-        sku: 'productSkuFilter'
+function getAuthHeaders() {
+    return {
+        'Authorization': `Bearer ${localStorage.getItem('token')}`,
+        'Content-Type': 'application/json'
     };
-    
-    const filterId = filterIdMap[filterType];
-    console.log('[Product Filter] Looking for element:', filterId);
-    
-    const filterEl = document.getElementById(filterId);
-    console.log('[Product Filter] Found element:', filterEl);
-    
-    if (!filterEl) {
-        console.error('[Product Filter] Element not found:', filterId);
-        return;
+}
+
+// ============================================================================
+// NOTIFICATIONS
+// ============================================================================
+
+function showSuccess(message) {
+    showToast(message, 'success');
+}
+
+function showError(message) {
+    showToast(message, 'error');
+}
+
+function showToast(message, type = 'info') {
+    const toast = document.createElement('div');
+    toast.style.cssText = `
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        padding: 15px 25px;
+        border-radius: 8px;
+        color: white;
+        font-weight: 500;
+        z-index: 10000;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        animation: slideIn 0.3s ease;
+    `;
+    toast.style.background = type === 'success' ? '#10b981' : type === 'error' ? '#ef4444' : '#3b82f6';
+    toast.textContent = message;
+    document.body.appendChild(toast);
+    setTimeout(() => {
+        toast.style.animation = 'slideOut 0.3s ease';
+        setTimeout(() => toast.remove(), 300);
+    }, 3000);
+}
+
+// ============================================================================
+// DATA LOADING
+// ============================================================================
+
+async function loadCustomerGroups() {
+    try {
+        const response = await fetch(`${API_BASE}/customer-groups`, {
+            headers: getAuthHeaders()
+        });
+        if (response.ok) {
+            customerGroups = await response.json();
+            populateCustomerGroupFilters();
+        }
+    } catch (error) {
+        console.error('Error loading customer groups:', error);
     }
-    
-    // Close other filters
-    document.querySelectorAll('.column-filter').forEach(f => {
-        if (f.id !== filterId) f.style.display = 'none';
+}
+
+async function loadCustomers() {
+    try {
+        const response = await fetch(`${API_BASE}/customers`, {
+            headers: getAuthHeaders()
+        });
+        if (response.ok) {
+            customers = await response.json();
+            populateCustomerFilters();
+        }
+    } catch (error) {
+        console.error('Error loading customers:', error);
+    }
+}
+
+function populateCustomerGroupFilters() {
+    const select = document.getElementById('customerGroupFilter');
+    select.innerHTML = '<option value="">All Customer Groups</option>';
+    customerGroups.forEach(cg => {
+        select.innerHTML += `<option value="${cg.id}">${cg.name} (${cg.product_count} products)</option>`;
     });
     
-    // Toggle this filter
-    if (filterEl.style.display === 'none' || !filterEl.style.display) {
-        filterEl.style.display = 'block';
-        filterEl.style.visibility = 'visible';
-        filterEl.style.opacity = '1';
-        console.log('[Product Filter] Showing filter:', filterId);
-        console.log('[Product Filter] Filter dimensions:', {
-            width: filterEl.offsetWidth,
-            height: filterEl.offsetHeight,
-            display: window.getComputedStyle(filterEl).display,
-            position: window.getComputedStyle(filterEl).position,
-            zIndex: window.getComputedStyle(filterEl).zIndex
+    // Also populate customer group select in modal
+    const modalSelect = document.getElementById('customerGroupSelect');
+    if (modalSelect) {
+        modalSelect.innerHTML = '<option value="">Select Customer Group</option>';
+        customerGroups.forEach(cg => {
+            modalSelect.innerHTML += `<option value="${cg.id}">${cg.name}</option>`;
         });
-    } else {
-        filterEl.style.display = 'none';
-        console.log('[Product Filter] Hiding filter:', filterId);
     }
 }
 
-window.toggleProductFilter = toggleProductFilter;
-
-function filterProductColumnOptions(filterType, searchTerm) {
-    const optionsIdMap = {
-        name: 'productNameOptions',
-        brand: 'productBrandColumnOptions',
-        asin: 'productAsinOptions',
-        primaryItem: 'productPrimaryItemOptions',
-        sku: 'productSkuOptions'
-    };
+function populateCustomerFilters() {
+    const select = document.getElementById('customerFilter');
+    const customerGroupId = document.getElementById('customerGroupFilter').value;
     
-    const optionsId = optionsIdMap[filterType];
-    const data = productsColumnFilterData[filterType];
+    select.innerHTML = '<option value="">All Customers</option>';
     
-    const filtered = data.filter(item => 
-        item && item.toLowerCase().includes(searchTerm.toLowerCase())
-    );
+    let filteredCustomers = customers;
+    if (customerGroupId) {
+        filteredCustomers = customers.filter(c => c.customer_group_id == customerGroupId);
+    }
     
-    renderProductFilterOptions(filterType, filtered);
+    filteredCustomers.forEach(c => {
+        select.innerHTML += `<option value="${c.id}">${c.name} (${c.product_count} products)</option>`;
+    });
 }
 
-window.filterProductColumnOptions = filterProductColumnOptions;
+// ============================================================================
+// PRODUCTS
+// ============================================================================
 
-function renderProductFilterOptions(filterType, data) {
-    const optionsIdMap = {
-        name: 'productNameOptions',
-        brand: 'productBrandColumnOptions',
-        asin: 'productAsinOptions',
-        primaryItem: 'productPrimaryItemOptions',
-        sku: 'productSkuOptions'
-    };
+async function loadProducts(page = 1, maintainFilters = true) {
+    productsPage = page;
+    const offset = (page - 1) * productsLimit;
     
-    const optionsId = optionsIdMap[filterType];
-    const optionsEl = document.getElementById(optionsId);
+    let url = `${API_BASE}/products?limit=${productsLimit}&offset=${offset}`;
     
-    console.log('[Product Filter Render]', filterType, '- Options element:', optionsEl, '- Data count:', data?.length);
+    if (maintainFilters) {
+        const search = document.getElementById('searchInput').value;
+        const customerGroupId = document.getElementById('customerGroupFilter').value;
+        const customerId = document.getElementById('customerFilter').value;
+        const status = document.getElementById('statusFilter').value;
+        const stage = document.getElementById('stageFilter')?.value;
+        
+        if (search) url += `&search=${encodeURIComponent(search)}`;
+        if (customerGroupId) url += `&customer_group_id=${customerGroupId}`;
+        if (customerId) url += `&customer_id=${customerId}`;
+        if (status) url += `&status=${status}`;
+        if (stage) url += `&stage=${stage}`;
+    }
     
-    if (!optionsEl) {
-        console.error('[Product Filter Render] Options element not found:', optionsId);
+    try {
+        const response = await fetch(url, { headers: getAuthHeaders() });
+        if (!response.ok) throw new Error('Failed to load products');
+        
+        const result = await response.json();
+        renderProductsTable(result.data);
+        updateProductsPagination(result.pagination);
+    } catch (error) {
+        console.error('Error loading products:', error);
+        showError('Failed to load products');
+    }
+}
+
+function renderProductsTable(products) {
+    const tbody = document.getElementById('productsTableBody');
+    
+    if (!products || products.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="14" style="text-align: center; padding: 40px;">No products found</td></tr>';
         return;
     }
     
-    if (!data || data.length === 0) {
-        optionsEl.innerHTML = '<div style="padding: 8px; color: #9ca3af; font-size: 13px;">No options</div>';
-        return;
-    }
-    
-    optionsEl.innerHTML = data.map(item => {
-        const checked = productsColumnFilters[filterType].includes(item) ? 'checked' : '';
-        const safeId = `prod-${filterType}-${escapeHtml(item).replace(/[^a-zA-Z0-9]/g, '_')}`;
+    tbody.innerHTML = products.map(p => {
+        // Render stage circles
+        const renderStage = (stageNum, isComplete, isManual, stageName, stageKey) => {
+            const colorClass = isComplete ? 'stage-complete' : 'stage-incomplete';
+            const clickable = isManual ? 'stage-clickable' : '';
+            const onclick = isManual && stageKey ? `onclick="toggleStage(${p.id}, '${stageKey}', ${!isComplete})"` : '';
+            const displayNum = stageNum === 2.5 ? '💰' : (isComplete ? '✓' : stageNum);
+            return `<div class="stage-circle ${colorClass} ${clickable}" title="${stageName}" ${onclick}>${displayNum}</div>`;
+        };
+        
         return `
-            <div class="filter-option">
-                <input type="checkbox" id="${safeId}" value="${escapeHtml(item)}" ${checked}>
-                <label for="${safeId}" style="cursor: pointer; flex: 1;">${escapeHtml(item)}</label>
-            </div>
+            <tr>
+                <td><strong>${p.customer_group_name || '-'}</strong></td>
+                <td>${p.customer_name || '-'}</td>
+                <td><code>${p.customer_number}</code></td>
+                <td>${p.item_number ? `<code>${p.item_number}</code>` : '-'}</td>
+                <td title="${p.description || ''}">${truncate(p.description, 25)}</td>
+                <td style="text-align: center;">${renderStage(1, p.stage_1_ideation, true, 'Stage 1: Ideation / Product Dev', 'stage_1_ideation')}</td>
+                <td style="text-align: center;">${renderStage(2, p.stage_2_pim, false, 'Stage 2: PIM Listed', null)}</td>
+                <td style="text-align: center;">${renderStage(2.5, p.stage_2_5_pricing, true, 'Stage 2.5: Pricing Approved', 'stage_2_5_pricing')}</td>
+                <td style="text-align: center;">${renderStage(3, p.stage_3_qpi, false, 'Stage 3: In QPI', null)}</td>
+                <td style="text-align: center;">${renderStage(4, p.stage_4_listed_with_customer, true, 'Stage 4: Listed with Customer', 'stage_4_listed_with_customer')}</td>
+                <td style="text-align: center;">${renderStage(5, p.stage_5_available, true, 'Stage 5: Available Online/In-Store', 'stage_5_available')}</td>
+                <td style="text-align: center;">${renderStage(6, p.stage_6_eol, false, 'Stage 6: End of Life', null)}</td>
+                <td>${p.sell_price ? `$${parseFloat(p.sell_price).toFixed(2)}` : '-'}</td>
+                <td>
+                    <button class="btn-sm btn-primary" onclick="viewProduct(${p.id})">View</button>
+                </td>
+            </tr>
         `;
     }).join('');
-    
-    console.log('[Product Filter Render]', filterType, '- Rendered', data.length, 'options');
 }
 
-function applyProductFilter(filterType) {
-    const optionsIdMap = {
-        name: 'productNameOptions',
-        brand: 'productBrandColumnOptions',
-        asin: 'productAsinOptions',
-        primaryItem: 'productPrimaryItemOptions',
-        sku: 'productSkuOptions'
-    };
-    
-    const optionsId = optionsIdMap[filterType];
-    const optionsEl = document.getElementById(optionsId);
-    const checkboxes = optionsEl.querySelectorAll('input[type="checkbox"]:checked');
-    
-    productsColumnFilters[filterType] = Array.from(checkboxes).map(cb => cb.value);
-    filterItems();
-    toggleProductFilter(filterType); // Close the filter
-}
-
-window.applyProductFilter = applyProductFilter;
-
-function clearProductFilter(filterType) {
-    productsColumnFilters[filterType] = [];
-    filterItems();
-    toggleProductFilter(filterType); // Close the filter
-}
-
-window.clearProductFilter = clearProductFilter;
-
-async function loadProductColumnFilters() {
+// Toggle a manual stage
+async function toggleStage(productId, stageKey, newValue) {
     try {
-        console.log('[Product Filters] Loading column filter data...');
-        console.log('[Product Filters] Current items count:', items.length);
-        
-        if (items.length > 0) {
-            console.log('[Product Filters] Sample item:', items[0]);
-        }
-        
-        // Get unique values from current items
-        const names = [...new Set(items.map(i => i.name).filter(Boolean))].sort();
-        const brands = [...new Set(items.map(i => i.brand).filter(Boolean))].sort();
-        const asins = [...new Set(items.map(i => i.asin).filter(Boolean))].sort();
-        const primaryItems = [...new Set(items.map(i => i.primary_item_number).filter(Boolean))].sort();
-        
-        // Handle skus - could be string or array
-        const skus = [...new Set(items.flatMap(i => {
-            if (!i.skus) return [];
-            if (Array.isArray(i.skus)) return i.skus;
-            if (typeof i.skus === 'string') return i.skus.split(', ');
-            return [];
-        }).filter(Boolean))].sort();
-        
-        console.log('[Product Filters] Filter data:', { 
-            names: names.length, 
-            brands: brands.length, 
-            asins: asins.length, 
-            primaryItems: primaryItems.length, 
-            skus: skus.length 
+        const response = await fetch(`${API_BASE}/products/${productId}/stage`, {
+            method: 'PUT',
+            headers: getAuthHeaders(),
+            body: JSON.stringify({ stage: stageKey, value: newValue })
         });
-        console.log('[Product Filters] Brands:', brands);
-        console.log('[Product Filters] Primary Items:', primaryItems);
-        console.log('[Product Filters] SKUs:', skus);
         
-        productsColumnFilterData.name = names;
-        productsColumnFilterData.brand = brands;
-        productsColumnFilterData.asin = asins;
-        productsColumnFilterData.primaryItem = primaryItems;
-        productsColumnFilterData.sku = skus;
-        
-        // Render initial options
-        renderProductFilterOptions('name', names);
-        renderProductFilterOptions('brand', brands);
-        renderProductFilterOptions('asin', asins);
-        renderProductFilterOptions('primaryItem', primaryItems);
-        renderProductFilterOptions('sku', skus);
-        
-        console.log('[Product Filters] Filter options rendered');
-    } catch (error) {
-        console.error('Error loading product column filters:', error);
-    }
-}
-
-// Items Tab Functions
-// ========================================
-
-let itemsCurrentPage = 1;
-let itemsLimit = 50;
-let itemsFilters = {
-    itemNumber: [],
-    productNumber: [],
-    description: [],
-    brand: [],
-    series: [],
-    taxonomy: [],
-    legalName: [],
-    ageGrade: [],
-    status: [],
-    devStatus: [],
-    upc: []
-};
-let itemsFilterData = {
-    itemNumber: [],
-    productNumber: [],
-    description: [],
-    brand: [],
-    series: [],
-    taxonomy: [],
-    legalName: [],
-    ageGrade: [],
-    status: [],
-    devStatus: [],
-    upc: []
-};
-
-function toggleItemFilter(filterType) {
-    console.log('[Filter] toggleItemFilter called with type:', filterType);
-    
-    const filterIdMap = {
-        itemNumber: 'itemNumberFilter',
-        productNumber: 'productNumberFilter',
-        description: 'descriptionFilter',
-        brand: 'brandFilter',
-        series: 'seriesFilter',
-        taxonomy: 'taxonomyFilter',
-        legalName: 'legalNameFilter',
-        ageGrade: 'ageGradeFilter',
-        status: 'statusFilter',
-        devStatus: 'devStatusFilter',
-        upc: 'upcFilter'
-    };
-    
-    const filterId = filterIdMap[filterType];
-    console.log('[Filter] Looking for element:', filterId);
-    
-    const filterEl = document.getElementById(filterId);
-    console.log('[Filter] Found element:', filterEl);
-    
-    // Close other filters
-    document.querySelectorAll('.column-filter').forEach(f => {
-        if (f.id !== filterId) f.style.display = 'none';
-    });
-    
-    // Toggle this filter
-    if (filterEl) {
-        if (filterEl.style.display === 'none' || !filterEl.style.display) {
-            filterEl.style.display = 'block';
-            console.log('[Filter] Showing filter:', filterId);
+        if (response.ok) {
+            loadProducts(productsPage);
         } else {
-            filterEl.style.display = 'none';
-            console.log('[Filter] Hiding filter:', filterId);
+            const error = await response.json();
+            showError(error.error || 'Failed to update stage');
         }
-    } else {
-        console.error('[Filter] Element not found:', filterId);
+    } catch (error) {
+        showError('Failed to update stage: ' + error.message);
     }
 }
 
-window.toggleItemFilter = toggleItemFilter;
-
-function filterColumnOptions(filterType, searchTerm) {
-    const optionsIdMap = {
-        itemNumber: 'itemNumberOptions',
-        productNumber: 'productNumberOptions',
-        description: 'descriptionOptions',
-        brand: 'brandOptions',
-        series: 'seriesOptions',
-        taxonomy: 'taxonomyOptions',
-        legalName: 'legalNameOptions',
-        ageGrade: 'ageGradeOptions',
-        status: 'statusOptions',
-        devStatus: 'devStatusOptions',
-        upc: 'upcOptions'
-    };
+function updateProductsPagination(pagination) {
+    productsTotalPages = pagination.total_pages;
     
-    const optionsId = optionsIdMap[filterType];
-    const optionsEl = document.getElementById(optionsId);
-    const data = itemsFilterData[filterType];
-    
-    const filtered = data.filter(item => 
-        item && item.toLowerCase().includes(searchTerm.toLowerCase())
-    );
-    
-    renderFilterOptions(filterType, filtered);
+    document.getElementById('pageInfo').textContent = `Page ${pagination.page} of ${pagination.total_pages} (${pagination.total} total)`;
+    document.getElementById('prevPage').disabled = pagination.page <= 1;
+    document.getElementById('nextPage').disabled = pagination.page >= pagination.total_pages;
 }
 
-window.filterColumnOptions = filterColumnOptions;
-
-function renderFilterOptions(filterType, data) {
-    const optionsIdMap = {
-        itemNumber: 'itemNumberOptions',
-        productNumber: 'productNumberOptions',
-        description: 'descriptionOptions',
-        brand: 'brandOptions',
-        series: 'seriesOptions',
-        taxonomy: 'taxonomyOptions',
-        legalName: 'legalNameOptions',
-        ageGrade: 'ageGradeOptions',
-        status: 'statusOptions',
-        devStatus: 'devStatusOptions',
-        upc: 'upcOptions'
-    };
-    
-    const optionsId = optionsIdMap[filterType];
-    const optionsEl = document.getElementById(optionsId);
-    
-    if (!data || data.length === 0) {
-        optionsEl.innerHTML = '<div style="padding: 8px; color: #9ca3af; font-size: 13px;">No options</div>';
-        return;
-    }
-    
-    optionsEl.innerHTML = data.map(item => {
-        const checked = itemsFilters[filterType].includes(item) ? 'checked' : '';
-        const safeId = `${filterType}-${escapeHtml(item).replace(/[^a-zA-Z0-9]/g, '_')}`;
-        return `
-            <div class="filter-option">
-                <input type="checkbox" id="${safeId}" value="${escapeHtml(item)}" ${checked}>
-                <label for="${safeId}" style="cursor: pointer; flex: 1;">${escapeHtml(item)}</label>
+async function viewProduct(id) {
+    try {
+        const response = await fetch(`${API_BASE}/products/${id}`, { headers: getAuthHeaders() });
+        if (!response.ok) throw new Error('Failed to load product');
+        
+        const product = await response.json();
+        
+        const content = document.getElementById('productDetailContent');
+        content.innerHTML = `
+            <div class="product-detail-grid">
+                <div class="detail-section">
+                    <h3>Product Information</h3>
+                    <table class="detail-table">
+                        <tr><td>Customer Group</td><td><strong>${product.customer_group_name}</strong></td></tr>
+                        <tr><td>Customer</td><td>${product.customer_name}</td></tr>
+                        <tr><td>Customer Number</td><td><code>${product.customer_number}</code></td></tr>
+                        <tr><td>Item Number</td><td>${product.item_number ? `<code>${product.item_number}</code>` : '-'}</td></tr>
+                        <tr><td>Description</td><td>${product.description || '-'}</td></tr>
+                        <tr><td>FCL/LCL</td><td>${product.fcl_lcl || '-'}</td></tr>
+                        <tr><td>Status</td><td><span class="status-badge status-${(product.status || '').toLowerCase()}">${product.status || '-'}</span></td></tr>
+                        <tr><td>Sell Price</td><td>${product.sell_price ? `$${parseFloat(product.sell_price).toFixed(2)}` : '-'}</td></tr>
+                    </table>
+                </div>
+                
+                ${product.item_number ? `
+                <div class="detail-section">
+                    <h3>PIM Data (from Item Number)</h3>
+                    <table class="detail-table">
+                        <tr><td>Legal Name</td><td>${product.pim_legal_name || '-'}</td></tr>
+                        <tr><td>Brand</td><td>${product.pim_brand || '-'}</td></tr>
+                        <tr><td>Series</td><td>${product.pim_series || '-'}</td></tr>
+                        <tr><td>Taxonomy</td><td>${product.pim_taxonomy || '-'}</td></tr>
+                        <tr><td>Age Grade</td><td>${product.pim_age_grade || '-'}</td></tr>
+                        <tr><td>UPC</td><td>${product.pim_upc || '-'}</td></tr>
+                        <tr><td>Dev Status</td><td>${product.pim_dev_status || '-'}</td></tr>
+                        <tr><td>Spec Status</td><td>${product.pim_spec_status || '-'}</td></tr>
+                        <tr><td>Dimensions</td><td>${product.pim_length && product.pim_width && product.pim_height ? 
+                            `${product.pim_length} × ${product.pim_width} × ${product.pim_height} cm` : '-'}</td></tr>
+                        <tr><td>Weight</td><td>${product.pim_weight ? `${product.pim_weight} kg` : '-'}</td></tr>
+                    </table>
+                </div>
+                ` : ''}
             </div>
         `;
-    }).join('');
-}
-
-function applyItemFilter(filterType) {
-    const optionsIdMap = {
-        itemNumber: 'itemNumberOptions',
-        productNumber: 'productNumberOptions',
-        description: 'descriptionOptions',
-        brand: 'brandOptions',
-        series: 'seriesOptions',
-        taxonomy: 'taxonomyOptions',
-        legalName: 'legalNameOptions',
-        ageGrade: 'ageGradeOptions',
-        status: 'statusOptions',
-        devStatus: 'devStatusOptions',
-        upc: 'upcOptions'
-    };
-    
-    const optionsId = optionsIdMap[filterType];
-    const optionsEl = document.getElementById(optionsId);
-    const checkboxes = optionsEl.querySelectorAll('input[type="checkbox"]:checked');
-    
-    itemsFilters[filterType] = Array.from(checkboxes).map(cb => cb.value);
-    itemsCurrentPage = 1;
-    loadItemNumbers();
-    toggleItemFilter(filterType); // Close the filter
-}
-
-window.applyItemFilter = applyItemFilter;
-
-function clearItemFilter(filterType) {
-    itemsFilters[filterType] = [];
-    itemsCurrentPage = 1;
-    loadItemNumbers();
-    toggleItemFilter(filterType); // Close the filter
-}
-
-window.clearItemFilter = clearItemFilter;
-
-async function loadItemNumbers() {
-    console.log('[Items] loadItemNumbers() called');
-    const tbody = document.getElementById('itemNumbersTableBody');
-    if (tbody) {
-        tbody.innerHTML = '<tr><td colspan="12" style="text-align: center; padding: 20px; color: #666;">Loading...</td></tr>';
+        
+        document.getElementById('productModal').style.display = 'block';
+    } catch (error) {
+        console.error('Error loading product:', error);
+        showError('Failed to load product details');
     }
+}
+
+function closeProductModal() {
+    document.getElementById('productModal').style.display = 'none';
+}
+
+// ============================================================================
+// ITEM NUMBERS (PIM)
+// ============================================================================
+
+async function loadItemNumbers(page = 1) {
+    itemsPage = page;
+    const offset = (page - 1) * itemsLimit;
     
-    const itemNumber = itemsFilters.itemNumber.length > 0 ? itemsFilters.itemNumber.join(',') : 'all';
-    const productNumber = itemsFilters.productNumber.length > 0 ? itemsFilters.productNumber.join(',') : 'all';
-    const description = itemsFilters.description.length > 0 ? itemsFilters.description.join(',') : 'all';
-    const brand = itemsFilters.brand.length > 0 ? itemsFilters.brand.join(',') : 'all';
-    const series = itemsFilters.series.length > 0 ? itemsFilters.series.join(',') : 'all';
-    const taxonomy = itemsFilters.taxonomy.length > 0 ? itemsFilters.taxonomy.join(',') : 'all';
-    const legalName = itemsFilters.legalName.length > 0 ? itemsFilters.legalName.join(',') : 'all';
-    const ageGrade = itemsFilters.ageGrade.length > 0 ? itemsFilters.ageGrade.join(',') : 'all';
-    const status = itemsFilters.status.length > 0 ? itemsFilters.status.join(',') : 'all';
-    const devStatus = itemsFilters.devStatus.length > 0 ? itemsFilters.devStatus.join(',') : 'all';
-    const upc = itemsFilters.upc.length > 0 ? itemsFilters.upc.join(',') : 'all';
+    let url = `${API_BASE}/item-numbers?limit=${itemsLimit}&offset=${offset}`;
     
-    console.log('[Items] Filters:', { itemNumber, productNumber, description, brand, series, taxonomy, legalName, ageGrade, status, devStatus, upc, page: itemsCurrentPage });
+    const search = document.getElementById('itemSearchInput').value;
+    const series = document.getElementById('itemSeriesFilter').value;
+    const brand = document.getElementById('itemBrandFilter').value;
+    const devStatus = document.getElementById('itemDevStatusFilter').value;
+    
+    if (search) url += `&search=${encodeURIComponent(search)}`;
+    if (series) url += `&series=${encodeURIComponent(series)}`;
+    if (brand) url += `&brand=${encodeURIComponent(brand)}`;
+    if (devStatus) url += `&dev_status=${encodeURIComponent(devStatus)}`;
     
     try {
-        const url = `${API_BASE}/item-numbers?page=${itemsCurrentPage}&limit=${itemsLimit}&search=&itemNumber=${encodeURIComponent(itemNumber)}&productNumber=${encodeURIComponent(productNumber)}&description=${encodeURIComponent(description)}&series=${encodeURIComponent(series)}&taxonomy=${encodeURIComponent(taxonomy)}&brand=${encodeURIComponent(brand)}&legalName=${encodeURIComponent(legalName)}&ageGrade=${encodeURIComponent(ageGrade)}&status=${encodeURIComponent(status)}&devStatus=${encodeURIComponent(devStatus)}&upc=${encodeURIComponent(upc)}`;
-        console.log('[Items] Fetching:', url);
+        const response = await fetch(url, { headers: getAuthHeaders() });
+        if (!response.ok) throw new Error('Failed to load item numbers');
         
-        const response = await fetch(url);
-        
-        console.log('[Items] Response status:', response.status);
-        
-        if (!response.ok) {
-            const text = await response.text();
-            console.error('[Items] API error:', text);
-            throw new Error('Failed to load items');
-        }
-        
-        const data = await response.json();
-        console.log('[Items] Data received:', data);
-        renderItemsTable(data.items);
-        updateItemsPagination(data);
+        const result = await response.json();
+        renderItemsTable(result.data);
+        updateItemsPagination(result.pagination);
     } catch (error) {
-        console.error('[Items] Error loading items:', error);
-        const tbody = document.getElementById('itemNumbersTableBody');
-        if (tbody) {
-            tbody.innerHTML = '<tr><td colspan="12" style="text-align: center; color: var(--danger-color); padding: 40px;">Error loading items. Please try refreshing.</td></tr>';
-        }
+        console.error('Error loading item numbers:', error);
+        showError('Failed to load item numbers');
     }
 }
 
 function renderItemsTable(items) {
-    console.log('[Items] renderItemsTable() called with', items?.length, 'items');
-    const tbody = document.getElementById('itemNumbersTableBody');
-    console.log('[Items] tbody element:', tbody);
-    
-    if (!tbody) {
-        console.error('[Items] itemNumbersTableBody not found!');
-        return;
-    }
+    const tbody = document.getElementById('itemsTableBody');
     
     if (!items || items.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="12" style="text-align: center; padding: 40px;">No items found</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="9" style="text-align: center; padding: 40px;">No item numbers found</td></tr>';
         return;
     }
     
-    console.log('[Items] Rendering', items.length, 'rows...');
-    const html = items.map(item => `
+    tbody.innerHTML = items.map(i => `
         <tr>
-            <td><strong>${escapeHtml(item.item_number)}</strong></td>
-            <td>${escapeHtml(item.product_number || '-')}</td>
-            <td><small>${escapeHtml(item.product_description_internal || '-')}</small></td>
-            <td>${escapeHtml(item.series || '-')}</td>
-            <td>${escapeHtml(item.product_taxonomy_category || '-')}</td>
-            <td>${escapeHtml(item.legal_name || '-')}</td>
-            <td>${escapeHtml(item.brand_product_line || '-')}</td>
-            <td>${escapeHtml(item.age_grade || '-')}</td>
-            <td><span class="badge ${getStatusBadgeClass(item.item_spec_sheet_status)}">${escapeHtml(item.item_spec_sheet_status || '-')}</span></td>
-            <td><span class="badge ${getDevStatusBadgeClass(item.product_development_status)}">${escapeHtml(item.product_development_status || '-')}</span></td>
-            <td><small>${escapeHtml(item.upc_number || '-')}</small></td>
-            <td>${renderProductStageCircle(item)}</td>
+            <td><code>${i.item_number}</code></td>
+            <td title="${i.legal_name || ''}">${truncate(i.legal_name, 30)}</td>
+            <td>${i.brand_product_line || '-'}</td>
+            <td>${i.series || '-'}</td>
+            <td>${i.product_taxonomy_category || '-'}</td>
+            <td>${i.age_grade || '-'}</td>
+            <td><span class="pim-badge ${i.product_development_status === 'Finalized' ? 'pim-finalized' : ''}">${i.product_development_status || '-'}</span></td>
+            <td>${i.item_spec_sheet_status || '-'}</td>
+            <td>${i.upc_number || '-'}</td>
         </tr>
     `).join('');
+}
+
+function updateItemsPagination(pagination) {
+    itemsTotalPages = pagination.total_pages;
     
-    tbody.innerHTML = html;
-    console.log('[Items] Rendered successfully. First item:', items[0]?.item_number);
-    console.log('[Items] tbody.children.length:', tbody.children.length);
-    console.log('[Items] tbody.innerHTML length:', tbody.innerHTML.length);
+    document.getElementById('itemPageInfo').textContent = `Page ${pagination.page} of ${pagination.total_pages} (${pagination.total} total)`;
+    document.getElementById('itemPrevPage').disabled = pagination.page <= 1;
+    document.getElementById('itemNextPage').disabled = pagination.page >= pagination.total_pages;
 }
 
-function getStatusBadgeClass(status) {
-    if (!status) return '';
-    if (status.toLowerCase() === 'finish') return 'badge-success';
-    return 'badge-warning';
-}
-
-function getDevStatusBadgeClass(status) {
-    if (!status) return '';
-    if (status.toLowerCase() === 'finalized') return 'badge-success';
-    if (status.toUpperCase() === 'NCF') return 'badge-danger';
-    return 'badge-info';
-}
-
-function getLatestStageForItem(item) {
-    // Determine the latest stage this item has reached
-    if (item.stage_7_end_of_life) return { stage: 7, name: 'EOL', color: '#ef4444' };
-    if (item.stage_6_product_online) return { stage: 6, name: 'Online', color: '#10b981' };
-    if (item.stage_5_product_ordered) return { stage: 5, name: 'QPI', color: '#3b82f6' };
-    if (item.stage_4_product_listed) return { stage: 4, name: 'VC Listed', color: '#8b5cf6' };
-    if (item.stage_3b_pricing_approved) return { stage: 3, name: 'Pricing', color: '#10b981' };
-    if (item.stage_3a_pricing_submitted) return { stage: 3, name: 'Pricing', color: '#f59e0b' };
-    if (item.stage_2_product_finalized) return { stage: 2, name: 'PIM', color: '#06b6d4' };
-    if (item.stage_1_idea_considered) return { stage: 1, name: 'Ideation', color: '#64748b' };
-    return null;
-}
-
-function renderProductStageCircle(item) {
-    const stage = getLatestStageForItem(item);
-    
-    if (!stage) {
-        return '<div style="text-align: center; color: #9ca3af; font-size: 12px;">-</div>';
-    }
-    
-    const asinLink = item.asin ? `onclick="window.location.href='/?asin=${item.asin}'"` : '';
-    const cursor = item.asin ? 'cursor: pointer;' : '';
-    const title = item.asin ? `ASIN: ${item.asin} - Click to view product` : 'Not linked to product';
-    
-    return `
-        <div ${asinLink} style="text-align: center; ${cursor}" title="${title}">
-            <div style="width: 40px; height: 40px; border-radius: 50%; background-color: ${stage.color}; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 14px; color: white; margin: 0 auto; ${cursor}">
-                ${stage.stage}
-            </div>
-            <div style="margin-top: 5px; font-size: 11px; color: ${stage.color}; font-weight: 600;">${stage.name}</div>
-        </div>
-    `;
-}
-
-function updateItemsPagination(data) {
-    const prevBtn = document.getElementById('itemsPrevBtn');
-    const nextBtn = document.getElementById('itemsNextBtn');
-    const pageInfo = document.getElementById('itemsPageInfo');
-    
-    if (prevBtn) prevBtn.disabled = itemsCurrentPage === 1;
-    if (nextBtn) nextBtn.disabled = itemsCurrentPage >= data.totalPages;
-    if (pageInfo) pageInfo.textContent = `Page ${itemsCurrentPage} of ${data.totalPages} (${data.total} items)`;
-}
-
-async function loadItemsFilters() {
+async function loadItemFilters() {
     try {
-        const response = await fetch(`${API_BASE}/item-numbers/filters`);
-        if (!response.ok) throw new Error('Failed to load filters');
+        const response = await fetch(`${API_BASE}/item-numbers/filters`, { headers: getAuthHeaders() });
+        if (!response.ok) return;
         
-        const data = await response.json();
+        const filters = await response.json();
         
-        // Store filter data
-        itemsFilterData.itemNumber = data.itemNumbers || [];
-        itemsFilterData.productNumber = data.productNumbers || [];
-        itemsFilterData.description = data.descriptions || [];
-        itemsFilterData.brand = data.brands || [];
-        itemsFilterData.series = data.series || [];
-        itemsFilterData.taxonomy = data.taxonomies || [];
-        itemsFilterData.legalName = data.legalNames || [];
-        itemsFilterData.ageGrade = data.ageGrades || [];
-        itemsFilterData.status = data.statuses || [];
-        itemsFilterData.devStatus = data.devStatuses || [];
-        itemsFilterData.upc = data.upcs || [];
+        const seriesSelect = document.getElementById('itemSeriesFilter');
+        seriesSelect.innerHTML = '<option value="">All Series</option>';
+        filters.series.forEach(s => {
+            seriesSelect.innerHTML += `<option value="${s}">${s}</option>`;
+        });
         
-        // Render initial options
-        renderFilterOptions('itemNumber', itemsFilterData.itemNumber);
-        renderFilterOptions('productNumber', itemsFilterData.productNumber);
-        renderFilterOptions('description', itemsFilterData.description);
-        renderFilterOptions('brand', itemsFilterData.brand);
-        renderFilterOptions('series', itemsFilterData.series);
-        renderFilterOptions('taxonomy', itemsFilterData.taxonomy);
-        renderFilterOptions('legalName', itemsFilterData.legalName);
-        renderFilterOptions('ageGrade', itemsFilterData.ageGrade);
-        renderFilterOptions('status', itemsFilterData.status);
-        renderFilterOptions('devStatus', itemsFilterData.devStatus);
-        renderFilterOptions('upc', itemsFilterData.upc);
+        const brandSelect = document.getElementById('itemBrandFilter');
+        brandSelect.innerHTML = '<option value="">All Brands</option>';
+        filters.brands.forEach(b => {
+            brandSelect.innerHTML += `<option value="${b}">${b}</option>`;
+        });
+        
+        const devStatusSelect = document.getElementById('itemDevStatusFilter');
+        devStatusSelect.innerHTML = '<option value="">All Dev Statuses</option>';
+        filters.dev_statuses.forEach(s => {
+            devStatusSelect.innerHTML += `<option value="${s}">${s}</option>`;
+        });
     } catch (error) {
-        console.error('Error loading filters:', error);
+        console.error('Error loading item filters:', error);
     }
 }
 
-// Initialize app
+// ============================================================================
+// CUSTOMER ADMIN
+// ============================================================================
+
+async function loadCustomerGroupsTable() {
+    try {
+        const response = await fetch(`${API_BASE}/customer-groups`, { headers: getAuthHeaders() });
+        if (!response.ok) throw new Error('Failed to load customer groups');
+        
+        const groups = await response.json();
+        const tbody = document.getElementById('customerGroupsTableBody');
+        
+        if (groups.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="5" style="text-align: center;">No customer groups found</td></tr>';
+            return;
+        }
+        
+        tbody.innerHTML = groups.map(g => `
+            <tr>
+                <td><strong>${g.name}</strong></td>
+                <td>${g.customer_count}</td>
+                <td>${g.product_count}</td>
+                <td>${formatDate(g.created_at)}</td>
+                <td>
+                    <button class="btn-sm btn-secondary" onclick="editCustomerGroup(${g.id}, '${escapeHtml(g.name)}')">Edit</button>
+                    ${currentUser.role === 'admin' ? `<button class="btn-sm btn-danger" onclick="deleteCustomerGroup(${g.id})">Delete</button>` : ''}
+                </td>
+            </tr>
+        `).join('');
+    } catch (error) {
+        console.error('Error loading customer groups:', error);
+    }
+}
+
+async function loadCustomersTable() {
+    try {
+        const response = await fetch(`${API_BASE}/customers`, { headers: getAuthHeaders() });
+        if (!response.ok) throw new Error('Failed to load customers');
+        
+        const customersList = await response.json();
+        const tbody = document.getElementById('customersTableBody');
+        
+        if (customersList.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="5" style="text-align: center;">No customers found</td></tr>';
+            return;
+        }
+        
+        tbody.innerHTML = customersList.map(c => `
+            <tr>
+                <td><strong>${c.name}</strong></td>
+                <td>${c.customer_group_name}</td>
+                <td>${c.product_count}</td>
+                <td>${formatDate(c.created_at)}</td>
+                <td>
+                    <button class="btn-sm btn-secondary" onclick="editCustomer(${c.id}, '${escapeHtml(c.name)}', ${c.customer_group_id})">Edit</button>
+                    ${currentUser.role === 'admin' ? `<button class="btn-sm btn-danger" onclick="deleteCustomer(${c.id})">Delete</button>` : ''}
+                </td>
+            </tr>
+        `).join('');
+    } catch (error) {
+        console.error('Error loading customers:', error);
+    }
+}
+
+// Customer Group Modal
+function openAddCustomerGroupModal() {
+    document.getElementById('customerGroupId').value = '';
+    document.getElementById('customerGroupName').value = '';
+    document.getElementById('customerGroupModalTitle').textContent = 'Add Customer Group';
+    document.getElementById('customerGroupModal').style.display = 'block';
+}
+
+function editCustomerGroup(id, name) {
+    document.getElementById('customerGroupId').value = id;
+    document.getElementById('customerGroupName').value = name;
+    document.getElementById('customerGroupModalTitle').textContent = 'Edit Customer Group';
+    document.getElementById('customerGroupModal').style.display = 'block';
+}
+
+function closeCustomerGroupModal() {
+    document.getElementById('customerGroupModal').style.display = 'none';
+}
+
+async function saveCustomerGroup(e) {
+    e.preventDefault();
+    
+    const id = document.getElementById('customerGroupId').value;
+    const name = document.getElementById('customerGroupName').value;
+    
+    try {
+        const url = id ? `${API_BASE}/customer-groups/${id}` : `${API_BASE}/customer-groups`;
+        const method = id ? 'PUT' : 'POST';
+        
+        const response = await fetch(url, {
+            method,
+            headers: getAuthHeaders(),
+            body: JSON.stringify({ name })
+        });
+        
+        if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.error || 'Failed to save customer group');
+        }
+        
+        closeCustomerGroupModal();
+        showSuccess(id ? 'Customer group updated' : 'Customer group created');
+        loadCustomerGroupsTable();
+        loadCustomerGroups();
+    } catch (error) {
+        showError(error.message);
+    }
+}
+
+async function deleteCustomerGroup(id) {
+    if (!confirm('Are you sure? This will delete all customers and products in this group.')) return;
+    
+    try {
+        const response = await fetch(`${API_BASE}/customer-groups/${id}`, {
+            method: 'DELETE',
+            headers: getAuthHeaders()
+        });
+        
+        if (!response.ok) throw new Error('Failed to delete customer group');
+        
+        showSuccess('Customer group deleted');
+        loadCustomerGroupsTable();
+        loadCustomerGroups();
+    } catch (error) {
+        showError(error.message);
+    }
+}
+
+// Customer Modal
+function openAddCustomerModal() {
+    document.getElementById('customerId').value = '';
+    document.getElementById('customerName').value = '';
+    document.getElementById('customerGroupSelect').value = '';
+    document.getElementById('customerModalTitle').textContent = 'Add Customer';
+    document.getElementById('customerModal').style.display = 'block';
+}
+
+function editCustomer(id, name, customerGroupId) {
+    document.getElementById('customerId').value = id;
+    document.getElementById('customerName').value = name;
+    document.getElementById('customerGroupSelect').value = customerGroupId;
+    document.getElementById('customerModalTitle').textContent = 'Edit Customer';
+    document.getElementById('customerModal').style.display = 'block';
+}
+
+function closeCustomerModal() {
+    document.getElementById('customerModal').style.display = 'none';
+}
+
+async function saveCustomer(e) {
+    e.preventDefault();
+    
+    const id = document.getElementById('customerId').value;
+    const name = document.getElementById('customerName').value;
+    const customer_group_id = document.getElementById('customerGroupSelect').value;
+    
+    try {
+        const url = id ? `${API_BASE}/customers/${id}` : `${API_BASE}/customers`;
+        const method = id ? 'PUT' : 'POST';
+        
+        const response = await fetch(url, {
+            method,
+            headers: getAuthHeaders(),
+            body: JSON.stringify({ name, customer_group_id })
+        });
+        
+        if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.error || 'Failed to save customer');
+        }
+        
+        closeCustomerModal();
+        showSuccess(id ? 'Customer updated' : 'Customer created');
+        loadCustomersTable();
+        loadCustomers();
+    } catch (error) {
+        showError(error.message);
+    }
+}
+
+async function deleteCustomer(id) {
+    if (!confirm('Are you sure? This will delete all products for this customer.')) return;
+    
+    try {
+        const response = await fetch(`${API_BASE}/customers/${id}`, {
+            method: 'DELETE',
+            headers: getAuthHeaders()
+        });
+        
+        if (!response.ok) throw new Error('Failed to delete customer');
+        
+        showSuccess('Customer deleted');
+        loadCustomersTable();
+        loadCustomers();
+    } catch (error) {
+        showError(error.message);
+    }
+}
+
+// ============================================================================
+// DATABASE EXPLORER
+// ============================================================================
+
+async function loadDatabaseTable(table = null, page = 1) {
+    if (table) currentTable = table;
+    dbPage = page;
+    const offset = (page - 1) * dbLimit;
+    
+    try {
+        const response = await fetch(`${API_BASE}/database/${currentTable}?limit=${dbLimit}&offset=${offset}`, {
+            headers: getAuthHeaders()
+        });
+        if (!response.ok) throw new Error('Failed to load table');
+        
+        const result = await response.json();
+        
+        // Render header
+        const thead = document.getElementById('databaseTableHead');
+        thead.innerHTML = `<tr>${result.columns.map(c => `<th>${c.name}</th>`).join('')}</tr>`;
+        
+        // Render body
+        const tbody = document.getElementById('databaseTableBody');
+        if (result.rows.length === 0) {
+            tbody.innerHTML = `<tr><td colspan="${result.columns.length}" style="text-align: center;">No data</td></tr>`;
+        } else {
+            tbody.innerHTML = result.rows.map(row => 
+                `<tr>${result.columns.map(c => `<td>${formatCell(row[c.name])}</td>`).join('')}</tr>`
+            ).join('');
+        }
+        
+        // Update pagination
+        dbTotalPages = Math.ceil(result.total / dbLimit);
+        document.getElementById('dbPageInfo').textContent = `Page ${page} of ${dbTotalPages} (${result.total} total)`;
+        document.getElementById('dbPrevPage').disabled = page <= 1;
+        document.getElementById('dbNextPage').disabled = page >= dbTotalPages;
+        document.getElementById('databasePagination').style.display = 'flex';
+    } catch (error) {
+        console.error('Error loading table:', error);
+        showError('Failed to load table');
+    }
+}
+
+// ============================================================================
+// UPLOAD
+// ============================================================================
+
+function openUploadModal() {
+    document.getElementById('uploadModal').style.display = 'block';
+    document.getElementById('uploadForm').reset();
+    document.getElementById('uploadProgress').style.display = 'none';
+    document.getElementById('uploadResult').style.display = 'none';
+}
+
+function closeUploadModal() {
+    document.getElementById('uploadModal').style.display = 'none';
+}
+
+async function handleUpload(e) {
+    e.preventDefault();
+    
+    const fileInput = document.getElementById('uploadFile');
+    if (!fileInput.files.length) {
+        showError('Please select a file');
+        return;
+    }
+    
+    const formData = new FormData();
+    formData.append('file', fileInput.files[0]);
+    
+    document.getElementById('uploadProgress').style.display = 'block';
+    document.getElementById('uploadResult').style.display = 'none';
+    
+    try {
+        const response = await fetch(`${API_BASE}/products/upload`, {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` },
+            body: formData
+        });
+        
+        const result = await response.json();
+        
+        document.getElementById('uploadProgress').style.display = 'none';
+        document.getElementById('uploadResult').style.display = 'block';
+        
+        if (response.ok) {
+            document.getElementById('uploadResult').innerHTML = `
+                <div style="background: #d1fae5; padding: 15px; border-radius: 8px;">
+                    <h4 style="color: #059669; margin-bottom: 10px;">✓ Upload Complete</h4>
+                    <ul style="margin: 0; padding-left: 20px;">
+                        <li>Customer Groups Created: ${result.summary.customer_groups_created}</li>
+                        <li>Customers Created: ${result.summary.customers_created}</li>
+                        <li>Products Created: ${result.summary.products_created}</li>
+                        <li>Products Updated: ${result.summary.products_updated}</li>
+                        ${result.summary.errors > 0 ? `<li style="color: #dc2626;">Errors: ${result.summary.errors}</li>` : ''}
+                    </ul>
+                    ${result.errors && result.errors.length > 0 ? `
+                        <details style="margin-top: 10px;">
+                            <summary style="cursor: pointer; color: #dc2626;">View Errors</summary>
+                            <ul style="margin-top: 5px; font-size: 12px; max-height: 200px; overflow-y: auto;">
+                                ${result.errors.map(e => `<li>${e}</li>`).join('')}
+                            </ul>
+                        </details>
+                    ` : ''}
+                </div>
+            `;
+            
+            // Reload data
+            loadCustomerGroups();
+            loadCustomers();
+            loadProducts();
+        } else {
+            document.getElementById('uploadResult').innerHTML = `
+                <div style="background: #fee2e2; padding: 15px; border-radius: 8px; color: #dc2626;">
+                    <h4>✗ Upload Failed</h4>
+                    <p>${result.error || 'Unknown error'}</p>
+                </div>
+            `;
+        }
+    } catch (error) {
+        document.getElementById('uploadProgress').style.display = 'none';
+        document.getElementById('uploadResult').style.display = 'block';
+        document.getElementById('uploadResult').innerHTML = `
+            <div style="background: #fee2e2; padding: 15px; border-radius: 8px; color: #dc2626;">
+                <h4>✗ Upload Failed</h4>
+                <p>${error.message}</p>
+            </div>
+        `;
+    }
+}
+
+// ============================================================================
+// SYNC
+// ============================================================================
+
+async function syncPIM() {
+    showToast('Syncing PIM data...');
+    
+    try {
+        const response = await fetch(`${API_BASE}/sync/pim`, {
+            method: 'POST',
+            headers: getAuthHeaders()
+        });
+        
+        const result = await response.json();
+        
+        if (response.ok) {
+            showSuccess(`PIM sync complete: ${result.created} created, ${result.updated} updated`);
+            loadItemNumbers();
+        } else {
+            showError(result.error || 'PIM sync failed');
+        }
+    } catch (error) {
+        showError('PIM sync failed: ' + error.message);
+    }
+}
+
+// ============================================================================
+// UTILITIES
+// ============================================================================
+
+function truncate(str, maxLength) {
+    if (!str) return '-';
+    return str.length > maxLength ? str.substring(0, maxLength) + '...' : str;
+}
+
+function formatDate(dateStr) {
+    if (!dateStr) return '-';
+    return new Date(dateStr).toLocaleDateString();
+}
+
+function formatCell(value) {
+    if (value === null || value === undefined) return '-';
+    if (typeof value === 'string' && value.length > 50) {
+        return `<span title="${escapeHtml(value)}">${escapeHtml(value.substring(0, 50))}...</span>`;
+    }
+    return escapeHtml(String(value));
+}
+
+function escapeHtml(str) {
+    if (!str) return '';
+    return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+}
+
+// ============================================================================
+// VIEW SWITCHING
+// ============================================================================
+
+function switchView(viewName) {
+    currentView = viewName;
+    
+    // Hide all views
+    document.querySelectorAll('.view-container').forEach(v => v.classList.remove('active'));
+    
+    // Show selected view
+    const viewElement = document.getElementById(viewName + 'View');
+    if (viewElement) {
+        viewElement.classList.add('active');
+    }
+    
+    // Update tab buttons
+    document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+    document.querySelector(`.tab-btn[data-view="${viewName}"]`)?.classList.add('active');
+    
+    // Load data for the view
+    if (viewName === 'products') {
+        loadProducts();
+    } else if (viewName === 'items') {
+        loadItemNumbers();
+        loadItemFilters();
+    } else if (viewName === 'customer-admin') {
+        loadCustomerGroupsTable();
+        loadCustomersTable();
+    }
+}
+
+// ============================================================================
+// SIDEBAR
+// ============================================================================
+
+function setupSidebar() {
+    const sidebar = document.getElementById('sidebar');
+    const overlay = document.getElementById('sidebarOverlay');
+    const toggleBtn = document.getElementById('sidebarToggle');
+    const closeBtn = document.getElementById('sidebarClose');
+    
+    toggleBtn.addEventListener('click', () => {
+        sidebar.classList.add('active');
+        overlay.classList.add('active');
+    });
+    
+    closeBtn.addEventListener('click', closeSidebar);
+    overlay.addEventListener('click', closeSidebar);
+    
+    function closeSidebar() {
+        sidebar.classList.remove('active');
+        overlay.classList.remove('active');
+    }
+    
+    // Sidebar submenu toggles
+    document.querySelectorAll('.sidebar-toggle').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const targetId = btn.getAttribute('data-target');
+            const submenu = document.getElementById(targetId);
+            const arrow = btn.querySelector('.sidebar-arrow');
+            
+            if (submenu.classList.contains('active')) {
+                submenu.classList.remove('active');
+                arrow.textContent = '▼';
+            } else {
+                submenu.classList.add('active');
+                arrow.textContent = '▲';
+            }
+        });
+    });
+    
+    // Sidebar buttons
+    document.getElementById('sidebarUploadBtn')?.addEventListener('click', () => {
+        closeSidebar();
+        openUploadModal();
+    });
+    
+    document.getElementById('sidebarCustomerAdminBtn')?.addEventListener('click', () => {
+        closeSidebar();
+        switchView('customer-admin');
+    });
+    
+    document.getElementById('sidebarSyncPimBtn')?.addEventListener('click', () => {
+        closeSidebar();
+        syncPIM();
+    });
+    
+    document.getElementById('sidebarExportBtn')?.addEventListener('click', () => {
+        closeSidebar();
+        exportProducts();
+    });
+}
+
+// ============================================================================
+// EXPORT
+// ============================================================================
+
+async function exportProducts() {
+    showToast('Preparing export...');
+    
+    try {
+        const response = await fetch(`${API_BASE}/products?limit=10000`, { headers: getAuthHeaders() });
+        if (!response.ok) throw new Error('Failed to fetch products');
+        
+        const result = await response.json();
+        const products = result.data;
+        
+        // Create CSV content
+        const headers = ['Customer Group', 'Customer', 'Customer Number', 'Item Number', 'Description', 'FCL/LCL', 'Status', 'Sell Price'];
+        const csvContent = [
+            headers.join(','),
+            ...products.map(p => [
+                `"${p.customer_group_name || ''}"`,
+                `"${p.customer_name || ''}"`,
+                `"${p.customer_number || ''}"`,
+                `"${p.item_number || ''}"`,
+                `"${(p.description || '').replace(/"/g, '""')}"`,
+                `"${p.fcl_lcl || ''}"`,
+                `"${p.status || ''}"`,
+                p.sell_price || ''
+            ].join(','))
+        ].join('\n');
+        
+        // Download
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        const link = document.createElement('a');
+        link.href = URL.createObjectURL(blob);
+        link.download = `products_export_${new Date().toISOString().split('T')[0]}.csv`;
+        link.click();
+        
+        showSuccess('Export complete');
+    } catch (error) {
+        showError('Export failed: ' + error.message);
+    }
+}
+
+// ============================================================================
+// EVENT LISTENERS
+// ============================================================================
+
 document.addEventListener('DOMContentLoaded', () => {
     if (!checkAuth()) return;
     
-    initSidebar();
-    loadItems();
-    loadSkus();
-    loadCountries();
-    loadProductItemNumberFilters(); // Load item number filters for Products view
-    // loadVariationFilters(); // TODO: Create this endpoint
-    setupFilterSearch();
-    setupEventListeners();
-    setupCustomerAdminFilters();
-    setupItemsEventListeners();
-    setupProductColumnFilterListeners(); // Setup product column filter click handlers
+    setupSidebar();
     
-    // Close filters when clicking outside
-    document.addEventListener('click', (e) => {
-        const isFilterClick = e.target.closest('.column-filter') || e.target.closest('[onclick*="toggleItemFilter"]');
-        if (!isFilterClick) {
-            document.querySelectorAll('.column-filter').forEach(f => f.style.display = 'none');
-        }
-    });
-});
-
-// Items Event Listeners
-let itemsSearchTimeout;
-
-function setupItemsEventListeners() {
-    const itemsBrandFilter = document.getElementById('itemsBrandFilter');
-    const itemsSeriesFilter = document.getElementById('itemsSeriesFilter');
-    const itemsPrevBtn = document.getElementById('itemsPrevBtn');
-    const itemsNextBtn = document.getElementById('itemsNextBtn');
+    // Load initial data
+    loadCustomerGroups();
+    loadCustomers();
+    loadProducts();
     
-    if (itemsPrevBtn) {
-        itemsPrevBtn.addEventListener('click', () => {
-            if (itemsCurrentPage > 1) {
-                itemsCurrentPage--;
-                loadItemNumbers();
-            }
-        });
-    }
-    
-    if (itemsNextBtn) {
-        itemsNextBtn.addEventListener('click', () => {
-            itemsCurrentPage++;
-            loadItemNumbers();
-        });
-    }
-}
-
-// Event Listeners
-function setupProductColumnFilterListeners() {
-    console.log('[Product Filters] Setting up column filter listeners...');
-    
-    // Add click listeners to each filterable column header
-    const filterMappings = [
-        { selector: 'th[onclick*="toggleProductFilter(\'name\')"]', type: 'name' },
-        { selector: 'th[onclick*="toggleProductFilter(\'brand\')"]', type: 'brand' },
-        { selector: 'th[onclick*="toggleProductFilter(\'asin\')"]', type: 'asin' },
-        { selector: 'th[onclick*="toggleProductFilter(\'primaryItem\')"]', type: 'primaryItem' },
-        { selector: 'th[onclick*="toggleProductFilter(\'sku\')"]', type: 'sku' }
-    ];
-    
-    filterMappings.forEach(({ selector, type }) => {
-        const element = document.querySelector(selector);
-        if (element) {
-            console.log('[Product Filters] Adding listener to:', type, element);
-            // Remove inline onclick to avoid conflicts
-            element.removeAttribute('onclick');
-            // Add event listener
-            element.addEventListener('click', (e) => {
-                console.log('[Product Filters] Column clicked:', type);
-                e.stopPropagation();
-                toggleProductFilter(type);
-            });
-            // Make sure cursor shows it's clickable
-            element.style.cursor = 'pointer';
-        } else {
-            console.warn('[Product Filters] Column not found:', type, selector);
-        }
-    });
-    
-    console.log('[Product Filters] Column filter listeners set up');
-}
-
-function setupEventListeners() {
-    // View Tab Switching
+    // Tab switching
     document.querySelectorAll('.tab-btn').forEach(btn => {
         btn.addEventListener('click', () => {
-            const view = btn.dataset.view;
-            switchView(view);
+            switchView(btn.dataset.view);
         });
     });
-
-    // Database Table Switching
-    document.querySelectorAll('.table-btn').forEach(btn => {
-        btn.addEventListener('click', () => {
-            const table = btn.dataset.table;
-            loadDatabaseTable(table);
-            
-            // Update active state
-            document.querySelectorAll('.table-btn').forEach(b => b.classList.remove('active'));
-            btn.classList.add('active');
-        });
-    });
-
-    // Add Item Button
-    document.getElementById('addItemBtn').addEventListener('click', () => {
-        openItemModal();
-    });
-
-    // Item Form Submit
-    document.getElementById('itemForm').addEventListener('submit', handleItemSubmit);
     
-    // Pricing Submission Form Submit
-    document.getElementById('pricingSubmissionForm').addEventListener('submit', handlePricingSubmissionSubmit);
-
-    // Pricing Form Submit
-    document.getElementById('pricingForm').addEventListener('submit', handlePricingSubmit);
-
-    // Auto-fill currency based on country selection
-    document.getElementById('countryCode').addEventListener('change', function() {
-        const selectedOption = this.options[this.selectedIndex];
-        const currency = selectedOption.getAttribute('data-currency');
-        if (currency) {
-            document.getElementById('currency').value = currency;
-            document.getElementById('retailCurrencyHint').textContent = `In ${currency}`;
+    // Products filters
+    document.getElementById('applyFiltersBtn').addEventListener('click', () => loadProducts(1));
+    document.getElementById('clearFiltersBtn').addEventListener('click', () => {
+        document.getElementById('searchInput').value = '';
+        document.getElementById('customerGroupFilter').value = '';
+        document.getElementById('customerFilter').value = '';
+        document.getElementById('statusFilter').value = '';
+        if (document.getElementById('stageFilter')) {
+            document.getElementById('stageFilter').value = '';
         }
-    });
-
-    // Search and Filter
-    document.getElementById('searchInput').addEventListener('input', filterItems);
-    document.getElementById('productStatusFilter').addEventListener('change', filterItems);
-    document.getElementById('countryFilter').addEventListener('change', filterItems);
-    document.getElementById('tempFilter').addEventListener('change', filterItems);
-    document.getElementById('missingFilter').addEventListener('change', filterItems);
-    document.getElementById('productBrandFilter').addEventListener('change', () => {
-        loadVariationFilters(); // Reload filters for cross-filtering
-        filterItems();
-    });
-    document.getElementById('bundleFilter').addEventListener('change', () => {
-        loadVariationFilters(); // Reload filters for cross-filtering
-        filterItems();
-    });
-    document.getElementById('ppgFilter').addEventListener('change', () => {
-        loadVariationFilters(); // Reload filters for cross-filtering
-        filterItems();
+        loadProducts(1, false);
     });
     
-    // Item Number field filters
-    const productSeriesFilter = document.getElementById('productSeriesFilter');
-    if (productSeriesFilter) {
-        productSeriesFilter.addEventListener('change', filterItems);
-    }
-    const productTaxonomyFilter = document.getElementById('productTaxonomyFilter');
-    if (productTaxonomyFilter) {
-        productTaxonomyFilter.addEventListener('change', filterItems);
-    }
-    const productLegalNameFilter = document.getElementById('productLegalNameFilter');
-    if (productLegalNameFilter) {
-        productLegalNameFilter.addEventListener('change', filterItems);
-    }
-    const productAgeGradeFilter = document.getElementById('productAgeGradeFilter');
-    if (productAgeGradeFilter) {
-        productAgeGradeFilter.addEventListener('change', filterItems);
-    }
-    const productItemStatusFilter = document.getElementById('productItemStatusFilter');
-    if (productItemStatusFilter) {
-        productItemStatusFilter.addEventListener('change', filterItems);
-    }
-    const productDevStatusFilter = document.getElementById('productDevStatusFilter');
-    if (productDevStatusFilter) {
-        productDevStatusFilter.addEventListener('change', filterItems);
-    }
-
-    // Modal close buttons
-    document.querySelectorAll('.close').forEach(closeBtn => {
-        closeBtn.addEventListener('click', (e) => {
-            e.target.closest('.modal').style.display = 'none';
+    // Auto-apply filters when changed
+    document.getElementById('customerGroupFilter').addEventListener('change', () => {
+        populateCustomerFilters();
+        loadProducts(1); // Auto-reload with new filter
+    });
+    
+    document.getElementById('customerFilter').addEventListener('change', () => {
+        loadProducts(1); // Auto-reload with new filter
+    });
+    
+    document.getElementById('statusFilter').addEventListener('change', () => {
+        loadProducts(1); // Auto-reload with new filter
+    });
+    
+    if (document.getElementById('stageFilter')) {
+        document.getElementById('stageFilter').addEventListener('change', () => {
+            loadProducts(1); // Auto-reload with new filter
         });
+    }
+    
+    document.getElementById('searchInput').addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') loadProducts(1);
     });
-
-    // Cancel button
-    document.getElementById('cancelBtn').addEventListener('click', () => {
-        document.getElementById('itemModal').style.display = 'none';
+    
+    // Also trigger search on input after a short delay (debounce)
+    let searchTimeout;
+    document.getElementById('searchInput').addEventListener('input', () => {
+        clearTimeout(searchTimeout);
+        searchTimeout = setTimeout(() => loadProducts(1), 500);
     });
-
-    // Close modal on outside click
+    
+    // Products pagination
+    document.getElementById('prevPage').addEventListener('click', () => {
+        if (productsPage > 1) loadProducts(productsPage - 1);
+    });
+    document.getElementById('nextPage').addEventListener('click', () => {
+        if (productsPage < productsTotalPages) loadProducts(productsPage + 1);
+    });
+    
+    // Item Numbers filters
+    document.getElementById('applyItemFiltersBtn').addEventListener('click', () => loadItemNumbers(1));
+    document.getElementById('clearItemFiltersBtn').addEventListener('click', () => {
+        document.getElementById('itemSearchInput').value = '';
+        document.getElementById('itemSeriesFilter').value = '';
+        document.getElementById('itemBrandFilter').value = '';
+        document.getElementById('itemDevStatusFilter').value = '';
+        loadItemNumbers(1);
+    });
+    
+    document.getElementById('itemSearchInput').addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') loadItemNumbers(1);
+    });
+    
+    // Item Numbers pagination
+    document.getElementById('itemPrevPage').addEventListener('click', () => {
+        if (itemsPage > 1) loadItemNumbers(itemsPage - 1);
+    });
+    document.getElementById('itemNextPage').addEventListener('click', () => {
+        if (itemsPage < itemsTotalPages) loadItemNumbers(itemsPage + 1);
+    });
+    
+    // Database explorer
+    document.getElementById('loadTableBtn').addEventListener('click', () => {
+        const table = document.getElementById('tableSelect').value;
+        loadDatabaseTable(table, 1);
+    });
+    
+    document.getElementById('dbPrevPage').addEventListener('click', () => {
+        if (dbPage > 1) loadDatabaseTable(null, dbPage - 1);
+    });
+    document.getElementById('dbNextPage').addEventListener('click', () => {
+        if (dbPage < dbTotalPages) loadDatabaseTable(null, dbPage + 1);
+    });
+    
+    // Upload
+    document.getElementById('uploadBtn').addEventListener('click', openUploadModal);
+    document.getElementById('uploadForm').addEventListener('submit', handleUpload);
+    
+    // Forms
+    document.getElementById('customerGroupForm').addEventListener('submit', saveCustomerGroup);
+    document.getElementById('customerForm').addEventListener('submit', saveCustomer);
+    
+    // Close modals on outside click
     window.addEventListener('click', (e) => {
         if (e.target.classList.contains('modal')) {
             e.target.style.display = 'none';
         }
     });
-
-    // Flow stage checkboxes
-    document.querySelectorAll('.stage-check').forEach(checkbox => {
-        checkbox.addEventListener('change', handleStageChange);
-    });
-}
-
-
-// Load all items
-async function loadItems(page = 1, applyFilters = false) {
-    try {
-        productsPage = page;
-        const offset = (page - 1) * productsLimit;
-        
-        // Build query parameters
-        let queryParams = `limit=${productsLimit}&offset=${offset}`;
-        
-        // Add filters if requested
-        if (applyFilters) {
-            const searchTerm = document.getElementById('searchInput').value;
-            const statusFilter = document.getElementById('productStatusFilter').value;
-            const countryFilter = document.getElementById('countryFilter').value;
-            const tempFilter = document.getElementById('tempFilter').value;
-            const missingFilter = document.getElementById('missingFilter').value;
-            const brandFilter = document.getElementById('productBrandFilter');
-            const bundleFilter = document.getElementById('bundleFilter');
-            const ppgFilter = document.getElementById('ppgFilter');
-            
-            // Item Number field filters
-            const seriesFilter = document.getElementById('productSeriesFilter');
-            const taxonomyFilter = document.getElementById('productTaxonomyFilter');
-            const legalNameFilter = document.getElementById('productLegalNameFilter');
-            const ageGradeFilter = document.getElementById('productAgeGradeFilter');
-            const itemStatusFilter = document.getElementById('productItemStatusFilter');
-            const devStatusFilter = document.getElementById('productDevStatusFilter');
-            
-            if (searchTerm) {
-                queryParams += `&search=${encodeURIComponent(searchTerm)}`;
-            }
-            if (statusFilter !== 'all') {
-                queryParams += `&stage=${statusFilter}`;
-            }
-            if (countryFilter !== 'all') {
-                queryParams += `&country=${encodeURIComponent(countryFilter)}`;
-            }
-            if (tempFilter !== 'all') {
-                queryParams += `&temp=${tempFilter}`;
-            }
-            if (missingFilter !== 'all') {
-                queryParams += `&missing=${missingFilter}`;
-            }
-            
-            // Add column filters
-            if (productsColumnFilters.name.length > 0) {
-                queryParams += `&names=${encodeURIComponent(productsColumnFilters.name.join(','))}`;
-            }
-            if (productsColumnFilters.brand.length > 0) {
-                queryParams += `&columnBrands=${encodeURIComponent(productsColumnFilters.brand.join(','))}`;
-            }
-            if (productsColumnFilters.asin.length > 0) {
-                queryParams += `&asins=${encodeURIComponent(productsColumnFilters.asin.join(','))}`;
-            }
-            if (productsColumnFilters.primaryItem.length > 0) {
-                queryParams += `&primaryItems=${encodeURIComponent(productsColumnFilters.primaryItem.join(','))}`;
-            }
-            if (productsColumnFilters.sku.length > 0) {
-                queryParams += `&skus=${encodeURIComponent(productsColumnFilters.sku.join(','))}`;
-            }
-            
-            // Add multi-select filters
-            const selectedBrands = Array.from(brandFilter.selectedOptions)
-                .map(opt => opt.value)
-                .filter(val => val !== '');
-            if (selectedBrands.length > 0) {
-                queryParams += `&brands=${encodeURIComponent(selectedBrands.join(','))}`;
-            }
-            
-            const selectedBundles = Array.from(bundleFilter.selectedOptions)
-                .map(opt => opt.value)
-                .filter(val => val !== '');
-            if (selectedBundles.length > 0) {
-                queryParams += `&bundles=${encodeURIComponent(selectedBundles.join(','))}`;
-            }
-            
-            const selectedPpgs = Array.from(ppgFilter.selectedOptions)
-                .map(opt => opt.value)
-                .filter(val => val !== '');
-            if (selectedPpgs.length > 0) {
-                queryParams += `&ppgs=${encodeURIComponent(selectedPpgs.join(','))}`;
-            }
-            
-            // Add item number field filters
-            if (seriesFilter) {
-                const selectedSeries = Array.from(seriesFilter.selectedOptions)
-                    .map(opt => opt.value)
-                    .filter(val => val !== '');
-                if (selectedSeries.length > 0) {
-                    queryParams += `&series=${encodeURIComponent(selectedSeries.join(','))}`;
-                }
-            }
-            
-            if (taxonomyFilter) {
-                const selectedTaxonomies = Array.from(taxonomyFilter.selectedOptions)
-                    .map(opt => opt.value)
-                    .filter(val => val !== '');
-                if (selectedTaxonomies.length > 0) {
-                    queryParams += `&taxonomies=${encodeURIComponent(selectedTaxonomies.join(','))}`;
-                }
-            }
-            
-            if (legalNameFilter) {
-                const selectedLegalNames = Array.from(legalNameFilter.selectedOptions)
-                    .map(opt => opt.value)
-                    .filter(val => val !== '');
-                if (selectedLegalNames.length > 0) {
-                    queryParams += `&legalNames=${encodeURIComponent(selectedLegalNames.join(','))}`;
-                }
-            }
-            
-            if (ageGradeFilter) {
-                const selectedAgeGrades = Array.from(ageGradeFilter.selectedOptions)
-                    .map(opt => opt.value)
-                    .filter(val => val !== '');
-                if (selectedAgeGrades.length > 0) {
-                    queryParams += `&ageGrades=${encodeURIComponent(selectedAgeGrades.join(','))}`;
-                }
-            }
-            
-            if (itemStatusFilter) {
-                const selectedItemStatuses = Array.from(itemStatusFilter.selectedOptions)
-                    .map(opt => opt.value)
-                    .filter(val => val !== '');
-                if (selectedItemStatuses.length > 0) {
-                    queryParams += `&itemStatuses=${encodeURIComponent(selectedItemStatuses.join(','))}`;
-                }
-            }
-            
-            if (devStatusFilter) {
-                const selectedDevStatuses = Array.from(devStatusFilter.selectedOptions)
-                    .map(opt => opt.value)
-                    .filter(val => val !== '');
-                if (selectedDevStatuses.length > 0) {
-                    queryParams += `&devStatuses=${encodeURIComponent(selectedDevStatuses.join(','))}`;
-                }
-            }
-        }
-        
-        const response = await fetch(`${API_BASE}/items?${queryParams}`);
-        const result = await response.json();
-        // Handle both paginated and non-paginated responses
-        items = result.data || result;
-        
-        // Update pagination info
-        if (result.pagination) {
-            productsTotalPages = result.pagination.total_pages;
-            updatePaginationControls('products', page, productsTotalPages);
-        }
-        
-        // Update column filter options after loading
-        loadProductColumnFilters();
-        
-        if (currentView === 'products') {
-            renderItems(items);
-        }
-    } catch (error) {
-        console.error('Error loading items:', error);
-        showError('Failed to load items');
-    }
-}
-
-// Load SKUs
-async function loadSkus(page = 1) {
-    try {
-        skusPage = page;
-        const offset = (page - 1) * skusLimit;
-        const response = await fetch(`${API_BASE}/skus?limit=${skusLimit}&offset=${offset}`);
-        const result = await response.json();
-        // Handle both paginated and non-paginated responses
-        skus = result.data || result;
-        
-        // Update pagination info
-        if (result.pagination) {
-            skusTotalPages = result.pagination.total_pages;
-            updatePaginationControls('skus', page, skusTotalPages);
-        }
-        
-        if (currentView === 'skus') {
-            renderSkus(skus);
-        }
-    } catch (error) {
-        console.error('Error loading SKUs:', error);
-        showError('Failed to load SKUs');
-    }
-}
-
-// Load available countries/marketplaces from vendor mapping
-async function loadCountries() {
-    try {
-        const response = await fetch(`${API_BASE}/countries`);
-        const countries = await response.json();
-        
-        const countryFilter = document.getElementById('countryFilter');
-        // Clear existing options except "All Countries"
-        while (countryFilter.options.length > 1) {
-            countryFilter.remove(1);
-        }
-        
-        // Add new options with marketplace names
-        countries.forEach(country => {
-            const option = document.createElement('option');
-            option.value = country.marketplace;
-            option.textContent = country.marketplace;
-            option.dataset.countryCode = country.country_code;
-            countryFilter.appendChild(option);
-        });
-    } catch (error) {
-        console.error('Error loading countries:', error);
-    }
-}
-
-async function loadProductItemNumberFilters() {
-    try {
-        const response = await fetch(`${API_BASE}/item-numbers/filters`);
-        if (!response.ok) throw new Error('Failed to load item number filters');
-        
-        const data = await response.json();
-        
-        // Populate Series filter
-        const seriesFilter = document.getElementById('productSeriesFilter');
-        if (seriesFilter && data.series) {
-            seriesFilter.innerHTML = '<option value="">All Series</option>' +
-                data.series.map(s => `<option value="${escapeHtml(s)}">${escapeHtml(s)}</option>`).join('');
-        }
-        
-        // Populate Taxonomy filter
-        const taxonomyFilter = document.getElementById('productTaxonomyFilter');
-        if (taxonomyFilter && data.taxonomies) {
-            taxonomyFilter.innerHTML = '<option value="">All Taxonomies</option>' +
-                data.taxonomies.map(t => `<option value="${escapeHtml(t)}">${escapeHtml(t)}</option>`).join('');
-        }
-        
-        // Populate Legal Name filter
-        const legalNameFilter = document.getElementById('productLegalNameFilter');
-        if (legalNameFilter && data.legalNames) {
-            legalNameFilter.innerHTML = '<option value="">All Legal Names</option>' +
-                data.legalNames.map(ln => `<option value="${escapeHtml(ln)}">${escapeHtml(ln)}</option>`).join('');
-        }
-        
-        // Populate Age Grade filter
-        const ageGradeFilter = document.getElementById('productAgeGradeFilter');
-        if (ageGradeFilter && data.ageGrades) {
-            ageGradeFilter.innerHTML = '<option value="">All Age Grades</option>' +
-                data.ageGrades.map(ag => `<option value="${escapeHtml(ag)}">${escapeHtml(ag)}</option>`).join('');
-        }
-        
-        // Populate Item Status filter
-        const itemStatusFilter = document.getElementById('productItemStatusFilter');
-        if (itemStatusFilter && data.statuses) {
-            itemStatusFilter.innerHTML = '<option value="">All Item Statuses</option>' +
-                data.statuses.map(s => `<option value="${escapeHtml(s)}">${escapeHtml(s)}</option>`).join('');
-        }
-        
-        // Populate Dev Status filter
-        const devStatusFilter = document.getElementById('productDevStatusFilter');
-        if (devStatusFilter && data.devStatuses) {
-            devStatusFilter.innerHTML = '<option value="">All Dev Statuses</option>' +
-                data.devStatuses.map(ds => `<option value="${escapeHtml(ds)}">${escapeHtml(ds)}</option>`).join('');
-        }
-    } catch (error) {
-        console.error('Error loading product item number filters:', error);
-    }
-}
-
-// Load filter options from variations_master
-async function loadVariationFilters() {
-    try {
-        // Get currently selected values
-        const brandFilter = document.getElementById('productBrandFilter');
-        const bundleFilter = document.getElementById('bundleFilter');
-        const ppgFilter = document.getElementById('ppgFilter');
-        
-        const selectedBrands = Array.from(brandFilter.selectedOptions).map(opt => opt.value);
-        const selectedBundles = Array.from(bundleFilter.selectedOptions).map(opt => opt.value);
-        const selectedPpgs = Array.from(ppgFilter.selectedOptions).map(opt => opt.value);
-        
-        // Build query params for cross-filtering
-        let queryParams = [];
-        if (selectedBrands.length > 0) {
-            queryParams.push(`brands=${encodeURIComponent(selectedBrands.join(','))}`);
-        }
-        if (selectedBundles.length > 0) {
-            queryParams.push(`bundles=${encodeURIComponent(selectedBundles.join(','))}`);
-        }
-        if (selectedPpgs.length > 0) {
-            queryParams.push(`ppgs=${encodeURIComponent(selectedPpgs.join(','))}`);
-        }
-        
-        const queryString = queryParams.length > 0 ? `?${queryParams.join('&')}` : '';
-        const response = await fetch(`${API_BASE}/variation-filters${queryString}`);
-        const data = await response.json();
-        
-        // Update Brand filter
-        populateFilterOptions('brandFilter', data.brands, selectedBrands, 'All Brands');
-        
-        // Update Bundle filter
-        populateFilterOptions('bundleFilter', data.bundles, selectedBundles, 'All Bundles');
-        
-        // Update PPG filter
-        populateFilterOptions('ppgFilter', data.ppgs, selectedPpgs, 'All PPGs');
-        
-    } catch (error) {
-        console.error('Error loading variation filters:', error);
-    }
-}
-
-function populateFilterOptions(filterId, options, selectedValues, defaultLabel) {
-    const filterElement = document.getElementById(filterId);
-    
-    // Save scroll position
-    const scrollTop = filterElement.parentElement.scrollTop;
-    
-    // Clear and rebuild
-    filterElement.innerHTML = `<option value="">${defaultLabel}</option>`;
-    options.forEach(option => {
-        const opt = document.createElement('option');
-        opt.value = option;
-        opt.textContent = option;
-        opt.selected = selectedValues.includes(option);
-        filterElement.appendChild(opt);
-    });
-    
-    // Restore scroll
-    filterElement.parentElement.scrollTop = scrollTop;
-}
-
-function setupFilterSearch() {
-    const filterIds = ['productBrandFilter', 'bundleFilter', 'ppgFilter'];
-    
-    filterIds.forEach(filterId => {
-        const filterElement = document.getElementById(filterId);
-        if (!filterElement) {
-            console.warn('[Filter Search] Element not found:', filterId);
-            return;
-        }
-        
-        const allOptions = Array.from(filterElement.options).map(opt => ({
-            value: opt.value,
-            text: opt.textContent
-        }));
-        const defaultLabel = allOptions[0].text;
-        
-        // Add search input above the filter
-        const searchInput = document.createElement('input');
-        searchInput.type = 'text';
-        searchInput.placeholder = `Search ${defaultLabel.replace('All ', '')}...`;
-        searchInput.className = 'filter-search';
-        filterElement.parentElement.insertBefore(searchInput, filterElement);
-        
-        searchInput.addEventListener('input', (e) => {
-            const searchTerm = e.target.value.toLowerCase();
-            filterSelectOptions(filterId, allOptions, searchTerm, defaultLabel);
-        });
-    });
-}
-
-function filterSelectOptions(filterId, allOptions, searchTerm, defaultLabel) {
-    const filterElement = document.getElementById(filterId);
-    const selectedValues = Array.from(filterElement.selectedOptions).map(opt => opt.value);
-    
-    // Filter and rebuild options
-    filterElement.innerHTML = `<option value="">${defaultLabel}</option>`;
-    allOptions.slice(1).forEach(option => {
-        if (option.text.toLowerCase().includes(searchTerm)) {
-            const opt = document.createElement('option');
-            opt.value = option.value;
-            opt.textContent = option.text;
-            opt.selected = selectedValues.includes(option.value);
-            filterElement.appendChild(opt);
-        }
-    });
-}
-
-// Switch between views
-function switchView(view) {
-    currentView = view;
-    
-    console.log('[View] ========== Switching to:', view, '==========');
-    
-    // Update active tab
-    document.querySelectorAll('.tab-btn').forEach(btn => {
-        btn.classList.remove('active');
-        if (btn.dataset.view === view) {
-            btn.classList.add('active');
-        }
-    });
-    
-    // Get all view elements
-    const productsView = document.getElementById('productsView');
-    const itemsView = document.getElementById('itemsView');
-    const pricingApprovalsView = document.getElementById('pricingApprovalsView');
-    const customerAdminView = document.getElementById('customerAdminView');
-    const databaseView = document.getElementById('databaseView');
-    
-    console.log('[View] Elements found:', {
-        productsView: !!productsView,
-        itemsView: !!itemsView,
-        pricingApprovalsView: !!pricingApprovalsView,
-        customerAdminView: !!customerAdminView,
-        databaseView: !!databaseView
-    });
-    
-    // Remove active from all
-    [productsView, itemsView, pricingApprovalsView, customerAdminView, databaseView].forEach(v => {
-        if (v) {
-            v.classList.remove('active');
-            v.style.display = 'none';
-        }
-    });
-    
-    // Add active to current view
-    if (view === 'products' && productsView) {
-        productsView.classList.add('active');
-        productsView.style.display = 'block';
-    } else if (view === 'items' && itemsView) {
-        console.log('[View] Switching to Items view...');
-        itemsView.classList.add('active');
-        itemsView.style.display = 'block';
-        itemsView.style.visibility = 'visible';
-        itemsView.style.opacity = '1';
-        console.log('[View] itemsView display:', itemsView.style.display);
-        console.log('[View] itemsView has active class:', itemsView.classList.contains('active'));
-        console.log('[View] itemsView offsetHeight:', itemsView.offsetHeight);
-        console.log('[View] Calling loadItemNumbers()...');
-        loadItemNumbers();
-        console.log('[View] Calling loadItemsFilters()...');
-        loadItemsFilters();
-        
-        // Scroll to top
-        window.scrollTo(0, 0);
-        itemsView.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    } else if (view === 'pricing-approvals' && pricingApprovalsView) {
-        pricingApprovalsView.classList.add('active');
-        pricingApprovalsView.style.display = 'block';
-    } else if (view === 'customer-admin' && customerAdminView) {
-        customerAdminView.classList.add('active');
-        customerAdminView.style.display = 'block';
-        customerAdminView.style.visibility = 'visible';
-        customerAdminView.style.opacity = '1';
-        customerAdminView.style.position = 'relative';
-        customerAdminView.style.zIndex = '1';
-        
-        console.log('[View] ✓ Customer Admin now active');
-        console.log('[View] ✓ Display:', customerAdminView.style.display);
-        console.log('[View] ✓ Has active class:', customerAdminView.classList.contains('active'));
-        console.log('[View] ✓ Computed style:', window.getComputedStyle(customerAdminView).display);
-        console.log('[View] ✓ offsetHeight:', customerAdminView.offsetHeight);
-        console.log('[View] ✓ clientHeight:', customerAdminView.clientHeight);
-        console.log('[View] ✓ scrollHeight:', customerAdminView.scrollHeight);
-        console.log('[View] ✓ Parent:', customerAdminView.parentElement?.id);
-        console.log('[View] ✓ Parent display:', window.getComputedStyle(customerAdminView.parentElement).display);
-        console.log('[View] ✓ Parent height:', customerAdminView.parentElement?.offsetHeight);
-        
-        // Force reflow
-        customerAdminView.offsetHeight;
-        
-        console.log('[View] ✓ After reflow - Visible:', customerAdminView.offsetHeight > 0);
-    } else if (view === 'database' && databaseView) {
-        databaseView.classList.add('active');
-        databaseView.style.display = 'block';
-    }
-    
-    // Load data based on view
-    if (view === 'pricing-approvals') {
-        loadPricingApprovalsView();
-    } else if (view === 'customer-admin') {
-        console.log('[View] About to load customer admin data...');
-        setTimeout(() => loadVendorMappingFromMain(), 100); // Small delay to ensure DOM is ready
-    } else if (view === 'products' && items.length > 0) {
-        renderItems(items);
-    } else if (view === 'database') {
-        loadDatabaseTable(currentTable);
-    }
-}
-
-// Load database table
-async function loadDatabaseTable(tableName) {
-    try {
-        currentTable = tableName;
-        const response = await fetch(`${API_BASE}/database/${tableName}`);
-        const data = await response.json();
-        renderDatabaseTable(data);
-    } catch (error) {
-        console.error('Error loading database table:', error);
-        showError('Failed to load table');
-    }
-}
-
-function renderDatabaseTable(data) {
-    const container = document.getElementById('databaseTableContainer');
-    
-    if (!data.data || data.data.length === 0) {
-        container.innerHTML = '<p>No data available</p>';
-        return;
-    }
-    
-    // Get column names from first row
-    const columns = Object.keys(data.data[0]);
-    
-    let html = '<table><thead><tr>';
-    columns.forEach(col => {
-        html += `<th>${col}</th>`;
-    });
-    html += '</tr></thead><tbody>';
-    
-    data.data.forEach(row => {
-        html += '<tr>';
-        columns.forEach(col => {
-            const value = row[col] === null ? '-' : row[col];
-            html += `<td>${value}</td>`;
-        });
-        html += '</tr>';
-    });
-    
-    html += '</tbody></table>';
-    container.innerHTML = html;
-}
-
-// Render items in the main view
-function renderItems(itemsToRender) {
-    const itemsTableBody = document.getElementById('itemsTableBody');
-    if (!itemsTableBody) return;
-    
-    if (!itemsToRender || itemsToRender.length === 0) {
-        itemsTableBody.innerHTML = '<tr><td colspan="12" style="text-align: center; padding: 40px;">No products found. Click "Add New Item" to create one.</td></tr>';
-        return;
-    }
-    
-    let html = '';
-    itemsToRender.forEach(item => {
-        // Check if it's a temp ASIN (no PIM data yet)
-        const isTempAsin = item.is_temp_asin === 1;
-        const displayName = item.display_name || item.name || item.asin;
-        const displayBrand = item.display_brand || item.brand || '-';
-        const skus = item.skus ? (Array.isArray(item.skus) ? item.skus.join(', ') : item.skus) : '-';
-        
-        // Create circular stage indicators
-        const s1Circle = renderTableStageCircle(1, item.stage_1_idea_considered, item.asin);
-        const s2Circle = renderTableStageCircle(2, item.stage_2_product_finalized, item.asin, item.stage_2_newly_finalized);
-        
-        // Stage 2.5: Pricing - show submission and approval status
-        // Skip pricing approval if product is already in Vendor Central (stage_4_product_listed)
-        let pricingCircle = '';
-        let pricingClickable = '';
-        
-        if (item.stage_4_product_listed) {
-            // Product is in VC - auto-approve pricing (green checkmark with "VC" label)
-            pricingCircle = `<div style="width: 40px; height: 40px; border-radius: 50%; background: var(--success-color); display: flex; align-items: center; justify-content: center; color: white; font-weight: 600; font-size: 18px; margin: 0 auto;">✓</div>
-            <div style="text-align: center; margin-top: 5px; font-size: 10px; color: var(--success-color); font-weight: 600;">VC</div>`;
-        } else if (!item.stage_2_product_finalized) {
-            // Stage 2 not done yet - gray circle
-            pricingCircle = `<div style="width: 40px; height: 40px; border-radius: 50%; background: #e5e7eb; display: flex; align-items: center; justify-content: center; color: #9ca3af; font-weight: 600; font-size: 11px; margin: 0 auto;"></div>`;
-        } else if (item.stage_3b_pricing_approved) {
-            // Approved - green checkmark
-            pricingCircle = `<div style="width: 40px; height: 40px; border-radius: 50%; background: var(--success-color); display: flex; align-items: center; justify-content: center; color: white; font-weight: 600; font-size: 18px; margin: 0 auto;">✓</div>`;
-        } else if (item.stage_3a_pricing_submitted) {
-            // Submitted but not approved yet - yellow pending (clickable to view/edit)
-            pricingClickable = currentUser.role !== 'viewer' ? ` style="cursor: pointer;" onclick="openPricingSubmissionModal(${item.id})" title="Click to view or resubmit pricing"` : '';
-            pricingCircle = `<div${pricingClickable} style="width: 40px; height: 40px; border-radius: 50%; background: var(--warning-color); display: flex; align-items: center; justify-content: center; color: white; font-weight: 600; font-size: 18px; margin: 0 auto; position: relative; ${currentUser.role !== 'viewer' ? 'cursor: pointer; transition: transform 0.2s;' : ''}" ${currentUser.role !== 'viewer' ? 'onmouseover="this.style.transform=\'scale(1.1)\'" onmouseout="this.style.transform=\'scale(1)\'"' : ''}>
-                <span>⏳</span>
-            </div>
-            <div style="text-align: center; margin-top: 5px; font-size: 11px; color: var(--warning-color); font-weight: 600;">Pending</div>`;
-        } else {
-            // Stage 2 done but pricing not submitted yet - clickable dollar sign
-            pricingClickable = currentUser.role !== 'viewer' ? ` onclick="openPricingSubmissionModal(${item.id})" title="Click to submit pricing"` : '';
-            pricingCircle = `<div${pricingClickable} style="width: 40px; height: 40px; border-radius: 50%; background: #e5e7eb; display: flex; align-items: center; justify-content: center; color: #6b7280; font-weight: 600; font-size: 18px; margin: 0 auto; ${currentUser.role !== 'viewer' ? 'cursor: pointer; transition: all 0.2s;' : ''}" ${currentUser.role !== 'viewer' ? 'onmouseover="this.style.background=\'var(--warning-color)\'; this.style.color=\'white\'; this.style.transform=\'scale(1.1)\';" onmouseout="this.style.background=\'#e5e7eb\'; this.style.color=\'#6b7280\'; this.style.transform=\'scale(1)\';"' : ''}>💰</div>
-            <div style="text-align: center; margin-top: 5px; font-size: 11px; color: #6b7280;">Required</div>`;
-        }
-        
-        // Stage 3: VC Listed - show country coverage
-        const vcCountryCount = item.vc_country_count || 0;
-        const vcTotalCountries = item.vc_total_countries || 11;
-        const vcPercentage = vcTotalCountries > 0 ? Math.round((vcCountryCount / vcTotalCountries) * 100) : 0;
-        const s3Circle = renderTableStageCircleWithPercentage(3, item.stage_4_product_listed, item.asin, vcCountryCount, vcTotalCountries, vcPercentage);
-        
-        // Stage 4: QPI - show file coverage
-        const qpiFileCount = item.qpi_file_count || 0;
-        const qpiTotalFiles = item.qpi_total_files || 5;
-        const qpiPercentage = qpiTotalFiles > 0 ? Math.round((qpiFileCount / qpiTotalFiles) * 100) : 0;
-        const s4Circle = renderTableStageCircleWithPercentage(4, item.stage_5_product_ordered, item.asin, qpiFileCount, qpiTotalFiles, qpiPercentage);
-        
-        // Stage 5: Online - show country coverage
-        const onlineCountryCount = item.online_country_count || 0;
-        const onlineTotalCountries = item.online_total_countries || 9;
-        const onlinePercentage = onlineTotalCountries > 0 ? Math.round((onlineCountryCount / onlineTotalCountries) * 100) : 0;
-        const s5Circle = renderTableStageCircleWithPercentage(5, item.stage_6_product_online, item.asin, onlineCountryCount, onlineTotalCountries, onlinePercentage);
-        
-        // Stage 6: End of Life - show country coverage
-        const eolCountryCount = item.eol_country_count || 0;
-        const eolTotalCountries = item.eol_total_countries || 0;
-        const eolPercentage = eolTotalCountries > 0 ? Math.round((eolCountryCount / eolTotalCountries) * 100) : 0;
-        const s6Circle = renderTableStageCircleWithPercentage(6, item.stage_7_end_of_life, item.asin, eolCountryCount, eolTotalCountries, eolPercentage);
-        
-        html += `
-            <tr>
-                <td>
-                    ${isTempAsin ? '<span class="temp-badge" title="Temporary ASIN">TEMP</span> ' : ''}
-                    ${escapeHtml(displayName)}
-                    ${isTempAsin ? `<button class="btn-icon" onclick="editProductName('${item.asin}', '${escapeHtml(displayName)}')" title="Edit Name">✏️</button>` : ''}
-                </td>
-                <td>${escapeHtml(displayBrand)}</td>
-                <td><strong>${escapeHtml(item.asin)}</strong></td>
-                <td><small>${escapeHtml(item.primary_item_number || '-')}</small></td>
-                <td><small>${escapeHtml(skus)}</small></td>
-                <td style="text-align: center;">${s1Circle}</td>
-                <td style="text-align: center;">${s2Circle}</td>
-                <td style="text-align: center;">${pricingCircle}</td>
-                <td style="text-align: center;">${s3Circle}</td>
-                <td style="text-align: center;">${s4Circle}</td>
-                <td style="text-align: center;">${s5Circle}</td>
-                <td style="text-align: center;">${s6Circle}</td>
-                <td>
-                    <button class="btn btn-secondary btn-sm" onclick="openFlowModal(${item.id})">View</button>
-                    <button class="btn btn-danger btn-sm" onclick="deleteItem(${item.id})">Delete</button>
-                </td>
-            </tr>
-        `;
-    });
-    
-    itemsTableBody.innerHTML = html;
-}
-
-function renderTableStageCircle(stageNumber, completed, asin, isNew = false) {
-    const color = completed ? '#4caf50' : '#ddd';
-    const textColor = completed ? '#fff' : '#999';
-    const newBadge = isNew ? '<span style="color: #ff5722; font-size: 10px; font-weight: bold;">NEW</span>' : '';
-    
-    return `
-        <div onclick="openWorkflowModal('${asin}', ${stageNumber})" style="cursor: pointer; display: inline-block;">
-            <div style="width: 32px; height: 32px; border-radius: 50%; background-color: ${color}; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 14px; color: ${textColor}; margin: 0 auto;">
-                ${stageNumber}
-            </div>
-            ${newBadge}
-        </div>
-    `;
-}
-
-function renderTableStageCircleWithPercentage(stageNumber, completed, asin, count, total, percentage) {
-    // Determine color based on percentage
-    let fillColor = '#ddd';
-    if (percentage >= 75) fillColor = '#4caf50';
-    else if (percentage >= 50) fillColor = '#ff9800';
-    else if (percentage >= 25) fillColor = '#ff5722';
-    else if (percentage > 0) fillColor = '#f44336';
-    
-    // Calculate pie chart angle (percentage to degrees)
-    const degrees = (percentage / 100) * 360;
-    
-    // Create conic gradient for pie chart effect
-    const pieGradient = percentage > 0 
-        ? `conic-gradient(${fillColor} 0deg ${degrees}deg, #e0e0e0 ${degrees}deg 360deg)`
-        : '#e0e0e0';
-        
-        return `
-        <div onclick="openWorkflowModal('${asin}', ${stageNumber})" style="cursor: pointer; display: inline-block;" title="${count} of ${total} (${percentage}%)">
-            <div style="width: 40px; height: 40px; border-radius: 50%; background: ${pieGradient}; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 11px; color: #333; margin: 0 auto; position: relative; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
-                <div style="background: white; border-radius: 50%; width: 28px; height: 28px; display: flex; align-items: center; justify-content: center;">
-                    ${percentage}%
-                    </div>
-            </div>
-            <div style="font-size: 9px; margin-top: 2px; color: #666;">
-                ${count}/${total}
-            </div>
-        </div>
-    `;
-}
-
-function getCurrentStage(item) {
-    if (item.stage_6_product_online) return 6;
-    if (item.stage_5_product_ordered) return 5;
-    if (item.stage_4_product_listed) return 4;
-    if (item.stage_3b_pricing_approved) return '3b';
-    if (item.stage_3a_pricing_submitted) return '3a';
-    if (item.stage_2_product_finalized) return 2;
-    if (item.stage_1_idea_considered) return 1;
-    return 0;
-}
-
-function renderStageDisplay(number, label, completed, isOptional = false, itemId = null, isNewlyFinalized = false, isPricingStage = false) {
-    const completedClass = completed ? 'completed' : '';
-    const optionalClass = isOptional ? 'optional' : '';
-    const newBadge = isNewlyFinalized ? '<span class="new-badge">NEW</span>' : '';
-    const clickHandler = itemId ? `onclick="openWorkflowModal('${itemId}', ${number})"` : '';
-    
-    return `
-        <div class="stage ${completedClass} ${optionalClass}" ${clickHandler} style="cursor: ${itemId ? 'pointer' : 'default'}">
-            <div class="stage-number">${number}</div>
-            <div class="stage-label">${label} ${newBadge}</div>
-            ${completed ? '<div class="stage-check-icon">✓</div>' : ''}
-        </div>
-    `;
-}
-
-// Render SKUs view
-function renderSkus(skusToRender) {
-    const skusList = document.getElementById('skusList');
-    if (!skusList) return;
-    
-    if (!skusToRender || skusToRender.length === 0) {
-        skusList.innerHTML = '<div class="empty-state">No SKUs found</div>';
-        return;
-    }
-
-    // Group SKUs by ASIN
-    const skusByAsin = {};
-    skusToRender.forEach(sku => {
-        if (!skusByAsin[sku.asin]) {
-            skusByAsin[sku.asin] = [];
-        }
-        skusByAsin[sku.asin].push(sku);
-    });
-    
-    // Check for inconsistencies
-    const inconsistencies = checkForInconsistencies(skusToRender);
-    
-    let html = '';
-    Object.keys(skusByAsin).forEach(asin => {
-        const skus = skusByAsin[asin];
-        const firstSku = skus[0];
-        const hasInconsistency = inconsistencies[asin];
-        
-        const currentStage = getCurrentStageForSku(firstSku);
-        
-        html += `
-            <div class="item-card ${hasInconsistency ? 'inconsistent' : ''}">
-                ${hasInconsistency ? '<div class="inconsistency-badge">⚠️ Inconsistent Progress</div>' : ''}
-                <div class="item-header">
-                    <div class="item-title-section">
-                        <h3 class="item-title">${escapeHtml(firstSku.product_name || asin)}</h3>
-                        <div class="item-meta">
-                            <span><strong>ASIN:</strong> ${asin}</span>
-                            <span><strong>SKUs (${skus.length}):</strong> ${skus.map(s => s.sku).join(', ')}</span>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="item-stages">
-                    ${renderStageDisplay(1, 'Idea', firstSku.stage_1_idea_considered, false)}
-                    ${renderStageDisplay(2, 'PIM Done', firstSku.stage_2_product_finalized, false)}
-                    ${renderStageDisplay('3a', 'Pricing Sub', firstSku.stage_3a_pricing_submitted, true)}
-                    ${renderStageDisplay('3b', 'Pricing OK', firstSku.stage_3b_pricing_approved, true)}
-                    ${renderStageDisplay(4, 'VC Listed', firstSku.stage_4_product_listed, false)}
-                    ${renderStageDisplay(5, 'Ordered', firstSku.stage_5_product_ordered, false)}
-                    ${renderStageDisplay(6, 'Online', firstSku.stage_6_product_online, false)}
-                </div>
-            </div>
-        `;
-    });
-    
-    skusList.innerHTML = html;
-}
-
-function checkForInconsistencies(skus) {
-    const inconsistencies = {};
-    
-    // Group by ASIN and check if all SKUs have same stage values
-    const skusByAsin = {};
-    skus.forEach(sku => {
-        if (!skusByAsin[sku.asin]) {
-            skusByAsin[sku.asin] = [];
-        }
-        skusByAsin[sku.asin].push(sku);
-    });
-    
-    // More logic here if needed
-    
-    return inconsistencies;
-}
-
-function getCurrentStageForSku(sku) {
-    if (sku.stage_6_product_online) return 6;
-    if (sku.stage_5_product_ordered) return 5;
-    if (sku.stage_4_product_listed) return 4;
-    if (sku.stage_3b_pricing_approved) return '3b';
-    if (sku.stage_3a_pricing_submitted) return '3a';
-    if (sku.stage_2_product_finalized) return 2;
-    if (sku.stage_1_idea_considered) return 1;
-    return 0;
-}
-
-// Filter items based on search and filters
-async function filterItems() {
-    await loadItems(1, true); // true = apply filters
-}
-
-// Open modal to add or edit item
-function openItemModal(itemId = null) {
-    const modal = document.getElementById('itemModal');
-    const form = document.getElementById('itemForm');
-    const modalTitle = document.getElementById('modalTitle');
-
-    if (itemId) {
-        modalTitle.textContent = 'Edit Product';
-        // Load item data
-        const item = items.find(i => i.id === itemId);
-        if (item) {
-            document.getElementById('itemId').value = item.id;
-            document.getElementById('sku').value = item.sku || '';
-            document.getElementById('asin').value = item.asin || '';
-            document.getElementById('productName').value = item.name || '';
-        }
-    } else {
-        modalTitle.textContent = 'Add New Product';
-        form.reset();
-        document.getElementById('itemId').value = '';
-    }
-
-    modal.style.display = 'block';
-}
-
-// Open pricing modal for a product
-async function openPricingModal(itemId) {
-    const modal = document.getElementById('pricingModal');
-    const item = items.find(i => i.id === itemId);
-    
-    if (!item) {
-        showError('Product not found');
-        return;
-    }
-    
-    document.getElementById('pricingItemId').value = itemId;
-    document.getElementById('pricingAsin').textContent = item.asin;
-    
-    // Fetch existing pricing data and VC status
-    const response = await fetch(`${API_BASE}/items/${item.asin}`);
-    const data = await response.json();
-    
-    renderPricingTable(data.pricing || [], data.vc_countries || []);
-    
-    modal.style.display = 'block';
-}
-
-function renderPricingTable(pricingData, vcStatusData) {
-    const tbody = document.querySelector('#existingPricing tbody');
-    tbody.innerHTML = '';
-    
-    const countries = {
-        'US': { name: 'United States', currency: 'USD' },
-        'CA': { name: 'Canada', currency: 'CAD' },
-        'UK': { name: 'United Kingdom', currency: 'GBP' },
-        'DE': { name: 'Germany', currency: 'EUR' },
-        'FR': { name: 'France', currency: 'EUR' },
-        'IT': { name: 'Italy', currency: 'EUR' },
-        'ES': { name: 'Spain', currency: 'EUR' },
-        'JP': { name: 'Japan', currency: 'JPY' },
-        'AU': { name: 'Australia', currency: 'AUD' }
-    };
-    
-    Object.keys(countries).forEach(code => {
-        const pricing = pricingData.find(p => p.country_code === code);
-        const vcStatus = vcStatusData.find(v => v.country_code === code);
-        const isInVc = !!vcStatus;
-        
-        if (isInVc) {
-            const row = document.createElement('tr');
-            row.innerHTML = `
-                <td>${countries[code].name}</td>
-                <td>${pricing ? pricing.cost_price + ' ' + pricing.currency : '-'}</td>
-                <td>${pricing ? pricing.retail_price + ' ' + pricing.currency : '-'}</td>
-                <td>${pricing ? pricing.status : '-'}</td>
-                <td>
-                    ${pricing && pricing.status === 'pending' ? `
-                        <button class="btn btn-success btn-sm" onclick="approvePricing(${pricing.product_id}, '${code}')">Approve</button>
-                        <button class="btn btn-danger btn-sm" onclick="rejectPricing(${pricing.product_id}, '${code}')">Reject</button>
-                    ` : '-'}
-                </td>
-            `;
-            tbody.appendChild(row);
-        }
-    });
-}
-
-// Open flow tracking modal
-async function openFlowModal(itemId) {
-    // Redirect to the new product details modal
-    await openProductDetailsModal(itemId);
-}
-
-async function openProductDetailsModal(itemId) {
-    const modal = document.getElementById('productDetailsModal');
-    const item = items.find(i => i.id === itemId);
-    
-    if (!item) {
-        showError('Product not found');
-        return;
-    }
-    
-    // Populate product information
-    document.getElementById('detailAsin').textContent = item.asin || 'N/A';
-    document.getElementById('detailSku').textContent = item.skus ? item.skus.join(', ') : 'N/A';
-    document.getElementById('detailBrand').textContent = item.display_brand || item.brand || 'N/A';
-    document.getElementById('detailName').textContent = item.display_name || item.name || 'N/A';
-    document.getElementById('detailItemNumber').textContent = item.stage_1_item_number || 'N/A';
-    document.getElementById('detailCountries').textContent = item.stage_1_country || 'N/A';
-    document.getElementById('detailDescription').textContent = item.stage_1_description || item.product_description || 'N/A';
-    document.getElementById('detailSeasonLaunch').textContent = item.stage_1_season_launch || 'N/A';
-    document.getElementById('detailIsTempAsin').textContent = item.is_temp_asin ? 'Yes' : 'No';
-    document.getElementById('detailCreatedAt').textContent = item.created_at || 'N/A';
-    
-    // Fetch country-specific data
-    await loadCountryStatusData(item.asin);
-    
-    modal.style.display = 'block';
-}
-
-async function loadCountryStatusData(asin) {
-    const tableBody = document.getElementById('countryStatusTableBody');
-    tableBody.innerHTML = '<tr><td colspan="7" style="text-align: center;">Loading...</td></tr>';
-    
-    try {
-        // Fetch all country data for this ASIN and get all marketplaces
-        const [vcData, qpiData, onlineData, marketplaces] = await Promise.all([
-            fetch(`${API_BASE}/database/asin_country_status?limit=10000`).then(r => r.json()),
-            fetch(`${API_BASE}/database/qpi_file_tracking?limit=10000`).then(r => r.json()),
-            fetch(`${API_BASE}/database/asin_online_status?limit=10000`).then(r => r.json()),
-            fetch(`${API_BASE}/marketplaces`).then(r => r.json())
-        ]);
-        
-        // Filter data for this ASIN
-        const vcRecords = vcData.rows.filter(r => r.asin === asin);
-        const qpiRecords = qpiData.rows.filter(r => r.asin === asin);
-        const onlineRecords = onlineData.rows.filter(r => r.asin === asin);
-        
-        // Build country rows for ALL marketplaces
-        const rows = [];
-        for (const marketplace of marketplaces) {
-            // Check if product is in VC for this marketplace
-            const vcRecord = vcRecords.find(r => r.country_code === marketplace);
-            
-            // Check if product is online in this marketplace
-            const onlineRecord = onlineRecords.find(r => r.country === marketplace);
-            
-            // QPI is per-ASIN, not per-country, so just check if any QPI records exist
-            const hasQpi = qpiRecords.length > 0;
-            
-            rows.push(`
-                <tr>
-                    <td><strong>${marketplace}</strong></td>
-                    <td style="text-align: center; color: ${vcRecord ? 'var(--success)' : 'var(--text-secondary)'};">${vcRecord ? '✓' : '✗'}</td>
-                    <td>${vcRecord ? (vcRecord.vc_status || 'N/A') : '-'}</td>
-                    <td style="text-align: center; color: ${hasQpi ? 'var(--success)' : 'var(--text-secondary)'};">${hasQpi ? '✓' : '✗'}</td>
-                    <td style="text-align: center; color: ${onlineRecord ? 'var(--success)' : 'var(--text-secondary)'};">${onlineRecord ? '✓' : '✗'}</td>
-                    <td>${onlineRecord && onlineRecord.last_buybox_price ? '$' + (onlineRecord.last_buybox_price / 100).toFixed(2) : '-'}</td>
-                    <td>${onlineRecord ? (onlineRecord.last_seen_online || 'N/A') : '-'}</td>
-                </tr>
-            `);
-        }
-        
-        if (rows.length === 0) {
-            tableBody.innerHTML = '<tr><td colspan="7" style="text-align: center; color: var(--text-secondary);">No marketplaces configured</td></tr>';
-        } else {
-            tableBody.innerHTML = rows.join('');
-        }
-        
-    } catch (error) {
-        console.error('Error loading country status:', error);
-        tableBody.innerHTML = '<tr><td colspan="7" style="text-align: center; color: var(--danger);">Error loading data</td></tr>';
-    }
-}
-
-function closeProductDetailsModal() {
-    document.getElementById('productDetailsModal').style.display = 'none';
-}
-
-// ============ PRICING APPROVAL WORKFLOW ============
-
-async function openPricingSubmissionModal(productId) {
-    const item = items.find(i => i.id === productId);
-    if (!item) {
-        showError('Product not found');
-        return;
-    }
-
-    // Check if user has permission
-    if (currentUser.role === 'viewer') {
-        showError('You do not have permission to submit pricing');
-        return;
-    }
-    
-    // Populate modal
-    document.getElementById('pricingProductId').value = item.id;
-    document.getElementById('pricingAsin').value = item.asin;
-    document.getElementById('pricingProductName').textContent = item.display_name || item.name || item.asin;
-    
-    // Reset form
-    document.getElementById('pricingSubmissionForm').reset();
-    document.getElementById('pricingCompanyMargin').value = '';
-    
-    // Load FX rates and render country table
-    await loadFxRatesForPricing();
-    
-    // Show modal
-    document.getElementById('pricingSubmissionModal').style.display = 'block';
-}
-
-// Global function for calculating multi-country pricing (called from HTML oninput)
-let fxRates = [];
-
-async function loadFxRatesForPricing() {
-    const token = localStorage.getItem('token');
-    try {
-        const response = await fetch(`${API_BASE}/fx-rates`, {
-            headers: {
-                'Authorization': `Bearer ${token}`
-            }
-        });
-        fxRates = await response.json();
-        renderCountryPricingTable();
-    } catch (error) {
-        console.error('Error loading FX rates:', error);
-    }
-}
-
-function renderCountryPricingTable() {
-    const tbody = document.getElementById('countryPricingTableBody');
-    const productCost = parseFloat(document.getElementById('pricingProductCost').value) || 0;
-    
-    if (fxRates.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="8" style="text-align: center; padding: 20px;">No countries available</td></tr>';
-        return;
-    }
-    
-    tbody.innerHTML = fxRates.map(rate => `
-        <tr>
-            <td><strong>${rate.country}</strong></td>
-            <td>${rate.currency}</td>
-            <td>${parseFloat(rate.rate_to_usd).toFixed(4)}</td>
-            <td>
-                <input 
-                    type="number" 
-                    step="0.01" 
-                    min="0"
-                    data-country="${rate.country}"
-                    data-type="sell"
-                    data-currency="${rate.currency}"
-                    data-fx-rate="${rate.rate_to_usd}"
-                    oninput="calculateCountryMargins(this)"
-                    placeholder="0.00"
-                    style="width: 100px; padding: 6px; border: 1px solid var(--border-color); border-radius: 4px;"
-                    required
-                />
-            </td>
-            <td>
-                <span data-company-margin="${rate.country}" style="font-weight: 600;">-</span>
-            </td>
-            <td>
-                <input 
-                    type="number" 
-                    step="0.01" 
-                    min="0"
-                    data-country="${rate.country}"
-                    data-type="retail"
-                    data-currency="${rate.currency}"
-                    data-fx-rate="${rate.rate_to_usd}"
-                    oninput="calculateCountryMargins(this)"
-                    placeholder="0.00"
-                    style="width: 120px; padding: 6px; border: 1px solid var(--border-color); border-radius: 4px;"
-                    required
-                />
-            </td>
-            <td>
-                <span data-usd-price="${rate.country}">-</span>
-            </td>
-            <td>
-                <span data-customer-margin="${rate.country}" style="font-weight: 600;">-</span>
-            </td>
-        </tr>
-    `).join('');
-}
-
-function calculateCountryMargins(input) {
-    const productCost = parseFloat(document.getElementById('pricingProductCost').value) || 0;
-    const country = input.dataset.country;
-    const fxRate = parseFloat(input.dataset.fxRate) || 1;
-    
-    // Get both sell and retail inputs for this country
-    const sellInput = document.querySelector(`input[data-country="${country}"][data-type="sell"]`);
-    const retailInput = document.querySelector(`input[data-country="${country}"][data-type="retail"]`);
-    
-    const sellPriceUSD = parseFloat(sellInput?.value) || 0;
-    const retailPriceLocal = parseFloat(retailInput?.value) || 0;
-    
-    // Calculate Company Margin (if sell price entered)
-    if (sellPriceUSD > 0 && productCost > 0) {
-        const companyMargin = ((sellPriceUSD - productCost) / sellPriceUSD * 100).toFixed(2);
-        const companyMarginSpan = document.querySelector(`span[data-company-margin="${country}"]`);
-        
-        if (companyMarginSpan) {
-            companyMarginSpan.textContent = `${companyMargin}%`;
-            
-            // Color code based on margin
-            if (companyMargin < 20) {
-                companyMarginSpan.style.color = '#c40000';
-            } else if (companyMargin < 35) {
-                companyMarginSpan.style.color = '#f69931';
-            } else {
-                companyMarginSpan.style.color = '#067d62';
-            }
-        }
-    }
-    
-    // Calculate Customer Margin (if both prices entered)
-    if (sellPriceUSD > 0 && retailPriceLocal > 0) {
-        // Convert retail price to USD
-        const retailPriceUSD = retailPriceLocal / fxRate;
-        
-        // Calculate customer margin
-        const customerMargin = ((retailPriceUSD - sellPriceUSD) / retailPriceUSD * 100).toFixed(2);
-        
-        // Update display
-        const usdSpan = document.querySelector(`span[data-usd-price="${country}"]`);
-        const customerMarginSpan = document.querySelector(`span[data-customer-margin="${country}"]`);
-        
-        if (usdSpan) {
-            usdSpan.textContent = `$${retailPriceUSD.toFixed(2)}`;
-        }
-        
-        if (customerMarginSpan) {
-            customerMarginSpan.textContent = `${customerMargin}%`;
-            
-            // Color code based on margin
-            if (customerMargin < 25) {
-                customerMarginSpan.style.color = '#c40000';
-            } else if (customerMargin < 40) {
-                customerMarginSpan.style.color = '#f69931';
-            } else {
-                customerMarginSpan.style.color = '#067d62';
-            }
-        }
-    }
-}
-
-function closePricingSubmissionModal() {
-    document.getElementById('pricingSubmissionModal').style.display = 'none';
-}
-
-async function handlePricingSubmissionSubmit(e) {
-    e.preventDefault();
-    
-    const productCost = parseFloat(document.getElementById('pricingProductCost').value);
-    
-    // Validate product cost
-    if (isNaN(productCost) || productCost <= 0) {
-        showError('Please enter a valid Product Cost');
-        return;
-    }
-    
-    // Collect country pricing data
-    const countries = [];
-    const countriesProcessed = new Set();
-    
-    // Get all sell price inputs
-    const sellInputs = document.querySelectorAll('input[data-type="sell"]');
-    
-    sellInputs.forEach(sellInput => {
-        const country = sellInput.dataset.country;
-        const sellPriceUSD = parseFloat(sellInput.value);
-        
-        if (sellPriceUSD && sellPriceUSD > 0) {
-            const retailInput = document.querySelector(`input[data-country="${country}"][data-type="retail"]`);
-            const retailPriceLocal = parseFloat(retailInput?.value);
-            
-            if (retailPriceLocal && retailPriceLocal > 0) {
-                const fxRate = parseFloat(sellInput.dataset.fxRate);
-                const retailPriceUSD = retailPriceLocal / fxRate;
-                const companyMargin = ((sellPriceUSD - productCost) / sellPriceUSD * 100).toFixed(2);
-                const customerMargin = ((retailPriceUSD - sellPriceUSD) / retailPriceUSD * 100).toFixed(2);
-                
-                countries.push({
-                    country: country,
-                    currency: sellInput.dataset.currency,
-                    fx_rate: fxRate,
-                    sell_price_usd: sellPriceUSD,
-                    company_margin: companyMargin,
-                    retail_price_local: retailPriceLocal,
-                    retail_price_usd: retailPriceUSD,
-                    customer_margin: customerMargin
-                });
-                
-                countriesProcessed.add(country);
-            }
-        }
-    });
-    
-    if (countries.length === 0) {
-        showError('Please enter both sell price and retail price for at least one country');
-        return;
-    }
-    
-    const token = localStorage.getItem('token');
-    const avgSellPrice = (countries.reduce((sum, c) => sum + parseFloat(c.sell_price_usd), 0) / countries.length).toFixed(2);
-    
-    const data = {
-        product_id: parseInt(document.getElementById('pricingProductId').value),
-        asin: document.getElementById('pricingAsin').value,
-        product_cost: productCost,
-        sell_price: avgSellPrice, // Average sell price for summary
-        countries: countries,
-        notes: document.getElementById('pricingNotes').value
-    };
-    
-    try {
-        const response = await fetch(`${API_BASE}/pricing/submit`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${token}`
-            },
-            body: JSON.stringify(data)
-        });
-        
-        const result = await response.json();
-        
-        if (response.ok) {
-            closePricingSubmissionModal();
-            loadItems(); // Refresh to show updated stage
-            showSuccess('Pricing submitted for approval successfully!');
-        } else {
-            showError(result.error || 'Failed to submit pricing');
-        }
-    } catch (error) {
-        showError('Error submitting pricing: ' + error.message);
-    }
-}
-
-// Open approvals modal (for approvers)
-async function openApprovalsModal() {
-    const modal = document.getElementById('approvalsModal');
-    const container = document.getElementById('approvalsList');
-    
-    container.innerHTML = '<p style="text-align: center; padding: 40px;">Loading approvals...</p>';
-    modal.style.display = 'block';
-    
-    const token = localStorage.getItem('token');
-    
-    try {
-        const response = await fetch(`${API_BASE}/pricing/submissions?status=pending`, {
-            headers: {
-                'Authorization': `Bearer ${token}`
-            }
-        });
-        
-        const submissions = await response.json();
-        
-        if (submissions.length === 0) {
-            container.innerHTML = '<p style="text-align: center; padding: 40px; color: var(--text-secondary);">No pending approvals</p>';
-            return;
-        }
-        
-        container.innerHTML = submissions.map(sub => `
-            <div class="approval-card" style="background: var(--card-bg); padding: 20px; border-radius: 8px; margin-bottom: 15px; border-left: 4px solid var(--warning);">
-                <div style="display: flex; justify-content: space-between; align-items: start;">
-                    <div>
-                        <h3 style="margin: 0 0 10px 0;">${sub.product_name || sub.asin}</h3>
-                        <p style="color: var(--text-secondary); margin: 0;">ASIN: ${sub.asin}</p>
-                        <p style="color: var(--text-secondary); margin: 5px 0 0 0; font-size: 13px;">
-                            Submitted by: ${sub.submitted_by_full_name || sub.submitted_by_name} on ${new Date(sub.submitted_at).toLocaleString()}
-                        </p>
-                </div>
-                    <div style="text-align: right;">
-                        <span style="background: var(--warning); color: white; padding: 4px 12px; border-radius: 12px; font-size: 12px; font-weight: 600;">
-                            PENDING
-                        </span>
-                    </div>
-                </div>
-                
-                <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 15px; margin: 20px 0; padding: 15px; background: var(--bg-secondary); border-radius: 6px;">
-                    <div>
-                        <small style="color: var(--text-secondary);">Product Cost</small>
-                        <div style="font-size: 18px; font-weight: 600;">${sub.currency} $${parseFloat(sub.product_cost).toFixed(2)}</div>
-                    </div>
-                    <div>
-                        <small style="color: var(--text-secondary);">Sell Price</small>
-                        <div style="font-size: 18px; font-weight: 600;">${sub.currency} $${parseFloat(sub.sell_price).toFixed(2)}</div>
-                    </div>
-                    <div>
-                        <small style="color: var(--text-secondary);">Company Margin</small>
-                        <div style="font-size: 18px; font-weight: 600; color: var(--success);">${parseFloat(sub.company_margin).toFixed(2)}%</div>
-                    </div>
-                    <div>
-                        <small style="color: var(--text-secondary);">Retail Price</small>
-                        <div style="font-size: 18px; font-weight: 600;">${sub.currency} $${parseFloat(sub.retail_price).toFixed(2)}</div>
-                    </div>
-                    <div>
-                        <small style="color: var(--text-secondary);">Customer Margin</small>
-                        <div style="font-size: 18px; font-weight: 600; color: var(--success);">${parseFloat(sub.customer_margin).toFixed(2)}%</div>
-                    </div>
-                </div>
-                
-                ${sub.notes ? `<div style="padding: 10px; background: var(--bg-primary); border-radius: 6px; margin-bottom: 15px;"><strong>Notes:</strong> ${sub.notes}</div>` : ''}
-                
-                <div style="display: flex; gap: 10px; margin-top: 15px;">
-                    <input type="text" id="reviewNotes_${sub.id}" placeholder="Add review notes (optional)" style="flex: 1;">
-                    <button class="btn btn-success" onclick="reviewPricing(${sub.id}, 'approve')">✓ Approve</button>
-                    <button class="btn btn-danger" onclick="reviewPricing(${sub.id}, 'reject')">✗ Reject</button>
-                </div>
-            </div>
-        `).join('');
-        
-    } catch (error) {
-        container.innerHTML = '<p style="text-align: center; padding: 40px; color: var(--danger);">Error loading approvals</p>';
-    }
-}
-
-async function reviewPricing(submissionId, action) {
-    const notes = document.getElementById(`reviewNotes_${submissionId}`)?.value || '';
-    const token = localStorage.getItem('token');
-    
-    try {
-        const response = await fetch(`${API_BASE}/pricing/${submissionId}/review`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${token}`
-            },
-            body: JSON.stringify({ action, notes })
-        });
-        
-        const result = await response.json();
-        
-        if (response.ok) {
-            showSuccess(`Pricing ${action === 'approve' ? 'approved' : 'rejected'} successfully!`);
-            openApprovalsModal(); // Refresh the list
-            loadItems(); // Refresh products to show updated stages
-        } else {
-            showError(result.error || 'Failed to review pricing');
-        }
-    } catch (error) {
-        showError('Error: ' + error.message);
-    }
-}
-
-function closeApprovalsModal() {
-    document.getElementById('approvalsModal').style.display = 'none';
-}
-
-// Load pricing approvals view
-async function loadPricingApprovalsView() {
-    const container = document.getElementById('pricingApprovalsContainer');
-    
-    container.innerHTML = '<p style="text-align: center; padding: 40px;">Loading pricing submissions...</p>';
-    
-    const token = localStorage.getItem('token');
-    
-    try {
-        const response = await fetch(`${API_BASE}/pricing/submissions`, {
-            headers: {
-                'Authorization': `Bearer ${token}`
-            }
-        });
-        
-        if (!response.ok) {
-            throw new Error('Failed to load pricing submissions');
-        }
-        
-        const submissions = await response.json();
-        
-        if (submissions.length === 0) {
-            container.innerHTML = '<p style="text-align: center; padding: 40px; color: var(--text-secondary);">No pricing submissions found</p>';
-            return;
-        }
-        
-        // Render as table
-        let html = `
-            <div style="overflow-x: auto;">
-                <table class="products-table">
-                    <thead>
-                        <tr>
-                            <th>ID</th>
-                            <th>Product</th>
-                            <th>ASIN</th>
-                            <th>Cost</th>
-                            <th>Sell Price</th>
-                            <th>Company Margin</th>
-                            <th>Retail Price</th>
-                            <th>Customer Margin</th>
-                            <th>Submitted By</th>
-                            <th>Submitted At</th>
-                            <th>Status</th>
-                            <th>Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-        `;
-        
-        submissions.forEach(sub => {
-            const statusColor = sub.status === 'approved' ? 'var(--success-color)' : 
-                               sub.status === 'rejected' ? 'var(--danger-color)' : 
-                               'var(--warning-color)';
-            const statusIcon = sub.status === 'approved' ? '✓' : 
-                              sub.status === 'rejected' ? '✗' : '⏳';
-            
-            html += `
-                <tr>
-                    <td>${sub.id}</td>
-                    <td>${sub.product_name || sub.asin}</td>
-                    <td>${sub.asin}</td>
-                    <td>${sub.currency} $${parseFloat(sub.product_cost).toFixed(2)}</td>
-                    <td>${sub.currency} $${parseFloat(sub.sell_price).toFixed(2)}</td>
-                    <td style="color: ${parseFloat(sub.company_margin) < 20 ? 'var(--danger-color)' : parseFloat(sub.company_margin) < 35 ? 'var(--warning-color)' : 'var(--success-color)'}; font-weight: 600;">
-                        ${parseFloat(sub.company_margin).toFixed(2)}%
-                    </td>
-                    <td>${sub.currency} $${parseFloat(sub.retail_price).toFixed(2)}</td>
-                    <td style="color: ${parseFloat(sub.customer_margin) < 25 ? 'var(--danger-color)' : parseFloat(sub.customer_margin) < 40 ? 'var(--warning-color)' : 'var(--success-color)'}; font-weight: 600;">
-                        ${parseFloat(sub.customer_margin).toFixed(2)}%
-                    </td>
-                    <td>${sub.submitted_by_full_name || sub.submitted_by_name}</td>
-                    <td>${new Date(sub.submitted_at).toLocaleString()}</td>
-                    <td>
-                        <span style="background: ${statusColor}; color: white; padding: 4px 12px; border-radius: 12px; font-size: 12px; font-weight: 600;">
-                            ${statusIcon} ${sub.status.toUpperCase()}
-                        </span>
-                    </td>
-                    <td>
-                        ${sub.status === 'pending' && (currentUser.role === 'approver' || currentUser.role === 'admin') ? 
-                            `<button class="btn btn-success btn-sm" onclick="quickApproveReject(${sub.id}, 'approve')">✓ Approve</button>
-                             <button class="btn btn-danger btn-sm" onclick="quickApproveReject(${sub.id}, 'reject')">✗ Reject</button>` : 
-                            sub.reviewed_at ? 
-                                `<small style="color: var(--text-secondary);">Reviewed by ${sub.reviewed_by_full_name || sub.reviewed_by_name}<br>${new Date(sub.reviewed_at).toLocaleString()}</small>` : 
-                                '<span style="color: var(--text-secondary);">-</span>'}
-            </td>
-        </tr>
-    `;
-        });
-        
-        html += `
-                    </tbody>
-                </table>
-            </div>
-        `;
-        
-        container.innerHTML = html;
-        
-    } catch (error) {
-        container.innerHTML = `<p style="text-align: center; padding: 40px; color: var(--danger-color);">Error loading pricing submissions: ${error.message}</p>`;
-        console.error('Error loading pricing submissions:', error);
-        showError('Failed to load pricing submissions: ' + error.message);
-    }
-}
-
-// Quick approve/reject from table
-async function quickApproveReject(submissionId, action) {
-    const notes = prompt(`${action === 'approve' ? 'Approve' : 'Reject'} this pricing submission. Add notes (optional):`);
-    if (notes === null) return; // User cancelled
-    
-    await reviewPricing(submissionId, action, notes);
-    loadPricingApprovalsView(); // Refresh the view
-}
-
-// ============ SIDEBAR NAVIGATION ============
-
-function initSidebar() {
-    const sidebar = document.getElementById('sidebar');
-    const sidebarOverlay = document.getElementById('sidebarOverlay');
-    const sidebarToggle = document.getElementById('sidebarToggle');
-    const sidebarClose = document.getElementById('sidebarClose');
-    
-    // Open sidebar
-    sidebarToggle.addEventListener('click', () => {
-        sidebar.classList.add('active');
-        sidebarOverlay.classList.add('active');
-    });
-    
-    // Close sidebar
-    const closeSidebar = () => {
-        sidebar.classList.remove('active');
-        sidebarOverlay.classList.remove('active');
-    };
-    
-    sidebarClose.addEventListener('click', closeSidebar);
-    sidebarOverlay.addEventListener('click', closeSidebar);
-    
-    // Submenu toggle
-    document.querySelectorAll('.sidebar-toggle').forEach(toggle => {
-        toggle.addEventListener('click', () => {
-            const targetId = toggle.dataset.target;
-            const submenu = document.getElementById(targetId);
-            
-            toggle.classList.toggle('active');
-            submenu.classList.toggle('active');
-        });
-    });
-    
-    // Wire up sidebar buttons to existing functions
-    document.getElementById('sidebarExportBtn').addEventListener('click', () => {
-        exportToCSV();
-        closeSidebar();
-    });
-    
-    document.getElementById('sidebarSyncPimBtn').addEventListener('click', () => {
-        syncPimData();
-        closeSidebar();
-    });
-    
-    document.getElementById('sidebarSyncVcBtn').addEventListener('click', () => {
-        syncVcData();
-        closeSidebar();
-    });
-    
-    document.getElementById('sidebarSyncQpiBtn').addEventListener('click', () => {
-        syncQpiData();
-        closeSidebar();
-    });
-    
-    document.getElementById('sidebarImportQpiBtn').addEventListener('click', () => {
-        importFromQpi();
-        closeSidebar();
-    });
-    
-    document.getElementById('sidebarSyncVariationsBtn').addEventListener('click', () => {
-        syncVariations();
-        closeSidebar();
-    });
-    
-    document.getElementById('sidebarSyncOnlineBtn').addEventListener('click', () => {
-        syncOnlineStatus();
-        closeSidebar();
-    });
-    
-    // Customer Admin button
-    const customerAdminBtn = document.getElementById('sidebarCustomerAdminBtn');
-    if (customerAdminBtn) {
-        customerAdminBtn.addEventListener('click', () => {
-            switchView('customer-admin');
-            closeSidebar();
-        });
-    }
-}
-
-// Handle item form submission
-async function handleItemSubmit(e) {
-    e.preventDefault();
-
-    const itemId = document.getElementById('itemId').value;
-    const sku = document.getElementById('sku').value;
-    const asin = document.getElementById('asin').value || '';  // Optional
-    const name = document.getElementById('name').value || '';  // Optional
-    
-    // Get selected countries
-    const countrySelect = document.getElementById('country');
-    const selectedCountries = Array.from(countrySelect.selectedOptions).map(option => option.value);
-    
-    // Get other fields
-    const itemNumber = document.getElementById('itemNumber').value || '';
-    const brand = document.getElementById('brand').value || '';
-    const description = document.getElementById('description').value || '';
-    const seasonLaunch = document.getElementById('seasonLaunch').value || '';
-    
-    // Build item data
-    const itemData = {
-        sku,
-        asin,
-        name,
-        brand,
-        stage_1_country: selectedCountries.join(','),  // Store as comma-separated
-        stage_1_item_number: itemNumber,
-        stage_1_description: description,
-        stage_1_season_launch: seasonLaunch,
-        stage_1_brand: brand,
-        stage_1_idea_considered: 1,  // Mark as Stage 1
-        is_temp_asin: asin ? 0 : 1   // If no ASIN, mark as temp
-    };
-
-    try {
-        let response;
-        if (itemId) {
-            // Update existing item
-            response = await fetch(`${API_BASE}/items/${itemId}`, {
-                method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(itemData)
-        });
-        } else {
-            // Create new item
-            response = await fetch(`${API_BASE}/items`, {
-                method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(itemData)
-            });
-        }
-        
-        if (response.ok) {
-            document.getElementById('itemModal').style.display = 'none';
-            document.getElementById('itemForm').reset();
-            loadItems();
-            showSuccess(itemId ? 'Product updated successfully' : 'Product created successfully');
-        } else {
-            const error = await response.json();
-            throw new Error(error.error || 'Failed to save product');
-        }
-    } catch (error) {
-        console.error('Error saving item:', error);
-        showError(error.message);
-    }
-}
-
-// Handle pricing form submission
-async function handlePricingSubmit(e) {
-    e.preventDefault();
-
-    const itemId = document.getElementById('pricingItemId').value;
-    const countryCode = document.getElementById('countryCode').value;
-    const costPrice = document.getElementById('costPrice').value;
-    const retailPrice = document.getElementById('retailPrice').value;
-    const currency = document.getElementById('currency').value;
-    
-    const pricingData = {
-        country_code: countryCode,
-        cost_price: parseFloat(costPrice),
-        retail_price: parseFloat(retailPrice),
-        currency: currency
-    };
-
-    try {
-        const response = await fetch(`${API_BASE}/items/${itemId}/pricing`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(pricingData)
-        });
-
-        if (response.ok) {
-            document.getElementById('pricingForm').reset();
-            openPricingModal(itemId); // Refresh the pricing table
-            showSuccess('Pricing submitted for approval');
-        } else {
-            throw new Error('Failed to submit pricing');
-        }
-    } catch (error) {
-        console.error('Error submitting pricing:', error);
-        showError('Failed to submit pricing');
-    }
-}
-
-// Handle stage change
-async function handleStageChange(e) {
-    const stage = e.target.dataset.stage;
-    const completed = e.target.checked;
-    const itemId = document.getElementById('flowItemId').value;
-
-    try {
-        const response = await fetch(`${API_BASE}/items/${itemId}/stage`, {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ stage, completed })
-        });
-
-        if (response.ok) {
-            loadItems(); // Refresh main view
-            showSuccess('Progress updated');
-        } else {
-            throw new Error('Failed to update stage');
-        }
-    } catch (error) {
-        console.error('Error updating stage:', error);
-        showError('Failed to update progress');
-        e.target.checked = !completed; // Revert checkbox
-    }
-}
-
-// Action functions
-function editItem(itemId) {
-    openItemModal(itemId);
-}
-
-// Edit product name (for temp ASINs)
-async function editProductName(asin, currentName) {
-    const newName = prompt('Enter new product name:', currentName);
-    if (!newName || newName === currentName) {
-        return;
-    }
-
-    try {
-        const response = await fetch(`${API_BASE}/items/${asin}`, {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ name: newName })
-        });
-
-        if (response.ok) {
-            loadItems();
-            showSuccess('Product name updated');
-        } else {
-            throw new Error('Failed to update name');
-        }
-    } catch (error) {
-        console.error('Error updating product name:', error);
-        showError('Failed to update product name');
-    }
-}
-
-async function deleteItem(itemId) {
-    if (!confirm('Are you sure you want to delete this product?')) {
-        return;
-    }
-
-    try {
-        const response = await fetch(`${API_BASE}/items/${itemId}`, {
-            method: 'DELETE'
-        });
-
-        if (response.ok) {
-            loadItems();
-            showSuccess('Product deleted');
-        } else {
-            throw new Error('Failed to delete product');
-        }
-    } catch (error) {
-        console.error('Error deleting item:', error);
-        showError('Failed to delete product');
-    }
-}
-
-// Pricing approval/rejection
-async function approvePricing(itemId, countryCode) {
-    try {
-        const response = await fetch(`${API_BASE}/items/${itemId}/pricing/${countryCode}/approve`, {
-            method: 'POST'
-        });
-        if (response.ok) {
-            openPricingModal(itemId);
-            showSuccess('Pricing approved');
-        }
-    } catch (error) {
-        console.error('Error approving pricing:', error);
-        showError('Failed to approve pricing');
-    }
-}
-
-async function rejectPricing(itemId, countryCode) {
-    const reason = prompt('Enter rejection reason:');
-    if (!reason) return;
-    
-    try {
-        const response = await fetch(`${API_BASE}/items/${itemId}/pricing/${countryCode}/reject`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ reason })
-        });
-        if (response.ok) {
-            openPricingModal(itemId);
-            showSuccess('Pricing rejected');
-        }
-    } catch (error) {
-        console.error('Error rejecting pricing:', error);
-        showError('Failed to reject pricing');
-    }
-}
-
-// Utility functions
-function escapeHtml(text) {
-    if (!text) return '';
-    const div = document.createElement('div');
-    div.textContent = text;
-    return div.innerHTML;
-}
-
-// Success/Error messages
-function showSuccess(message) {
-    alert(message); // Replace with better toast notification
-}
-
-function showError(message) {
-    alert('Error: ' + message); // Replace with better toast notification
-}
-
-async function importQpiData() {
-    const fileInput = document.createElement('input');
-    fileInput.type = 'file';
-    fileInput.accept = '.xlsx,.csv';
-    
-    fileInput.onchange = async (e) => {
-        const file = e.target.files[0];
-        if (!file) return;
-        
-        const formData = new FormData();
-        formData.append('file', file);
-        
-        try {
-            const response = await fetch(`${API_BASE}/import-qpi`, {
-                method: 'POST',
-                body: formData
-            });
-        
-        if (response.ok) {
-            loadItems();
-                showSuccess('QPI data imported successfully');
-        } else {
-                throw new Error('Failed to import QPI data');
-        }
-    } catch (error) {
-            console.error('Error importing QPI:', error);
-            showError('Failed to import QPI data');
-    }
-    };
-
-    fileInput.click();
-    }
-
-async function syncQpiData() {
-    try {
-        const response = await fetch(`${API_BASE}/sync/qpi`, {
-            method: 'POST'
-        });
-        
-        if (response.ok) {
-            const result = await response.json();
-            loadItems();
-            showSuccess(`QPI sync complete: ${result.message}`);
-        } else {
-            throw new Error('Failed to sync QPI data');
-        }
-    } catch (error) {
-        console.error('Error syncing QPI:', error);
-        showError('Failed to sync QPI data');
-    }
-}
-
-async function syncVcData() {
-    try {
-        const response = await fetch(`${API_BASE}/sync-vc`, {
-            method: 'POST'
-        });
-        
-        if (response.ok) {
-            const result = await response.json();
-            loadItems();
-            showSuccess(`VC sync complete: ${result.message}`);
-        } else {
-            throw new Error('Failed to sync VC data');
-        }
-    } catch (error) {
-        console.error('Error syncing VC:', error);
-        showError('Failed to sync VC data');
-    }
-}
-
-async function syncVariationsData() {
-    try {
-        const response = await fetch(`${API_BASE}/sync-variations`, {
-            method: 'POST'
-        });
-        
-        if (response.ok) {
-            const result = await response.json();
-            loadVariationFilters(); // Reload filter options
-            loadItems(); // Refresh items to show new variation data
-            showSuccess(`Variations sync complete: ${result.message}`);
-        } else {
-            throw new Error('Failed to sync variations data');
-        }
-    } catch (error) {
-        console.error('Error syncing variations:', error);
-        showError('Failed to sync variations data');
-    }
-}
-
-async function syncOnlineStatus() {
-    try {
-        const response = await fetch(`${API_BASE}/sync-online`, {
-            method: 'POST'
-        });
-        
-        if (response.ok) {
-            const result = await response.json();
-            loadItems();
-            showSuccess(`Online status sync complete: ${result.message}`);
-        } else {
-            throw new Error('Failed to sync online status');
-        }
-    } catch (error) {
-        console.error('Error syncing online status:', error);
-        showError('Failed to sync online status');
-    }
-    }
-
-async function syncPimData() {
-    try {
-        const response = await fetch(`${API_BASE}/sync-pim`, {
-            method: 'POST'
-        });
-        
-        if (response.ok) {
-            const result = await response.json();
-            loadItems();
-            showSuccess(`PIM sync complete: ${result.message}`);
-        } else {
-            throw new Error('Failed to sync PIM data');
-        }
-    } catch (error) {
-        console.error('Error syncing PIM:', error);
-        showError('Failed to sync PIM data');
-    }
-}
-
-function openExportModal() {
-    // Simple CSV export for now
-    let csv = 'ASIN,Name,SKU,Stage\n';
-    
-    items.forEach(item => {
-        const stage = getCurrentStage(item);
-        csv += `"${item.asin}","${item.name || ''}","${item.sku || ''}","${stage}"\n`;
-    });
-    
-    // Download CSV
-    const blob = new Blob([csv], { type: 'text/csv' });
-    const url = window.URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = 'products_export.csv';
-    link.click();
-    
-    showSuccess('Export complete');
-}
-
-// Pagination Controls
-function updatePaginationControls(view, currentPage, totalPages) {
-    if (view === 'products') {
-        const pageInfo = document.getElementById('productsPageInfo');
-        const prevBtn = document.getElementById('productsPrevBtn');
-        const nextBtn = document.getElementById('productsNextBtn');
-        
-        if (pageInfo) pageInfo.textContent = `Page ${currentPage} of ${totalPages}`;
-        if (prevBtn) prevBtn.disabled = currentPage === 1;
-        if (nextBtn) nextBtn.disabled = currentPage === totalPages;
-    } else if (view === 'skus') {
-        const pageInfo = document.getElementById('skusPageInfo');
-        const prevBtn = document.getElementById('skusPrevBtn');
-        const nextBtn = document.getElementById('skusNextBtn');
-        
-        if (pageInfo) pageInfo.textContent = `Page ${currentPage} of ${totalPages}`;
-        if (prevBtn) prevBtn.disabled = currentPage === 1;
-        if (nextBtn) nextBtn.disabled = currentPage === totalPages;
-    }
-}
-
-// Products pagination
-document.getElementById('productsPrevBtn').addEventListener('click', () => {
-    if (productsPage > 1) {
-        loadItems(productsPage - 1);
-    }
 });
 
-document.getElementById('productsNextBtn').addEventListener('click', () => {
-    if (productsPage < productsTotalPages) {
-        loadItems(productsPage + 1);
-    }
-});
-
-// Removed SKU pagination - not needed anymore
-
-// Workflow Modal
-async function openWorkflowModal(asin, stageNumber) {
-    const modal = document.getElementById('workflowModal');
-    const title = document.getElementById('workflowModalTitle');
-    const content = document.getElementById('workflowModalContent');
-    
-    const stageNames = {
-        1: 'Stage 1: Ideation',
-        2: 'Stage 2: PIM Finalized',
-        3: 'Stage 3: VC Listed',
-        4: 'Stage 4: Ordered (QPI)',
-        5: 'Stage 5: Online'
-    };
-    
-    title.textContent = `${stageNames[stageNumber]} - ${asin}`;
-    
-    // If it's Stage 3 (VC Listed), show country status
-    if (stageNumber === 3) {
-        content.innerHTML = '<p style="text-align: center; color: var(--text-secondary);">Loading country status...</p>';
-        modal.style.display = 'block';
-        
-        try {
-            // Fetch ASIN status by country
-            const response = await fetch(`${API_BASE}/asin-status/${asin}`);
-            const data = await response.json();
-            
-            if (data.countries && data.countries.length > 0) {
-                const countriesWithStatus = data.countries;
-                
-                // Get all unique countries from the filter dropdown
-                const countryFilter = document.getElementById('countryFilter');
-                const allCountries = Array.from(countryFilter.options)
-                    .map(opt => opt.value)
-                    .filter(val => val !== 'all' && val !== 'loading');
-                
-                content.innerHTML = `
-                    <div style="margin-bottom: 20px;">
-                        <h3>VC Listing Status by Country</h3>
-                        <p>ASIN: <strong>${asin}</strong></p>
-                    </div>
-                    
-                    <div class="country-status-table-wrapper">
-                        <table class="country-status-table">
-                            <thead>
-                                <tr>
-                                    <th>Country</th>
-                                    <th>Status</th>
-                                    <th>VC Status</th>
-                                    <th>Last Synced</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                ${allCountries.map(country => {
-                                    const countryData = countriesWithStatus.find(c => c.country_code === country);
-                                    const isListed = !!countryData;
-                                    const vcStatus = countryData ? countryData.vc_status : '-';
-                                    const lastSynced = countryData ? new Date(countryData.last_synced).toLocaleString() : '-';
-                                    
-                                    return `
-                                        <tr class="${isListed ? 'listed' : 'not-listed'}">
-                                            <td><strong>${escapeHtml(country)}</strong></td>
-                                            <td>
-                                                ${isListed 
-                                                    ? '<span class="status-badge listed">✓ Listed</span>' 
-                                                    : '<span class="status-badge not-listed">✗ Not Listed</span>'}
-                                            </td>
-                                            <td>${escapeHtml(vcStatus)}</td>
-                                            <td><small>${escapeHtml(lastSynced)}</small></td>
-                                        </tr>
-                                    `;
-                                }).join('')}
-                            </tbody>
-                        </table>
-                    </div>
-                    
-                    <div style="margin-top: 20px; text-align: right;">
-                        <button class="btn btn-primary" onclick="document.getElementById('workflowModal').style.display='none'">Close</button>
-                    </div>
-                `;
-            } else {
-                content.innerHTML = `
-                    <p>No VC listing data found for ASIN: <strong>${asin}</strong></p>
-                    <div style="margin-top: 20px;">
-                        <button class="btn btn-primary" onclick="document.getElementById('workflowModal').style.display='none'">Close</button>
-                    </div>
-                `;
-            }
-        } catch (error) {
-            console.error('Error loading country status:', error);
-            content.innerHTML = `
-                <p style="color: var(--danger-color);">Error loading country status</p>
-                <div style="margin-top: 20px;">
-                    <button class="btn btn-primary" onclick="document.getElementById('workflowModal').style.display='none'">Close</button>
-                </div>
-            `;
-        }
-    } else if (stageNumber === 4) {
-        // Stage 4: QPI Status - show which QPI source files contain this ASIN
-        content.innerHTML = '<p style="text-align: center; color: var(--text-secondary);">Loading QPI status...</p>';
-        modal.style.display = 'block';
-        
-        try {
-            // Fetch the product details first to get SKUs
-            const productResponse = await fetch(`${API_BASE}/items/${asin}`);
-            const productData = await productResponse.json();
-            
-            // Fetch QPI file status
-            const qpiResponse = await fetch(`${API_BASE}/qpi-files/${asin}`);
-            const qpiData = await qpiResponse.json();
-            
-            console.log('QPI Data:', qpiData); // Debug log
-            
-            const inQPI = productData.stage_5_product_ordered === 1;
-            const skus = productData.skus || [];
-            const filesFound = qpiData.files.filter(f => f.found).length;
-            const totalFiles = qpiData.total_source_files;
-            
-            console.log(`Files found: ${filesFound}/${totalFiles}`, qpiData.files); // Debug log
-            
-            // Map source file names to regions
-            const regionMap = {
-                'S26 QPI CA.xlsx': 'Canada',
-                'S26 QPI EMG.xlsx': 'Emerging Markets',
-                'S26 QPI EU.xlsx': 'Europe',
-                'S26 QPI JP003.xlsx': 'Japan',
-                'S26 QPI US.xlsx': 'United States'
-            };
-            
-            content.innerHTML = `
-                <div style="margin-bottom: 20px;">
-                    <h3>QPI Status by Source File</h3>
-                    <p>ASIN: <strong>${asin}</strong></p>
-                    <p>SKUs: <strong>${skus.join(', ')}</strong></p>
-                    <p>In QPI: <strong style="color: ${inQPI ? 'var(--success-color)' : 'var(--danger-color)'}">
-                        ${inQPI ? `✓ YES - Found in ${filesFound}/${totalFiles} source files` : '✗ NO - Not in any QPI source files'}
-                    </strong></p>
-                </div>
-                
-                <div class="country-status-table-wrapper">
-                    <table class="country-status-table">
-                        <thead>
-                            <tr>
-                                <th>Source File (Region)</th>
-                                <th>Status</th>
-                                <th>SKU</th>
-                                <th>Last Seen</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            ${qpiData.files.map(file => {
-                                const region = regionMap[file.source_file] || file.source_file;
-                                return `
-                                    <tr class="${file.found ? 'listed' : 'not-listed'}">
-                                        <td>
-                                            <strong>${escapeHtml(file.source_file)}</strong>
-                                            <br><small style="color: var(--text-secondary);">${region}</small>
-                                        </td>
-                                        <td>
-                                            ${file.found 
-                                                ? '<span class="status-badge listed">✓ Found</span>' 
-                                                : '<span class="status-badge not-listed">✗ Missing</span>'}
-                                        </td>
-                                        <td>${escapeHtml(file.sku || '-')}</td>
-                                        <td><small>${file.last_seen ? new Date(file.last_seen).toLocaleString() : '-'}</small></td>
-                                    </tr>
-                                `;
-                            }).join('')}
-                        </tbody>
-                    </table>
-                </div>
-                
-                <div style="margin-top: 20px;">
-                    <p style="font-size: 14px; color: var(--text-secondary);">
-                        <strong>Note:</strong> Shows all QPI source files. 
-                        This ASIN appears in <strong>${filesFound} out of ${totalFiles}</strong> source files.
-                        ${filesFound < totalFiles ? ' Missing from some regions - may need to be added to additional QPIs.' : ' Present in all source files!'}
-                    </p>
-                </div>
-                
-                <div style="margin-top: 20px; text-align: right;">
-                    <button class="btn btn-primary" onclick="document.getElementById('workflowModal').style.display='none'">Close</button>
-                </div>
-            `;
-        } catch (error) {
-            console.error('Error loading QPI status:', error);
-            content.innerHTML = `
-                <p style="color: var(--danger-color);">Error loading QPI status</p>
-                <div style="margin-top: 20px;">
-                    <button class="btn btn-primary" onclick="document.getElementById('workflowModal').style.display='none'">Close</button>
-                </div>
-            `;
-        }
-    } else if (stageNumber === 5) {
-        // Stage 5: Online Status - show which countries ASIN is online in
-        content.innerHTML = '<p style="text-align: center; color: var(--text-secondary);">Loading online status...</p>';
-        modal.style.display = 'block';
-        
-        try {
-            // Fetch online status
-            const response = await fetch(`${API_BASE}/online-status/${asin}`);
-            const data = await response.json();
-            
-            const countriesOnline = data.countries_online;
-            const totalCountries = data.total_countries;
-            
-            content.innerHTML = `
-                <div style="margin-bottom: 20px;">
-                    <h3>Online Status by Country</h3>
-                    <p>ASIN: <strong>${asin}</strong></p>
-                    <p>Online Status: <strong style="color: ${countriesOnline > 0 ? 'var(--success-color)' : 'var(--danger-color)'}">
-                        ${countriesOnline > 0 ? `✓ ONLINE - Found in ${countriesOnline}/${totalCountries} countries` : '✗ NOT ONLINE - Not found in any country'}
-                    </strong></p>
-                </div>
-                
-                <div class="country-status-table-wrapper">
-                    <table class="country-status-table">
-                        <thead>
-                            <tr>
-                                <th>Country</th>
-                                <th>Status</th>
-                                <th>First Seen Online</th>
-                                <th>Last Seen Online</th>
-                                <th>Last Buybox Price</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            ${data.countries.map(country => {
-                                return `
-                                    <tr class="${country.online ? 'listed' : 'not-listed'}">
-                                        <td>
-                                            <strong>${escapeHtml(country.country)}</strong>
-                                            <br><small style="color: var(--text-secondary);">${escapeHtml(country.country_code)}</small>
-                                        </td>
-                                        <td>
-                                            ${country.online 
-                                                ? '<span class="status-badge listed">✓ Online</span>' 
-                                                : '<span class="status-badge not-listed">✗ Not Online</span>'}
-                                        </td>
-                                        <td><small>${country.first_seen ? escapeHtml(country.first_seen) : '-'}</small></td>
-                                        <td><small>${country.last_seen ? escapeHtml(country.last_seen) : '-'}</small></td>
-                                        <td><strong>${country.last_price ? '$' + parseFloat(country.last_price).toFixed(2) : '-'}</strong></td>
-                                    </tr>
-                                `;
-                            }).join('')}
-                        </tbody>
-                    </table>
-                </div>
-                
-                <div style="margin-top: 20px;">
-                    <p style="font-size: 14px; color: var(--text-secondary);">
-                        <strong>Note:</strong> Shows all Amazon marketplaces tracked. 
-                        This ASIN is online in <strong>${countriesOnline} out of ${totalCountries}</strong> countries.
-                        ${countriesOnline < totalCountries ? ' May launch in additional countries soon.' : ' Live in all tracked countries!'}
-                    </p>
-                </div>
-                
-                <div style="margin-top: 20px; text-align: right;">
-                    <button class="btn btn-primary" onclick="document.getElementById('workflowModal').style.display='none'">Close</button>
-                </div>
-            `;
-        } catch (error) {
-            console.error('Error loading online status:', error);
-            content.innerHTML = `
-                <p style="color: var(--danger-color);">Error loading online status: ${error.message}</p>
-                <div style="margin-top: 20px;">
-                    <button class="btn btn-primary" onclick="document.getElementById('workflowModal').style.display='none'">Close</button>
-                </div>
-            `;
-        }
-    } else {
-        // For other stages, show basic info
-        content.innerHTML = '<p style="text-align: center; color: var(--text-secondary);">Loading details...</p>';
-        modal.style.display = 'block';
-        
-        try {
-            // Fetch product details
-            const response = await fetch(`${API_BASE}/items/${asin}`);
-            const product = await response.json();
-            
-            if (stageNumber === 1) {
-                // Stage 1: Ideation - show planned countries and other details
-                const countries = product.stage_1_country ? product.stage_1_country.split(',') : [];
-                const brand = product.stage_1_brand || '-';
-                const description = product.stage_1_description || '-';
-                const firstOrderDate = product.stage_1_season_launch || '-';
-                const itemNumber = product.stage_1_item_number || '-';
-                
-                const countryNames = {
-                    'US': 'United States',
-                    'CA': 'Canada',
-                    'MX': 'Mexico',
-                    'UK': 'United Kingdom',
-                    'DE': 'Germany',
-                    'FR': 'France',
-                    'IT': 'Italy',
-                    'ES': 'Spain',
-                    'JP': 'Japan',
-                    'AU': 'Australia'
-                };
-                
-                content.innerHTML = `
-                    <div style="margin-bottom: 20px;">
-                        <h3>Ideation Details</h3>
-                        <p>ASIN: <strong>${escapeHtml(asin)}</strong></p>
-                    </div>
-                    
-                    <div style="background: var(--background); padding: 15px; border-radius: 8px; margin-bottom: 15px;">
-                        <h4 style="margin-top: 0; color: var(--primary-color);">📍 Planned Launch Countries</h4>
-                        ${countries.length > 0 ? `
-                            <div style="display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px;">
-                                ${countries.map(code => `
-                                    <span style="background: var(--primary-color); color: white; padding: 6px 12px; border-radius: 20px; font-size: 13px; font-weight: 500;">
-                                        ${escapeHtml(countryNames[code] || code)}
-                                    </span>
-                                `).join('')}
-                            </div>
-                        ` : '<p style="color: var(--text-secondary);">No countries specified</p>'}
-                    </div>
-                    
-                    <div style="background: var(--background); padding: 15px; border-radius: 8px; margin-bottom: 15px;">
-                        <table style="width: 100%; border-collapse: collapse;">
-                            <tr>
-                                <td style="padding: 8px 0; font-weight: 600; color: var(--text-secondary); width: 150px;">Brand:</td>
-                                <td style="padding: 8px 0;">${escapeHtml(brand)}</td>
-                            </tr>
-                            <tr>
-                                <td style="padding: 8px 0; font-weight: 600; color: var(--text-secondary);">Item Number:</td>
-                                <td style="padding: 8px 0;">${escapeHtml(itemNumber)}</td>
-                            </tr>
-                            <tr>
-                                <td style="padding: 8px 0; font-weight: 600; color: var(--text-secondary);">First Order Date:</td>
-                                <td style="padding: 8px 0;">${escapeHtml(firstOrderDate)}</td>
-                            </tr>
-                            <tr>
-                                <td style="padding: 8px 0; font-weight: 600; color: var(--text-secondary); vertical-align: top;">Description:</td>
-                                <td style="padding: 8px 0;">${escapeHtml(description)}</td>
-                            </tr>
-                        </table>
-                    </div>
-                    
-                    <div style="margin-top: 20px; text-align: right;">
-                        <button class="btn btn-primary" onclick="document.getElementById('workflowModal').style.display='none'">Close</button>
-                    </div>
-                `;
-            } else {
-                // Other stages - show basic info
-                content.innerHTML = `
-                    <p>Workflow details for ASIN: <strong>${asin}</strong></p>
-                    <p>Stage: <strong>${stageNames[stageNumber]}</strong></p>
-                    <div style="margin-top: 20px; text-align: right;">
-                        <button class="btn btn-primary" onclick="document.getElementById('workflowModal').style.display='none'">Close</button>
-                    </div>
-                `;
-            }
-        } catch (error) {
-            console.error('Error loading stage details:', error);
-            content.innerHTML = `
-                <p style="color: var(--danger-color);">Error loading details</p>
-                <div style="margin-top: 20px; text-align: right;">
-                    <button class="btn btn-primary" onclick="document.getElementById('workflowModal').style.display='none'">Close</button>
-                </div>
-            `;
-        }
-    }
-}
-
-document.getElementById('workflowModalClose').addEventListener('click', () => {
-    document.getElementById('workflowModal').style.display = 'none';
-});
-
-// Add close handlers for pricing modals
-document.querySelectorAll('#pricingSubmissionModal .close, #approvalsModal .close').forEach(closeBtn => {
-    closeBtn.addEventListener('click', (e) => {
-        e.target.closest('.modal').style.display = 'none';
-    });
-});
-
-// Close modals when clicking outside
-window.addEventListener('click', (e) => {
-    if (e.target.classList.contains('modal')) {
-        e.target.style.display = 'none';
-    }
-});
-
-// ============================================
-// REPORTS FUNCTIONS
-// ============================================
-
-async function generateReport(reportType) {
-    let endpoint = '';
-    let containerId = '';
-    let reportTitle = '';
-    
-    switch(reportType) {
-        case 'temp-asins':
-            endpoint = `${API_BASE}/reports/temp-asins`;
-            containerId = 'tempAsinsReport';
-            reportTitle = 'Temporary ASINs Not in PIM';
-            break;
-        case 'pim-not-vc':
-            endpoint = `${API_BASE}/reports/pim-not-vc`;
-            containerId = 'pimNotVcReport';
-            reportTitle = 'PIM SKUs Not in VC';
-            break;
-        case 'vc-not-qpi':
-            endpoint = `${API_BASE}/reports/vc-not-qpi`;
-            containerId = 'vcNotQpiReport';
-            reportTitle = 'VC Listed Products Not in QPI';
-            break;
-        default:
-            showError('Unknown report type');
-            return;
-    }
-    
-    const container = document.getElementById(containerId);
-    container.style.display = 'block';
-    container.innerHTML = '<p style="text-align: center; padding: 20px; color: var(--text-secondary);">Loading report...</p>';
-    
-    try {
-        const response = await fetch(endpoint);
-        const result = await response.json();
-        
-        if (result.data && result.data.length > 0) {
-            let tableHTML = `
-                <div class="report-summary">
-                    📊 Found ${result.total} ${result.total === 1 ? 'record' : 'records'}
-                </div>
-                <table>
-                    <thead>
-                        <tr>
-                            <th>ASIN</th>
-                            <th>Name</th>
-                            <th>SKUs</th>
-                            <th>Item Number</th>
-                            <th>Brand</th>
-                            <th>Countries</th>
-                            <th>Created</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-            `;
-            
-            result.data.forEach(row => {
-                const skus = Array.isArray(row.skus) ? row.skus.join(', ') : (row.skus || '-');
-                const itemNumber = row.stage_1_item_number || '-';
-                const brand = row.stage_1_brand || '-';
-                const countries = row.stage_1_country || '-';
-                const name = row.name || row.asin;
-                const createdDate = new Date(row.created_at).toLocaleDateString();
-                
-                tableHTML += `
-                    <tr>
-                        <td><strong>${escapeHtml(row.asin)}</strong></td>
-                        <td>${escapeHtml(name)}</td>
-                        <td>${escapeHtml(skus)}</td>
-                        <td>${escapeHtml(itemNumber)}</td>
-                        <td>${escapeHtml(brand)}</td>
-                        <td>${escapeHtml(countries)}</td>
-                        <td><small>${createdDate}</small></td>
-                    </tr>
-                `;
-            });
-            
-            tableHTML += `
-                    </tbody>
-                </table>
-                <div style="margin-top: 15px; text-align: center;">
-                    <button class="btn btn-secondary" onclick="exportReportExcel('${reportType}', '${reportTitle}')">
-                        📥 Export to Excel
-                    </button>
-                </div>
-            `;
-            
-            container.innerHTML = tableHTML;
-        } else {
-            container.innerHTML = `
-                <div class="report-empty">
-                    <div class="report-empty-icon">✅</div>
-                    <h3>No Issues Found</h3>
-                    <p>All records are in good standing for this report.</p>
-                </div>
-            `;
-        }
-    } catch (error) {
-        console.error('Error generating report:', error);
-        container.innerHTML = `
-            <div class="report-empty">
-                <div class="report-empty-icon">❌</div>
-                <h3>Error Loading Report</h3>
-                <p>Failed to generate report. Please try again.</p>
-            </div>
-        `;
-        showError('Failed to generate report');
-    }
-}
-
-async function exportReportExcel(reportType, reportTitle) {
-    try {
-        const url = `${API_BASE}/reports/${reportType}/export`;
-        
-        // Create a temporary link to download the file
-        const link = document.createElement('a');
-        link.href = url;
-        link.download = `${reportTitle.replace(/\s+/g, '_')}_${new Date().toISOString().split('T')[0]}.xlsx`;
-        
-        // Trigger download
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        
-        showSuccess('Report exported to Excel successfully');
-    } catch (error) {
-        console.error('Error exporting report:', error);
-        showError('Failed to export report');
-    }
-}
-
-// ============ VENDOR MAPPING / CUSTOMER ADMIN (Main App) ============
-
-async function loadVendorMappingFromMain() {
-    const token = localStorage.getItem('token');
-    
-    console.log('[Customer Admin] Loading vendor mapping...');
-    
-    try {
-        const response = await fetch(`${API_BASE}/vendor-mapping`, {
-            headers: {
-                'Authorization': `Bearer ${token}`
-            }
-        });
-        
-        if (!response.ok) {
-            throw new Error('Failed to load vendor mapping');
-        }
-        
-        vendorMappingData = await response.json();
-        console.log('[Customer Admin] Loaded', vendorMappingData.length, 'records');
-        
-        renderVendorMappingFromMain(vendorMappingData);
-        updateMappingStatsFromMain(vendorMappingData);
-        
-        console.log('[Customer Admin] Rendering complete');
-    } catch (error) {
-        console.error('[Customer Admin] Error loading vendor mapping:', error);
-        showError('Failed to load vendor mapping: ' + error.message);
-        
-        // Show error in the table
-        const tbody = document.getElementById('mainVendorMappingTableBody');
-        if (tbody) {
-            tbody.innerHTML = `<tr><td colspan="8" style="text-align: center; padding: 40px; color: var(--danger-color);">Error: ${error.message}</td></tr>`;
-        }
-    }
-}
-
-function renderVendorMappingFromMain(data) {
-    console.log('[Customer Admin] Rendering', data?.length || 0, 'rows');
-    
-    const tbody = document.getElementById('mainVendorMappingTableBody');
-    
-    if (!tbody) {
-        console.error('[Customer Admin] mainVendorMappingTableBody element not found!');
-        return;
-    }
-    
-    console.log('[Customer Admin] Table body element found');
-    
-    if (!data || data.length === 0) {
-        console.warn('[Customer Admin] No data to display');
-        tbody.innerHTML = '<tr><td colspan="9" style="text-align: center; padding: 40px; color: var(--text-secondary); border: 1px solid #e5e7eb;">No mappings found</td></tr>';
-        return;
-    }
-    
-    tbody.innerHTML = data.map(row => `
-        <tr data-id="${row.id}">
-            <td style="padding: 12px; border: 1px solid #e5e7eb;">${row.customer || '-'}</td>
-            <td style="padding: 12px; border: 1px solid #e5e7eb;" data-field="country">${row.country || '-'}</td>
-            <td style="padding: 12px; border: 1px solid #e5e7eb;" data-field="keepa_marketplace"><strong>${row.keepa_marketplace || '-'}</strong></td>
-            <td style="padding: 12px; border: 1px solid #e5e7eb;" data-field="customer_code"><code>${row.customer_code || '-'}</code></td>
-            <td style="padding: 12px; border: 1px solid #e5e7eb;">${row.vendor_code || '-'}</td>
-            <td style="padding: 12px; border: 1px solid #e5e7eb;" data-field="qpi_source_file"><small>${row.qpi_source_file || '-'}</small></td>
-            <td style="padding: 12px; border: 1px solid #e5e7eb;" data-field="language">${row.language || '-'}</td>
-            <td style="padding: 12px; border: 1px solid #e5e7eb;" data-field="currency">${row.currency || '-'}</td>
-            <td style="padding: 12px; border: 1px solid #e5e7eb; text-align: center;">
-                <button onclick="editVendorMappingRow(${row.id})" class="btn-sm" style="padding: 4px 8px; font-size: 12px;">✏️ Edit</button>
-            </td>
-        </tr>
-    `).join('');
-    
-    console.log('[Customer Admin] Rendered', tbody.children.length, 'rows in table');
-}
-
-function updateMappingStatsFromMain(data) {
-    const statsElement = document.getElementById('mainMappingStatsContent');
-    
-    if (!statsElement) {
-        console.error('mainMappingStatsContent element not found');
-        return;
-    }
-    
-    if (!data || data.length === 0) {
-        statsElement.innerHTML = 'No data available';
-        return;
-    }
-    
-    const stats = {
-        totalRecords: data.length,
-        uniqueCountries: new Set(data.map(r => r.country)).size,
-        uniqueMarketplaces: new Set(data.map(r => r.keepa_marketplace)).size,
-        uniqueVendorCodes: new Set(data.map(r => r.vendor_code)).size,
-        uniqueQPIs: new Set(data.map(r => r.qpi_source_file).filter(Boolean)).size,
-        uniqueCurrencies: new Set(data.map(r => r.currency).filter(Boolean)).size
-    };
-    
-    statsElement.innerHTML = `
-        ${stats.totalRecords} records | 
-        ${stats.uniqueCountries} countries | 
-        ${stats.uniqueMarketplaces} marketplaces | 
-        ${stats.uniqueVendorCodes} vendor codes | 
-        ${stats.uniqueQPIs} QPI files | 
-        ${stats.uniqueCurrencies} currencies
-    `;
-}
-
-async function syncVendorMappingFromMain() {
-    const token = localStorage.getItem('token');
-    
-    if (!confirm('This will re-sync the vendor mapping from the Excel file. Continue?')) {
-        return;
-    }
-    
-    try {
-        showInfo('Syncing vendor mapping...');
-        
-        const response = await fetch(`${API_BASE}/sync/vendor-mapping`, {
-            method: 'POST',
-            headers: {
-                'Authorization': `Bearer ${token}`
-            }
-        });
-        
-        const result = await response.json();
-        
-        if (response.ok) {
-            showSuccess(result.message || 'Vendor mapping synced successfully!');
-            loadVendorMappingFromMain(); // Reload data
-        } else {
-            showError('Error: ' + (result.error || 'Failed to sync vendor mapping'));
-        }
-    } catch (error) {
-        showError('Error syncing vendor mapping: ' + error.message);
-    }
-}
-
-function setupCustomerAdminFilters() {
-    // No filters needed anymore
-}
+// Make functions global for onclick handlers
+window.openAddCustomerGroupModal = openAddCustomerGroupModal;
+window.editCustomerGroup = editCustomerGroup;
+window.closeCustomerGroupModal = closeCustomerGroupModal;
+window.deleteCustomerGroup = deleteCustomerGroup;
+window.openAddCustomerModal = openAddCustomerModal;
+window.editCustomer = editCustomer;
+window.closeCustomerModal = closeCustomerModal;
+window.deleteCustomer = deleteCustomer;
+window.viewProduct = viewProduct;
+window.closeProductModal = closeProductModal;
+window.closeUploadModal = closeUploadModal;
+window.logout = logout;
+window.toggleStage = toggleStage;
