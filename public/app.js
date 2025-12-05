@@ -355,6 +355,8 @@ let itemsFilterData = {
 };
 
 function toggleItemFilter(filterType) {
+    console.log('[Filter] toggleItemFilter called with type:', filterType);
+    
     const filterIdMap = {
         itemNumber: 'itemNumberFilter',
         productNumber: 'productNumberFilter',
@@ -370,7 +372,10 @@ function toggleItemFilter(filterType) {
     };
     
     const filterId = filterIdMap[filterType];
+    console.log('[Filter] Looking for element:', filterId);
+    
     const filterEl = document.getElementById(filterId);
+    console.log('[Filter] Found element:', filterEl);
     
     // Close other filters
     document.querySelectorAll('.column-filter').forEach(f => {
@@ -378,10 +383,16 @@ function toggleItemFilter(filterType) {
     });
     
     // Toggle this filter
-    if (filterEl.style.display === 'none') {
-        filterEl.style.display = 'block';
+    if (filterEl) {
+        if (filterEl.style.display === 'none' || !filterEl.style.display) {
+            filterEl.style.display = 'block';
+            console.log('[Filter] Showing filter:', filterId);
+        } else {
+            filterEl.style.display = 'none';
+            console.log('[Filter] Hiding filter:', filterId);
+        }
     } else {
-        filterEl.style.display = 'none';
+        console.error('[Filter] Element not found:', filterId);
     }
 }
 
