@@ -2058,7 +2058,7 @@ async function importQpiData() {
 
 async function syncQpiData() {
     try {
-        const response = await fetch(`${API_BASE}/sync-qpi`, {
+        const response = await fetch(`${API_BASE}/sync/qpi`, {
             method: 'POST'
         });
         
