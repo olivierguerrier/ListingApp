@@ -791,7 +791,7 @@ function renderItems(itemsToRender) {
     if (!itemsTableBody) return;
     
     if (!itemsToRender || itemsToRender.length === 0) {
-        itemsTableBody.innerHTML = '<tr><td colspan="10" style="text-align: center; padding: 40px;">No products found. Click "Add New Item" to create one.</td></tr>';
+        itemsTableBody.innerHTML = '<tr><td colspan="11" style="text-align: center; padding: 40px;">No products found. Click "Add New Item" to create one.</td></tr>';
         return;
     }
     
@@ -849,6 +849,9 @@ function renderItems(itemsToRender) {
         const onlinePercentage = onlineTotalCountries > 0 ? Math.round((onlineCountryCount / onlineTotalCountries) * 100) : 0;
         const s5Circle = renderTableStageCircleWithPercentage(5, item.stage_6_product_online, item.asin, onlineCountryCount, onlineTotalCountries, onlinePercentage);
         
+        // Stage 6: End of Life
+        const s6Circle = renderTableStageCircle(6, item.stage_7_end_of_life, item.asin);
+        
         html += `
             <tr>
                 <td>
@@ -865,6 +868,7 @@ function renderItems(itemsToRender) {
                 <td style="text-align: center;">${s3Circle}</td>
                 <td style="text-align: center;">${s4Circle}</td>
                 <td style="text-align: center;">${s5Circle}</td>
+                <td style="text-align: center;">${s6Circle}</td>
                 <td>
                     <button class="btn btn-secondary btn-sm" onclick="openFlowModal(${item.id})">View</button>
                     <button class="btn btn-danger btn-sm" onclick="deleteItem(${item.id})">Delete</button>

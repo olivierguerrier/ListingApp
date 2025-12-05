@@ -199,10 +199,17 @@ function initializeDatabase() {
       stage_4_product_listed BOOLEAN DEFAULT 0,
       stage_5_product_ordered BOOLEAN DEFAULT 0,
       stage_6_product_online BOOLEAN DEFAULT 0,
+      stage_7_end_of_life BOOLEAN DEFAULT 0,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
     )`);
-
+    
+    // Add stage_7_end_of_life column if it doesn't exist (for existing databases)
+    db.run(`ALTER TABLE products ADD COLUMN stage_7_end_of_life BOOLEAN DEFAULT 0`, (err) => {
+      if (err && !err.message.includes('duplicate column')) {
+        console.error('Error adding stage_7_end_of_life column:', err.message);
+      }
+    });
     // Product SKUs table - Links multiple SKUs to one ASIN
     db.run(`CREATE TABLE IF NOT EXISTS product_skus (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
