@@ -327,6 +327,95 @@ function logout() {
 
 let itemsCurrentPage = 1;
 let itemsLimit = 50;
+let itemsFilters = {
+    brand: [],
+    series: [],
+    taxonomy: []
+};
+let itemsFilterData = {
+    brand: [],
+    series: [],
+    taxonomy: []
+};
+
+function toggleItemFilter(filterType) {
+    const filterId = filterType === 'brand' ? 'brandFilter' : 
+                     filterType === 'series' ? 'seriesFilter' : 'taxonomyFilter';
+    const filterEl = document.getElementById(filterId);
+    
+    // Close other filters
+    document.querySelectorAll('.column-filter').forEach(f => {
+        if (f.id !== filterId) f.style.display = 'none';
+    });
+    
+    // Toggle this filter
+    if (filterEl.style.display === 'none') {
+        filterEl.style.display = 'block';
+    } else {
+        filterEl.style.display = 'none';
+    }
+}
+
+window.toggleItemFilter = toggleItemFilter;
+
+function filterColumnOptions(filterType, searchTerm) {
+    const optionsId = filterType === 'brand' ? 'brandOptions' :
+                      filterType === 'series' ? 'seriesOptions' : 'taxonomyOptions';
+    const optionsEl = document.getElementById(optionsId);
+    const data = itemsFilterData[filterType];
+    
+    const filtered = data.filter(item => 
+        item.toLowerCase().includes(searchTerm.toLowerCase())
+    );
+    
+    renderFilterOptions(filterType, filtered);
+}
+
+window.filterColumnOptions = filterColumnOptions;
+
+function renderFilterOptions(filterType, data) {
+    const optionsId = filterType === 'brand' ? 'brandOptions' :
+                      filterType === 'series' ? 'seriesOptions' : 'taxonomyOptions';
+    const optionsEl = document.getElementById(optionsId);
+    
+    if (!data || data.length === 0) {
+        optionsEl.innerHTML = '<div style="padding: 8px; color: #9ca3af; font-size: 13px;">No options</div>';
+        return;
+    }
+    
+    optionsEl.innerHTML = data.map(item => {
+        const checked = itemsFilters[filterType].includes(item) ? 'checked' : '';
+        return `
+            <div class="filter-option">
+                <input type="checkbox" id="${filterType}-${escapeHtml(item)}" value="${escapeHtml(item)}" ${checked}>
+                <label for="${filterType}-${escapeHtml(item)}" style="cursor: pointer; flex: 1;">${escapeHtml(item)}</label>
+            </div>
+        `;
+    }).join('');
+}
+
+function applyItemFilter(filterType) {
+    const optionsId = filterType === 'brand' ? 'brandOptions' :
+                      filterType === 'series' ? 'seriesOptions' : 'taxonomyOptions';
+    const optionsEl = document.getElementById(optionsId);
+    const checkboxes = optionsEl.querySelectorAll('input[type="checkbox"]:checked');
+    
+    itemsFilters[filterType] = Array.from(checkboxes).map(cb => cb.value);
+    itemsCurrentPage = 1;
+    loadItemNumbers();
+    toggleItemFilter(filterType); // Close the filter
+}
+
+window.applyItemFilter = applyItemFilter;
+
+function clearItemFilter(filterType) {
+    itemsFilters[filterType] = [];
+    itemsCurrentPage = 1;
+    loadItemNumbers();
+    toggleItemFilter(filterType); // Close the filter
+}
+
+window.clearItemFilter = clearItemFilter;
 
 async function loadItemNumbers() {
     console.log('[Items] loadItemNumbers() called');
@@ -335,17 +424,9 @@ async function loadItemNumbers() {
         tbody.innerHTML = '<tr><td colspan="12" style="text-align: center; padding: 20px; color: #666;">Loading...</td></tr>';
     }
     
-    const brandFilter = document.getElementById('itemsBrandFilter');
-    const seriesFilter = document.getElementById('itemsSeriesFilter');
-    const taxonomyFilter = document.getElementById('itemsTaxonomyFilter');
-    
-    const selectedBrands = Array.from(brandFilter?.selectedOptions || []).map(o => o.value).filter(v => v);
-    const selectedSeries = Array.from(seriesFilter?.selectedOptions || []).map(o => o.value).filter(v => v);
-    const selectedTaxonomies = Array.from(taxonomyFilter?.selectedOptions || []).map(o => o.value).filter(v => v);
-    
-    const brand = selectedBrands.length > 0 ? selectedBrands.join(',') : 'all';
-    const series = selectedSeries.length > 0 ? selectedSeries.join(',') : 'all';
-    const taxonomy = selectedTaxonomies.length > 0 ? selectedTaxonomies.join(',') : 'all';
+    const brand = itemsFilters.brand.length > 0 ? itemsFilters.brand.join(',') : 'all';
+    const series = itemsFilters.series.length > 0 ? itemsFilters.series.join(',') : 'all';
+    const taxonomy = itemsFilters.taxonomy.length > 0 ? itemsFilters.taxonomy.join(',') : 'all';
     
     console.log('[Items] Filters:', { brand, series, taxonomy, page: itemsCurrentPage });
     
@@ -474,40 +555,22 @@ function updateItemsPagination(data) {
 
 async function loadItemsFilters() {
     try {
-        // Load brands filter
-        const brandsResponse = await fetch(`${API_BASE}/item-numbers/brands`);
-        if (brandsResponse.ok) {
-            const brands = await brandsResponse.json();
-            const brandFilter = document.getElementById('itemsBrandFilter');
-            if (brandFilter) {
-                brandFilter.innerHTML = '<option value="">All Brands</option>' +
-                    brands.map(b => `<option value="${escapeHtml(b)}">${escapeHtml(b)}</option>`).join('');
-            }
-        }
+        const response = await fetch(`${API_BASE}/item-numbers/filters`);
+        if (!response.ok) throw new Error('Failed to load filters');
         
-        // Load series filter
-        const seriesResponse = await fetch(`${API_BASE}/item-numbers/series`);
-        if (seriesResponse.ok) {
-            const series = await seriesResponse.json();
-            const seriesFilter = document.getElementById('itemsSeriesFilter');
-            if (seriesFilter) {
-                seriesFilter.innerHTML = '<option value="">All Series</option>' +
-                    series.map(s => `<option value="${escapeHtml(s)}">${escapeHtml(s)}</option>`).join('');
-            }
-        }
+        const data = await response.json();
         
-        // Load taxonomy filter
-        const taxonomyResponse = await fetch(`${API_BASE}/item-numbers/taxonomies`);
-        if (taxonomyResponse.ok) {
-            const taxonomies = await taxonomyResponse.json();
-            const taxonomyFilter = document.getElementById('itemsTaxonomyFilter');
-            if (taxonomyFilter) {
-                taxonomyFilter.innerHTML = '<option value="">All Taxonomies</option>' +
-                    taxonomies.map(t => `<option value="${escapeHtml(t)}">${escapeHtml(t)}</option>`).join('');
-            }
-        }
+        // Store filter data
+        itemsFilterData.brand = data.brands || [];
+        itemsFilterData.series = data.series || [];
+        itemsFilterData.taxonomy = data.taxonomies || [];
+        
+        // Render initial options
+        renderFilterOptions('brand', itemsFilterData.brand);
+        renderFilterOptions('series', itemsFilterData.series);
+        renderFilterOptions('taxonomy', itemsFilterData.taxonomy);
     } catch (error) {
-        console.error('Error loading items filters:', error);
+        console.error('Error loading filters:', error);
     }
 }
 
@@ -524,6 +587,14 @@ document.addEventListener('DOMContentLoaded', () => {
     setupEventListeners();
     setupCustomerAdminFilters();
     setupItemsEventListeners();
+    
+    // Close filters when clicking outside
+    document.addEventListener('click', (e) => {
+        const isFilterClick = e.target.closest('.column-filter') || e.target.closest('[onclick*="toggleItemFilter"]');
+        if (!isFilterClick) {
+            document.querySelectorAll('.column-filter').forEach(f => f.style.display = 'none');
+        }
+    });
 });
 
 // Items Event Listeners
@@ -532,30 +603,8 @@ let itemsSearchTimeout;
 function setupItemsEventListeners() {
     const itemsBrandFilter = document.getElementById('itemsBrandFilter');
     const itemsSeriesFilter = document.getElementById('itemsSeriesFilter');
-    const itemsTaxonomyFilter = document.getElementById('itemsTaxonomyFilter');
     const itemsPrevBtn = document.getElementById('itemsPrevBtn');
     const itemsNextBtn = document.getElementById('itemsNextBtn');
-    
-    if (itemsBrandFilter) {
-        itemsBrandFilter.addEventListener('change', () => {
-            itemsCurrentPage = 1;
-            loadItemNumbers();
-        });
-    }
-    
-    if (itemsSeriesFilter) {
-        itemsSeriesFilter.addEventListener('change', () => {
-            itemsCurrentPage = 1;
-            loadItemNumbers();
-        });
-    }
-    
-    if (itemsTaxonomyFilter) {
-        itemsTaxonomyFilter.addEventListener('change', () => {
-            itemsCurrentPage = 1;
-            loadItemNumbers();
-        });
-    }
     
     if (itemsPrevBtn) {
         itemsPrevBtn.addEventListener('click', () => {

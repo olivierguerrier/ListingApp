@@ -451,40 +451,66 @@
             <h2>📦 Item Numbers (PIM Extract)</h2>
         </div>
         
-        <!-- Filters -->
-        <div class="filters" style="margin-bottom: 20px; gap: 15px;">
-            <div style="flex: 1; max-width: 300px;">
-                <label style="display: block; margin-bottom: 5px; font-weight: 600; font-size: 13px;">Brand</label>
-                <select id="itemsBrandFilter" class="filter-select" multiple size="1" style="width: 100%;">
-                    <option value="">All Brands</option>
-                </select>
-            </div>
-            <div style="flex: 1; max-width: 300px;">
-                <label style="display: block; margin-bottom: 5px; font-weight: 600; font-size: 13px;">Series</label>
-                <select id="itemsSeriesFilter" class="filter-select" multiple size="1" style="width: 100%;">
-                    <option value="">All Series</option>
-                </select>
-            </div>
-            <div style="flex: 1; max-width: 300px;">
-                <label style="display: block; margin-bottom: 5px; font-weight: 600; font-size: 13px;">Product Taxonomy</label>
-                <select id="itemsTaxonomyFilter" class="filter-select" multiple size="1" style="width: 100%;">
-                    <option value="">All Taxonomies</option>
-                </select>
-            </div>
-        </div>
-        
         <!-- Items Table -->
         <div class="table-wrapper">
             <table class="products-table">
                 <thead>
                     <tr>
-                        <th>Item Number</th>
-                        <th>Product Number</th>
-                        <th>Description</th>
-                        <th>Series</th>
-                        <th>Product Taxonomy</th>
+                        <th>
+                            <div style="display: flex; align-items: center; gap: 5px;">
+                                Item Number
+                            </div>
+                        </th>
+                        <th>
+                            <div style="display: flex; align-items: center; gap: 5px;">
+                                Product Number
+                            </div>
+                        </th>
+                        <th>
+                            <div style="display: flex; align-items: center; gap: 5px;">
+                                Description
+                            </div>
+                        </th>
+                        <th>
+                            <div style="display: flex; align-items: center; gap: 5px; cursor: pointer;" onclick="toggleItemFilter('series')" title="Click to filter">
+                                Series <span style="font-size: 10px;">▼</span>
+                            </div>
+                            <div id="seriesFilter" class="column-filter" style="display: none;">
+                                <input type="text" placeholder="Search..." class="filter-search" oninput="filterColumnOptions('series', this.value)">
+                                <div class="filter-options" id="seriesOptions"></div>
+                                <div class="filter-actions">
+                                    <button onclick="applyItemFilter('series')" class="btn btn-primary btn-sm">Apply</button>
+                                    <button onclick="clearItemFilter('series')" class="btn btn-secondary btn-sm">Clear</button>
+                                </div>
+                            </div>
+                        </th>
+                        <th>
+                            <div style="display: flex; align-items: center; gap: 5px; cursor: pointer;" onclick="toggleItemFilter('taxonomy')" title="Click to filter">
+                                Product Taxonomy <span style="font-size: 10px;">▼</span>
+                            </div>
+                            <div id="taxonomyFilter" class="column-filter" style="display: none;">
+                                <input type="text" placeholder="Search..." class="filter-search" oninput="filterColumnOptions('taxonomy', this.value)">
+                                <div class="filter-options" id="taxonomyOptions"></div>
+                                <div class="filter-actions">
+                                    <button onclick="applyItemFilter('taxonomy')" class="btn btn-primary btn-sm">Apply</button>
+                                    <button onclick="clearItemFilter('taxonomy')" class="btn btn-secondary btn-sm">Clear</button>
+                                </div>
+                            </div>
+                        </th>
                         <th>Legal Name</th>
-                        <th>Brand</th>
+                        <th>
+                            <div style="display: flex; align-items: center; gap: 5px; cursor: pointer;" onclick="toggleItemFilter('brand')" title="Click to filter">
+                                Brand <span style="font-size: 10px;">▼</span>
+                            </div>
+                            <div id="brandFilter" class="column-filter" style="display: none;">
+                                <input type="text" placeholder="Search..." class="filter-search" oninput="filterColumnOptions('brand', this.value)">
+                                <div class="filter-options" id="brandOptions"></div>
+                                <div class="filter-actions">
+                                    <button onclick="applyItemFilter('brand')" class="btn btn-primary btn-sm">Apply</button>
+                                    <button onclick="clearItemFilter('brand')" class="btn btn-secondary btn-sm">Clear</button>
+                                </div>
+                            </div>
+                        </th>
                         <th>Age Grade</th>
                         <th>Status</th>
                         <th>Dev Status</th>

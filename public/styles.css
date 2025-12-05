@@ -1435,3 +1435,63 @@ table tbody tr:hover {
     background-color: #3b82f6;
     color: white;
 }
+
+.column-filter {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    background: white;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+    padding: 12px;
+    min-width: 250px;
+    max-width: 300px;
+    z-index: 1000;
+    margin-top: 5px;
+}
+
+.column-filter .filter-search {
+    width: 100%;
+    padding: 8px;
+    border: 1px solid #e5e7eb;
+    border-radius: 4px;
+    margin-bottom: 10px;
+    font-size: 13px;
+}
+
+.column-filter .filter-options {
+    max-height: 300px;
+    overflow-y: auto;
+    margin-bottom: 10px;
+    border: 1px solid #e5e7eb;
+    border-radius: 4px;
+    background: #f9fafb;
+}
+
+.column-filter .filter-option {
+    padding: 8px 12px;
+    cursor: pointer;
+    font-size: 13px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.column-filter .filter-option:hover {
+    background: #e5e7eb;
+}
+
+.column-filter .filter-option input[type="checkbox"] {
+    cursor: pointer;
+}
+
+.column-filter .filter-actions {
+    display: flex;
+    gap: 8px;
+    justify-content: flex-end;
+}
+
+th {
+    position: relative;
+}
