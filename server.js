@@ -422,6 +422,7 @@ function initializeDatabase() {
           asin TEXT NOT NULL,
           sku TEXT,
           source_file TEXT NOT NULL,
+          status TEXT,
           qpi_sync_date DATE,
           last_seen DATETIME DEFAULT CURRENT_TIMESTAMP,
           created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -430,8 +431,15 @@ function initializeDatabase() {
           if (createErr) {
             console.error('Error creating qpi_file_tracking table:', createErr.message);
           } else {
-            console.log('[SETUP] qpi_file_tracking table created');
+            console.log('[SETUP] qpi_file_tracking table ready');
+            // Add status column if it doesn't exist (for existing databases)
+            db.run(`ALTER TABLE qpi_file_tracking ADD COLUMN status TEXT`, (err) => {
+              if (err && !err.message.includes('duplicate column')) {
+                console.error('Error adding status column:', err.message);
+              }
+            });
           }
+          callback();
         });
       } else {
         // Table exists, check if migration needed
@@ -1281,7 +1289,7 @@ app.get('/api/items', (req, res) => {
     `;
     
     // Build marketplace-filtered subqueries
-    let vcCountSubquery, vcTotalSubquery, qpiCountSubquery, qpiTotalSubquery, onlineCountSubquery, onlineTotalSubquery;
+    let vcCountSubquery, vcTotalSubquery, qpiCountSubquery, qpiTotalSubquery, onlineCountSubquery, onlineTotalSubquery, eolCountSubquery, eolTotalSubquery;
     
     if (marketplaceName && marketplaceCountryCodes.length > 0) {
       // Filter by marketplace
@@ -1298,10 +1306,14 @@ app.get('/api/items', (req, res) => {
       onlineCountSubquery = `(SELECT CASE WHEN EXISTS(SELECT 1 FROM asin_online_status WHERE asin = p.asin AND country = ?) THEN 1 ELSE 0 END)`;
       onlineTotalSubquery = `1`;  // Only one marketplace selected
       
-      // Add params for subqueries: marketplace name, country codes (2x for QPI), marketplace name again
+      // For EOL: count NCF status for this marketplace's QPI files
+      eolCountSubquery = `(SELECT COUNT(DISTINCT qpi_source_file) FROM vendor_mapping WHERE customer_code IN (${codePlaceholders}) AND qpi_source_file IN (SELECT DISTINCT source_file FROM qpi_file_tracking WHERE asin = p.asin AND status = 'NCF'))`;
+      eolTotalSubquery = `(SELECT COUNT(DISTINCT qpi_source_file) FROM vendor_mapping WHERE customer_code IN (${codePlaceholders}) AND qpi_source_file IN (SELECT DISTINCT source_file FROM qpi_file_tracking WHERE asin = p.asin))`;
+      
+      // Add params for subqueries: marketplace name, country codes (3x for QPI+EOL), marketplace name again
       console.log('[DEBUG] Marketplace filter:', { marketplaceName, marketplaceCountryCodes });
       console.log('[DEBUG] Online count subquery:', onlineCountSubquery);
-      queryParams.push(marketplaceName, ...marketplaceCountryCodes, ...marketplaceCountryCodes, marketplaceName);
+      queryParams.push(marketplaceName, ...marketplaceCountryCodes, ...marketplaceCountryCodes, ...marketplaceCountryCodes, ...marketplaceCountryCodes, marketplaceName);
     } else {
       // No marketplace filter - use all countries that exist in the data
       vcCountSubquery = `(SELECT COUNT(DISTINCT country_code) FROM asin_country_status WHERE asin = p.asin)`;
@@ -1310,6 +1322,8 @@ app.get('/api/items', (req, res) => {
       qpiTotalSubquery = `(SELECT COUNT(DISTINCT qpi_source_file) FROM vendor_mapping WHERE qpi_source_file IS NOT NULL AND qpi_source_file != '')`;
       onlineCountSubquery = `(SELECT COUNT(DISTINCT country) FROM asin_online_status WHERE asin = p.asin)`;
       onlineTotalSubquery = `(SELECT COUNT(DISTINCT country) FROM asin_online_status)`;  // Count actual countries in data, not all marketplaces
+      eolCountSubquery = `(SELECT COUNT(DISTINCT qft.source_file) FROM qpi_file_tracking qft WHERE qft.asin = p.asin AND qft.status = 'NCF')`;
+      eolTotalSubquery = `(SELECT COUNT(DISTINCT source_file) FROM qpi_file_tracking WHERE asin = p.asin)`;
     }
     
     const query = `
@@ -1329,6 +1343,8 @@ app.get('/api/items', (req, res) => {
         ${qpiTotalSubquery} as qpi_total_files,
         ${onlineCountSubquery} as online_country_count,
         ${onlineTotalSubquery} as online_total_countries,
+        ${eolCountSubquery} as eol_country_count,
+        ${eolTotalSubquery} as eol_total_countries,
         vm.brand as vm_brand,
         vm.title as vm_title,
         vm.bundle as vm_bundle,
@@ -2364,11 +2380,12 @@ app.post('/api/sync/qpi', (req, res) => {
         
         // Insert/update file tracking for each ASIN-source file combination
         const trackStmt = db.prepare(`
-          INSERT INTO qpi_file_tracking (asin, sku, source_file, qpi_sync_date, last_seen, created_at)
-          VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+          INSERT INTO qpi_file_tracking (asin, sku, source_file, status, qpi_sync_date, last_seen, created_at)
+          VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
           ON CONFLICT(asin, source_file) 
           DO UPDATE SET 
             sku = excluded.sku,
+            status = excluded.status,
             qpi_sync_date = excluded.qpi_sync_date,
             last_seen = CURRENT_TIMESTAMP
         `);
@@ -2377,7 +2394,7 @@ app.post('/api/sync/qpi', (req, res) => {
         let trackingErrors = 0;
         qpiData.forEach(item => {
           if (item.asin && item.sourceFile) {
-            trackStmt.run([item.asin, item.sku, item.sourceFile, syncDate], function(err) {
+            trackStmt.run([item.asin, item.sku, item.sourceFile, item.status, syncDate], function(err) {
               if (err) {
                 trackingErrors++;
                 console.error('Error tracking QPI source file:', err.message);

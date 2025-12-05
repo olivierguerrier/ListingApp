@@ -849,8 +849,11 @@ function renderItems(itemsToRender) {
         const onlinePercentage = onlineTotalCountries > 0 ? Math.round((onlineCountryCount / onlineTotalCountries) * 100) : 0;
         const s5Circle = renderTableStageCircleWithPercentage(5, item.stage_6_product_online, item.asin, onlineCountryCount, onlineTotalCountries, onlinePercentage);
         
-        // Stage 6: End of Life
-        const s6Circle = renderTableStageCircle(6, item.stage_7_end_of_life, item.asin);
+        // Stage 6: End of Life - show country coverage
+        const eolCountryCount = item.eol_country_count || 0;
+        const eolTotalCountries = item.eol_total_countries || 0;
+        const eolPercentage = eolTotalCountries > 0 ? Math.round((eolCountryCount / eolTotalCountries) * 100) : 0;
+        const s6Circle = renderTableStageCircleWithPercentage(6, item.stage_7_end_of_life, item.asin, eolCountryCount, eolTotalCountries, eolPercentage);
         
         html += `
             <tr>
