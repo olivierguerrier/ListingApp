@@ -775,11 +775,11 @@ function setupEventListeners() {
 
     // Search and Filter
     document.getElementById('searchInput').addEventListener('input', filterItems);
-    document.getElementById('statusFilter').addEventListener('change', filterItems);
+    document.getElementById('productStatusFilter').addEventListener('change', filterItems);
     document.getElementById('countryFilter').addEventListener('change', filterItems);
     document.getElementById('tempFilter').addEventListener('change', filterItems);
     document.getElementById('missingFilter').addEventListener('change', filterItems);
-    document.getElementById('brandFilter').addEventListener('change', () => {
+    document.getElementById('productBrandFilter').addEventListener('change', () => {
         loadVariationFilters(); // Reload filters for cross-filtering
         filterItems();
     });
@@ -830,11 +830,11 @@ async function loadItems(page = 1, applyFilters = false) {
         // Add filters if requested
         if (applyFilters) {
             const searchTerm = document.getElementById('searchInput').value;
-            const statusFilter = document.getElementById('statusFilter').value;
+            const statusFilter = document.getElementById('productStatusFilter').value;
             const countryFilter = document.getElementById('countryFilter').value;
             const tempFilter = document.getElementById('tempFilter').value;
             const missingFilter = document.getElementById('missingFilter').value;
-            const brandFilter = document.getElementById('brandFilter');
+            const brandFilter = document.getElementById('productBrandFilter');
             const bundleFilter = document.getElementById('bundleFilter');
             const ppgFilter = document.getElementById('ppgFilter');
             
@@ -951,7 +951,7 @@ async function loadCountries() {
 async function loadVariationFilters() {
     try {
         // Get currently selected values
-        const brandFilter = document.getElementById('brandFilter');
+        const brandFilter = document.getElementById('productBrandFilter');
         const bundleFilter = document.getElementById('bundleFilter');
         const ppgFilter = document.getElementById('ppgFilter');
         
