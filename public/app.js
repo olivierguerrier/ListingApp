@@ -887,6 +887,10 @@ function switchView(view) {
         loadItemNumbers();
         console.log('[View] Calling loadItemsFilters()...');
         loadItemsFilters();
+        
+        // Scroll to top
+        window.scrollTo(0, 0);
+        itemsView.scrollIntoView({ behavior: 'smooth', block: 'start' });
     } else if (view === 'pricing-approvals' && pricingApprovalsView) {
         pricingApprovalsView.classList.add('active');
         pricingApprovalsView.style.display = 'block';
