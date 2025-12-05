@@ -222,7 +222,7 @@ function renderProductsTable(products) {
     const tbody = document.getElementById('productsTableBody');
     
     if (!products || products.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="14" style="text-align: center; padding: 40px;">No products found</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="17" style="text-align: center; padding: 40px;">No products found</td></tr>';
         return;
     }
     
@@ -242,7 +242,11 @@ function renderProductsTable(products) {
                 <td>${p.customer_name || '-'}</td>
                 <td><code>${p.customer_number}</code></td>
                 <td>${p.item_number ? `<code>${p.item_number}</code>` : '-'}</td>
+                <td>${p.pim_product_number || '-'}</td>
                 <td title="${p.description || ''}">${truncate(p.description, 25)}</td>
+                <td>${p.pim_brand || '-'}</td>
+                <td>${p.sell_price ? `$${parseFloat(p.sell_price).toFixed(2)}` : '-'}</td>
+                <td>${p.retail_price ? `$${parseFloat(p.retail_price).toFixed(2)}` : '-'}</td>
                 <td style="text-align: center;">${renderStage(1, p.stage_1_ideation, true, 'Stage 1: Ideation / Product Dev', 'stage_1_ideation')}</td>
                 <td style="text-align: center;">${renderStage(2, p.stage_2_pim, false, 'Stage 2: PIM Listed', null)}</td>
                 <td style="text-align: center;">${renderStage(2.5, p.stage_2_5_pricing, true, 'Stage 2.5: Pricing Approved', 'stage_2_5_pricing')}</td>
@@ -250,7 +254,6 @@ function renderProductsTable(products) {
                 <td style="text-align: center;">${renderStage(4, p.stage_4_listed_with_customer, true, 'Stage 4: Listed with Customer', 'stage_4_listed_with_customer')}</td>
                 <td style="text-align: center;">${renderStage(5, p.stage_5_available, true, 'Stage 5: Available Online/In-Store', 'stage_5_available')}</td>
                 <td style="text-align: center;">${renderStage(6, p.stage_6_eol, false, 'Stage 6: End of Life', null)}</td>
-                <td>${p.sell_price ? `$${parseFloat(p.sell_price).toFixed(2)}` : '-'}</td>
                 <td>
                     <button class="btn-sm btn-primary" onclick="viewProduct(${p.id})">View</button>
                 </td>
@@ -380,13 +383,14 @@ function renderItemsTable(items) {
     const tbody = document.getElementById('itemsTableBody');
     
     if (!items || items.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="9" style="text-align: center; padding: 40px;">No item numbers found</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="10" style="text-align: center; padding: 40px;">No item numbers found</td></tr>';
         return;
     }
     
     tbody.innerHTML = items.map(i => `
         <tr>
             <td><code>${i.item_number}</code></td>
+            <td>${i.product_number || '-'}</td>
             <td title="${i.legal_name || ''}">${truncate(i.legal_name, 30)}</td>
             <td>${i.brand_product_line || '-'}</td>
             <td>${i.series || '-'}</td>

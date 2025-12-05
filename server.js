@@ -694,6 +694,7 @@ app.get('/api/products', authenticateToken, (req, res) => {
            i.age_grade as pim_age_grade,
            i.product_development_status as pim_dev_status,
            i.item_spec_sheet_status as pim_spec_status,
+           i.product_number as pim_product_number,
            -- Computed stages
            COALESCE(p.stage_1_ideation, 0) as stage_1_ideation,
            CASE WHEN i.item_number IS NOT NULL THEN 1 ELSE 0 END as stage_2_pim,
@@ -757,6 +758,7 @@ app.get('/api/products/:id', authenticateToken, (req, res) => {
            i.package_width_cm as pim_width,
            i.package_height_cm as pim_height,
            i.package_weight_kg as pim_weight,
+           i.product_number as pim_product_number,
            -- Computed stages
            COALESCE(p.stage_1_ideation, 0) as stage_1_ideation,
            CASE WHEN i.item_number IS NOT NULL THEN 1 ELSE 0 END as stage_2_pim,
@@ -783,16 +785,16 @@ app.get('/api/products/:id', authenticateToken, (req, res) => {
 
 // Create product
 app.post('/api/products', authenticateToken, requireRole('salesperson', 'admin'), (req, res) => {
-  const { customer_id, customer_number, item_number, description, fcl_lcl, status, sell_price } = req.body;
+  const { customer_id, customer_number, item_number, description, fcl_lcl, status, sell_price, retail_price } = req.body;
   
   if (!customer_id || !customer_number) {
     return res.status(400).json({ error: 'customer_id and customer_number are required' });
   }
   
   db.run(`
-    INSERT INTO products (customer_id, customer_number, item_number, description, fcl_lcl, status, sell_price)
-    VALUES (?, ?, ?, ?, ?, ?, ?)
-  `, [customer_id, customer_number, item_number, description, fcl_lcl, status, sell_price], function(err) {
+    INSERT INTO products (customer_id, customer_number, item_number, description, fcl_lcl, status, sell_price, retail_price)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+  `, [customer_id, customer_number, item_number, description, fcl_lcl, status, sell_price, retail_price], function(err) {
     if (err) {
       if (err.message.includes('UNIQUE')) {
         return res.status(400).json({ error: 'Product with this customer number already exists for this customer' });
@@ -806,13 +808,13 @@ app.post('/api/products', authenticateToken, requireRole('salesperson', 'admin')
 // Update product
 app.put('/api/products/:id', authenticateToken, requireRole('salesperson', 'admin'), (req, res) => {
   const { id } = req.params;
-  const { customer_number, item_number, description, fcl_lcl, status, sell_price } = req.body;
+  const { customer_number, item_number, description, fcl_lcl, status, sell_price, retail_price } = req.body;
   
   db.run(`
     UPDATE products 
-    SET customer_number = ?, item_number = ?, description = ?, fcl_lcl = ?, status = ?, sell_price = ?, updated_at = CURRENT_TIMESTAMP
+    SET customer_number = ?, item_number = ?, description = ?, fcl_lcl = ?, status = ?, sell_price = ?, retail_price = ?, updated_at = CURRENT_TIMESTAMP
     WHERE id = ?
-  `, [customer_number, item_number, description, fcl_lcl, status, sell_price, id], function(err) {
+  `, [customer_number, item_number, description, fcl_lcl, status, sell_price, retail_price, id], function(err) {
     if (err) {
       return res.status(500).json({ error: err.message });
     }
@@ -906,6 +908,7 @@ app.post('/api/products/upload', authenticateToken, requireRole('salesperson', '
       const fclLcl = (row['FCL/LCL'] || row['FCLLCL'] || row['fcl_lcl'] || '').toString().trim();
       const status = (row['Status'] || row['status'] || '').toString().trim();
       let sellPrice = row['SellPrice'] || row['Sell Price'] || row['sell_price'] || null;
+      let retailPrice = row['RetailPrice'] || row['Retail Price'] || row['retail_price'] || null;
       
       // Clean up sell price
       if (sellPrice && typeof sellPrice === 'string') {
@@ -915,6 +918,16 @@ app.post('/api/products/upload', authenticateToken, requireRole('salesperson', '
         sellPrice = sellPrice;
       } else {
         sellPrice = null;
+      }
+      
+      // Clean up retail price
+      if (retailPrice && typeof retailPrice === 'string') {
+        retailPrice = parseFloat(retailPrice.replace(/[$,]/g, ''));
+      }
+      if (retailPrice && typeof retailPrice === 'number' && !isNaN(retailPrice)) {
+        retailPrice = retailPrice;
+      } else {
+        retailPrice = null;
       }
       
       // Validate required fields
@@ -959,7 +972,8 @@ app.post('/api/products/upload', authenticateToken, requireRole('salesperson', '
         description,
         fclLcl: normalizedFclLcl,
         status: normalizedStatus,
-        sellPrice
+        sellPrice,
+        retailPrice
       });
     }
     
@@ -1011,14 +1025,15 @@ app.post('/api/products/upload', authenticateToken, requireRole('salesperson', '
           
           // Batch insert/update products
           const insertStmt = db.prepare(`
-            INSERT INTO products (customer_id, customer_number, item_number, description, fcl_lcl, status, sell_price)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO products (customer_id, customer_number, item_number, description, fcl_lcl, status, sell_price, retail_price)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(customer_id, customer_number) DO UPDATE SET
               item_number = excluded.item_number,
               description = excluded.description,
               fcl_lcl = excluded.fcl_lcl,
               status = excluded.status,
               sell_price = excluded.sell_price,
+              retail_price = excluded.retail_price,
               updated_at = CURRENT_TIMESTAMP
           `);
           
@@ -1026,7 +1041,7 @@ app.post('/api/products/upload', authenticateToken, requireRole('salesperson', '
             const customerKey = `${row.customerGroupName}|${row.customerName}`;
             const customerId = customerMap.get(customerKey);
             if (customerId) {
-              insertStmt.run(customerId, row.customerNumber, row.itemNumber, row.description, row.fclLcl, row.status, row.sellPrice);
+              insertStmt.run(customerId, row.customerNumber, row.itemNumber, row.description, row.fclLcl, row.status, row.sellPrice, row.retailPrice);
               productsCreated++;
             }
           });
