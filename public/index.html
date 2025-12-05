@@ -456,11 +456,11 @@
             <table class="products-table">
                 <thead>
                     <tr>
-                        <th style="text-align: center;">
-                            <div style="display: flex; align-items: center; justify-content: center; gap: 5px; cursor: pointer;" onclick="toggleItemFilter('itemNumber')" title="Click to filter">
+                        <th style="text-align: center; cursor: pointer;" onclick="toggleItemFilter('itemNumber')" title="Click to filter">
+                            <div style="display: flex; align-items: center; justify-content: center; gap: 5px;">
                                 Item Number <span style="font-size: 10px;">▼</span>
                             </div>
-                            <div id="itemNumberFilter" class="column-filter" style="display: none;">
+                            <div id="itemNumberFilter" class="column-filter" style="display: none;" onclick="event.stopPropagation()">
                                 <input type="text" placeholder="Search..." class="filter-search" oninput="filterColumnOptions('itemNumber', this.value)">
                                 <div class="filter-options" id="itemNumberOptions"></div>
                                 <div class="filter-actions">
@@ -469,11 +469,11 @@
                                 </div>
                             </div>
                         </th>
-                        <th style="text-align: center;">
-                            <div style="display: flex; align-items: center; justify-content: center; gap: 5px; cursor: pointer;" onclick="toggleItemFilter('productNumber')" title="Click to filter">
+                        <th style="text-align: center; cursor: pointer;" onclick="toggleItemFilter('productNumber')" title="Click to filter">
+                            <div style="display: flex; align-items: center; justify-content: center; gap: 5px;">
                                 Product Number <span style="font-size: 10px;">▼</span>
                             </div>
-                            <div id="productNumberFilter" class="column-filter" style="display: none;">
+                            <div id="productNumberFilter" class="column-filter" style="display: none;" onclick="event.stopPropagation()">
                                 <input type="text" placeholder="Search..." class="filter-search" oninput="filterColumnOptions('productNumber', this.value)">
                                 <div class="filter-options" id="productNumberOptions"></div>
                                 <div class="filter-actions">
@@ -482,11 +482,11 @@
                                 </div>
                             </div>
                         </th>
-                        <th style="text-align: center;">
-                            <div style="display: flex; align-items: center; justify-content: center; gap: 5px; cursor: pointer;" onclick="toggleItemFilter('description')" title="Click to filter">
+                        <th style="text-align: center; cursor: pointer;" onclick="toggleItemFilter('description')" title="Click to filter">
+                            <div style="display: flex; align-items: center; justify-content: center; gap: 5px;">
                                 Description <span style="font-size: 10px;">▼</span>
                             </div>
-                            <div id="descriptionFilter" class="column-filter" style="display: none;">
+                            <div id="descriptionFilter" class="column-filter" style="display: none;" onclick="event.stopPropagation()">
                                 <input type="text" placeholder="Search..." class="filter-search" oninput="filterColumnOptions('description', this.value)">
                                 <div class="filter-options" id="descriptionOptions"></div>
                                 <div class="filter-actions">
@@ -495,11 +495,11 @@
                                 </div>
                             </div>
                         </th>
-                        <th style="text-align: center;">
-                            <div style="display: flex; align-items: center; justify-content: center; gap: 5px; cursor: pointer;" onclick="toggleItemFilter('series')" title="Click to filter">
+                        <th style="text-align: center; cursor: pointer;" onclick="toggleItemFilter('series')" title="Click to filter">
+                            <div style="display: flex; align-items: center; justify-content: center; gap: 5px;">
                                 Series <span style="font-size: 10px;">▼</span>
                             </div>
-                            <div id="seriesFilter" class="column-filter" style="display: none;">
+                            <div id="seriesFilter" class="column-filter" style="display: none;" onclick="event.stopPropagation()">
                                 <input type="text" placeholder="Search..." class="filter-search" oninput="filterColumnOptions('series', this.value)">
                                 <div class="filter-options" id="seriesOptions"></div>
                                 <div class="filter-actions">
@@ -508,11 +508,11 @@
                                 </div>
                             </div>
                         </th>
-                        <th style="text-align: center;">
-                            <div style="display: flex; align-items: center; justify-content: center; gap: 5px; cursor: pointer;" onclick="toggleItemFilter('taxonomy')" title="Click to filter">
+                        <th style="text-align: center; cursor: pointer;" onclick="toggleItemFilter('taxonomy')" title="Click to filter">
+                            <div style="display: flex; align-items: center; justify-content: center; gap: 5px;">
                                 Product Taxonomy <span style="font-size: 10px;">▼</span>
                             </div>
-                            <div id="taxonomyFilter" class="column-filter" style="display: none;">
+                            <div id="taxonomyFilter" class="column-filter" style="display: none;" onclick="event.stopPropagation()">
                                 <input type="text" placeholder="Search..." class="filter-search" oninput="filterColumnOptions('taxonomy', this.value)">
                                 <div class="filter-options" id="taxonomyOptions"></div>
                                 <div class="filter-actions">
@@ -521,11 +521,11 @@
                                 </div>
                             </div>
                         </th>
-                        <th style="text-align: center;">
-                            <div style="display: flex; align-items: center; justify-content: center; gap: 5px; cursor: pointer;" onclick="toggleItemFilter('legalName')" title="Click to filter">
+                        <th style="text-align: center; cursor: pointer;" onclick="toggleItemFilter('legalName')" title="Click to filter">
+                            <div style="display: flex; align-items: center; justify-content: center; gap: 5px;">
                                 Legal Name <span style="font-size: 10px;">▼</span>
                             </div>
-                            <div id="legalNameFilter" class="column-filter" style="display: none;">
+                            <div id="legalNameFilter" class="column-filter" style="display: none;" onclick="event.stopPropagation()">
                                 <input type="text" placeholder="Search..." class="filter-search" oninput="filterColumnOptions('legalName', this.value)">
                                 <div class="filter-options" id="legalNameOptions"></div>
                                 <div class="filter-actions">
@@ -534,11 +534,11 @@
                                 </div>
                             </div>
                         </th>
-                        <th style="text-align: center;">
-                            <div style="display: flex; align-items: center; justify-content: center; gap: 5px; cursor: pointer;" onclick="toggleItemFilter('brand')" title="Click to filter">
+                        <th style="text-align: center; cursor: pointer;" onclick="toggleItemFilter('brand')" title="Click to filter">
+                            <div style="display: flex; align-items: center; justify-content: center; gap: 5px;">
                                 Brand <span style="font-size: 10px;">▼</span>
                             </div>
-                            <div id="brandFilter" class="column-filter" style="display: none;">
+                            <div id="brandFilter" class="column-filter" style="display: none;" onclick="event.stopPropagation()">
                                 <input type="text" placeholder="Search..." class="filter-search" oninput="filterColumnOptions('brand', this.value)">
                                 <div class="filter-options" id="brandOptions"></div>
                                 <div class="filter-actions">
@@ -547,11 +547,11 @@
                                 </div>
                             </div>
                         </th>
-                        <th style="text-align: center;">
-                            <div style="display: flex; align-items: center; justify-content: center; gap: 5px; cursor: pointer;" onclick="toggleItemFilter('ageGrade')" title="Click to filter">
+                        <th style="text-align: center; cursor: pointer;" onclick="toggleItemFilter('ageGrade')" title="Click to filter">
+                            <div style="display: flex; align-items: center; justify-content: center; gap: 5px;">
                                 Age Grade <span style="font-size: 10px;">▼</span>
                             </div>
-                            <div id="ageGradeFilter" class="column-filter" style="display: none;">
+                            <div id="ageGradeFilter" class="column-filter" style="display: none;" onclick="event.stopPropagation()">
                                 <input type="text" placeholder="Search..." class="filter-search" oninput="filterColumnOptions('ageGrade', this.value)">
                                 <div class="filter-options" id="ageGradeOptions"></div>
                                 <div class="filter-actions">
@@ -560,11 +560,11 @@
                                 </div>
                             </div>
                         </th>
-                        <th style="text-align: center;">
-                            <div style="display: flex; align-items: center; justify-content: center; gap: 5px; cursor: pointer;" onclick="toggleItemFilter('status')" title="Click to filter">
+                        <th style="text-align: center; cursor: pointer;" onclick="toggleItemFilter('status')" title="Click to filter">
+                            <div style="display: flex; align-items: center; justify-content: center; gap: 5px;">
                                 Status <span style="font-size: 10px;">▼</span>
                             </div>
-                            <div id="statusFilter" class="column-filter" style="display: none;">
+                            <div id="statusFilter" class="column-filter" style="display: none;" onclick="event.stopPropagation()">
                                 <input type="text" placeholder="Search..." class="filter-search" oninput="filterColumnOptions('status', this.value)">
                                 <div class="filter-options" id="statusOptions"></div>
                                 <div class="filter-actions">
@@ -573,11 +573,11 @@
                                 </div>
                             </div>
                         </th>
-                        <th style="text-align: center;">
-                            <div style="display: flex; align-items: center; justify-content: center; gap: 5px; cursor: pointer;" onclick="toggleItemFilter('devStatus')" title="Click to filter">
+                        <th style="text-align: center; cursor: pointer;" onclick="toggleItemFilter('devStatus')" title="Click to filter">
+                            <div style="display: flex; align-items: center; justify-content: center; gap: 5px;">
                                 Dev Status <span style="font-size: 10px;">▼</span>
                             </div>
-                            <div id="devStatusFilter" class="column-filter" style="display: none;">
+                            <div id="devStatusFilter" class="column-filter" style="display: none;" onclick="event.stopPropagation()">
                                 <input type="text" placeholder="Search..." class="filter-search" oninput="filterColumnOptions('devStatus', this.value)">
                                 <div class="filter-options" id="devStatusOptions"></div>
                                 <div class="filter-actions">
@@ -586,11 +586,11 @@
                                 </div>
                             </div>
                         </th>
-                        <th style="text-align: center;">
-                            <div style="display: flex; align-items: center; justify-content: center; gap: 5px; cursor: pointer;" onclick="toggleItemFilter('upc')" title="Click to filter">
+                        <th style="text-align: center; cursor: pointer;" onclick="toggleItemFilter('upc')" title="Click to filter">
+                            <div style="display: flex; align-items: center; justify-content: center; gap: 5px;">
                                 UPC <span style="font-size: 10px;">▼</span>
                             </div>
-                            <div id="upcFilter" class="column-filter" style="display: none;">
+                            <div id="upcFilter" class="column-filter" style="display: none;" onclick="event.stopPropagation()">
                                 <input type="text" placeholder="Search..." class="filter-search" oninput="filterColumnOptions('upc', this.value)">
                                 <div class="filter-options" id="upcOptions"></div>
                                 <div class="filter-actions">
