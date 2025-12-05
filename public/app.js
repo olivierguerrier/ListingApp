@@ -1010,10 +1010,15 @@ function populateFilterOptions(filterId, options, selectedValues, defaultLabel) 
 }
 
 function setupFilterSearch() {
-    const filterIds = ['brandFilter', 'bundleFilter', 'ppgFilter'];
+    const filterIds = ['productBrandFilter', 'bundleFilter', 'ppgFilter'];
     
     filterIds.forEach(filterId => {
         const filterElement = document.getElementById(filterId);
+        if (!filterElement) {
+            console.warn('[Filter Search] Element not found:', filterId);
+            return;
+        }
+        
         const allOptions = Array.from(filterElement.options).map(opt => ({
             value: opt.value,
             text: opt.textContent
