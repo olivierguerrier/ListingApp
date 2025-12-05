@@ -332,7 +332,7 @@ async function loadItemNumbers() {
     console.log('[Items] loadItemNumbers() called');
     const tbody = document.getElementById('itemNumbersTableBody');
     if (tbody) {
-        tbody.innerHTML = '<tr><td colspan="11" style="text-align: center; padding: 20px; color: #666;">Loading...</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="12" style="text-align: center; padding: 20px; color: #666;">Loading...</td></tr>';
     }
     
     const brandFilter = document.getElementById('itemsBrandFilter');
@@ -371,7 +371,7 @@ async function loadItemNumbers() {
         console.error('[Items] Error loading items:', error);
         const tbody = document.getElementById('itemNumbersTableBody');
         if (tbody) {
-            tbody.innerHTML = '<tr><td colspan="11" style="text-align: center; color: var(--danger-color); padding: 40px;">Error loading items. Please try refreshing.</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="12" style="text-align: center; color: var(--danger-color); padding: 40px;">Error loading items. Please try refreshing.</td></tr>';
         }
     }
 }
@@ -387,7 +387,7 @@ function renderItemsTable(items) {
     }
     
     if (!items || items.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="11" style="text-align: center; padding: 40px;">No items found</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="12" style="text-align: center; padding: 40px;">No items found</td></tr>';
         return;
     }
     
@@ -405,6 +405,7 @@ function renderItemsTable(items) {
             <td><span class="badge ${getStatusBadgeClass(item.item_spec_sheet_status)}">${escapeHtml(item.item_spec_sheet_status || '-')}</span></td>
             <td><span class="badge ${getDevStatusBadgeClass(item.product_development_status)}">${escapeHtml(item.product_development_status || '-')}</span></td>
             <td><small>${escapeHtml(item.upc_number || '-')}</small></td>
+            <td>${renderProductStageCircle(item)}</td>
         </tr>
     `).join('');
     
@@ -425,6 +426,40 @@ function getDevStatusBadgeClass(status) {
     if (status.toLowerCase() === 'finalized') return 'badge-success';
     if (status.toUpperCase() === 'NCF') return 'badge-danger';
     return 'badge-info';
+}
+
+function getLatestStageForItem(item) {
+    // Determine the latest stage this item has reached
+    if (item.stage_7_end_of_life) return { stage: 7, name: 'EOL', color: '#ef4444' };
+    if (item.stage_6_product_online) return { stage: 6, name: 'Online', color: '#10b981' };
+    if (item.stage_5_product_ordered) return { stage: 5, name: 'QPI', color: '#3b82f6' };
+    if (item.stage_4_product_listed) return { stage: 4, name: 'VC Listed', color: '#8b5cf6' };
+    if (item.stage_3b_pricing_approved) return { stage: 3, name: 'Pricing', color: '#10b981' };
+    if (item.stage_3a_pricing_submitted) return { stage: 3, name: 'Pricing', color: '#f59e0b' };
+    if (item.stage_2_product_finalized) return { stage: 2, name: 'PIM', color: '#06b6d4' };
+    if (item.stage_1_idea_considered) return { stage: 1, name: 'Ideation', color: '#64748b' };
+    return null;
+}
+
+function renderProductStageCircle(item) {
+    const stage = getLatestStageForItem(item);
+    
+    if (!stage) {
+        return '<div style="text-align: center; color: #9ca3af; font-size: 12px;">-</div>';
+    }
+    
+    const asinLink = item.asin ? `onclick="window.location.href='/?asin=${item.asin}'"` : '';
+    const cursor = item.asin ? 'cursor: pointer;' : '';
+    const title = item.asin ? `ASIN: ${item.asin} - Click to view product` : 'Not linked to product';
+    
+    return `
+        <div ${asinLink} style="text-align: center; ${cursor}" title="${title}">
+            <div style="width: 40px; height: 40px; border-radius: 50%; background-color: ${stage.color}; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 14px; color: white; margin: 0 auto; ${cursor}">
+                ${stage.stage}
+            </div>
+            <div style="margin-top: 5px; font-size: 11px; color: ${stage.color}; font-weight: 600;">${stage.name}</div>
+        </div>
+    `;
 }
 
 function updateItemsPagination(data) {

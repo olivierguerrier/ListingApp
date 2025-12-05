@@ -3536,9 +3536,21 @@ app.get('/api/item-numbers', (req, res) => {
     // Get paginated data
     const paginatedParams = [...params, limit, offset];
     db.all(`
-      SELECT * FROM item_numbers 
+      SELECT 
+        i.*,
+        p.stage_1_idea_considered,
+        p.stage_2_product_finalized,
+        p.stage_3a_pricing_submitted,
+        p.stage_3b_pricing_approved,
+        p.stage_4_product_listed,
+        p.stage_5_product_ordered,
+        p.stage_6_product_online,
+        p.stage_7_end_of_life,
+        p.asin
+      FROM item_numbers i
+      LEFT JOIN products p ON i.item_number = p.primary_item_number
       ${whereClause}
-      ORDER BY item_number
+      ORDER BY i.item_number
       LIMIT ? OFFSET ?
     `, paginatedParams, (err, rows) => {
       if (err) {
