@@ -330,7 +330,7 @@ let itemsLimit = 50;
 
 async function loadItemNumbers() {
     console.log('[Items] loadItemNumbers() called');
-    const tbody = document.getElementById('itemsTableBody');
+    const tbody = document.getElementById('itemNumbersTableBody');
     if (tbody) {
         tbody.innerHTML = '<tr><td colspan="11" style="text-align: center; padding: 20px; color: #666;">Loading...</td></tr>';
     }
@@ -361,7 +361,7 @@ async function loadItemNumbers() {
         updateItemsPagination(data);
     } catch (error) {
         console.error('[Items] Error loading items:', error);
-        const tbody = document.getElementById('itemsTableBody');
+        const tbody = document.getElementById('itemNumbersTableBody');
         if (tbody) {
             tbody.innerHTML = '<tr><td colspan="11" style="text-align: center; color: var(--danger-color); padding: 40px;">Error loading items. Please try refreshing.</td></tr>';
         }
@@ -370,11 +370,11 @@ async function loadItemNumbers() {
 
 function renderItemsTable(items) {
     console.log('[Items] renderItemsTable() called with', items?.length, 'items');
-    const tbody = document.getElementById('itemsTableBody');
+    const tbody = document.getElementById('itemNumbersTableBody');
     console.log('[Items] tbody element:', tbody);
     
     if (!tbody) {
-        console.error('[Items] itemsTableBody not found!');
+        console.error('[Items] itemNumbersTableBody not found!');
         return;
     }
     
@@ -384,7 +384,7 @@ function renderItemsTable(items) {
     }
     
     console.log('[Items] Rendering', items.length, 'rows...');
-    tbody.innerHTML = items.map(item => `
+    const html = items.map(item => `
         <tr>
             <td><strong>${escapeHtml(item.item_number)}</strong></td>
             <td>${escapeHtml(item.series || '-')}</td>
@@ -399,7 +399,11 @@ function renderItemsTable(items) {
             <td>${escapeHtml(item.product_number || '-')}</td>
         </tr>
     `).join('');
-    console.log('[Items] Rendered successfully');
+    
+    tbody.innerHTML = html;
+    console.log('[Items] Rendered successfully. First item:', items[0]?.item_number);
+    console.log('[Items] tbody.children.length:', tbody.children.length);
+    console.log('[Items] tbody.innerHTML length:', tbody.innerHTML.length);
 }
 
 function getStatusBadgeClass(status) {
