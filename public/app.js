@@ -328,8 +328,8 @@ function logout() {
 let itemsCurrentPage = 1;
 let itemsLimit = 50;
 
-async function loadItems() {
-    console.log('[Items] loadItems() called');
+async function loadItemNumbers() {
+    console.log('[Items] loadItemNumbers() called');
     const search = document.getElementById('itemsSearchInput')?.value || '';
     const series = document.getElementById('itemsSeriesFilter')?.value || 'all';
     const taxonomy = document.getElementById('itemsTaxonomyFilter')?.value || 'all';
@@ -465,21 +465,21 @@ function setupItemsEventListeners() {
     if (itemsSearchInput) {
         itemsSearchInput.addEventListener('input', () => {
             itemsCurrentPage = 1;
-            loadItems();
+            loadItemNumbers();
         });
     }
     
     if (itemsSeriesFilter) {
         itemsSeriesFilter.addEventListener('change', () => {
             itemsCurrentPage = 1;
-            loadItems();
+            loadItemNumbers();
         });
     }
     
     if (itemsTaxonomyFilter) {
         itemsTaxonomyFilter.addEventListener('change', () => {
             itemsCurrentPage = 1;
-            loadItems();
+            loadItemNumbers();
         });
     }
     
@@ -487,7 +487,7 @@ function setupItemsEventListeners() {
         itemsPrevBtn.addEventListener('click', () => {
             if (itemsCurrentPage > 1) {
                 itemsCurrentPage--;
-                loadItems();
+                loadItemNumbers();
             }
         });
     }
@@ -495,7 +495,7 @@ function setupItemsEventListeners() {
     if (itemsNextBtn) {
         itemsNextBtn.addEventListener('click', () => {
             itemsCurrentPage++;
-            loadItems();
+            loadItemNumbers();
         });
     }
 }
@@ -869,8 +869,8 @@ function switchView(view) {
         console.log('[View] Switching to Items view...');
         itemsView.classList.add('active');
         itemsView.style.display = 'block';
-        console.log('[View] Calling loadItems()...');
-        loadItems();
+        console.log('[View] Calling loadItemNumbers()...');
+        loadItemNumbers();
         console.log('[View] Calling loadItemsFilters()...');
         loadItemsFilters();
     } else if (view === 'pricing-approvals' && pricingApprovalsView) {
